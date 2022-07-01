@@ -56,9 +56,9 @@ def train(args):
                                      train=True,
                                      batch_size=args.batch_size)
 
-    val_loader = create_dataloader(data_dicts=val_dicts,
-                                   train=False,
-                                   batch_size=args.batch_size//2)
+    val_loader, _ = create_dataloader(data_dicts=val_dicts,
+                                      train=False,
+                                      batch_size=1)
 
     model = UNet(spatial_dims=3,
                  in_channels=6,
@@ -79,7 +79,7 @@ def train(args):
     n_iter = 0
     n_iter_val = 0
 
-    early_stopper = EarlyStopping(patience=20,
+    early_stopper = EarlyStopping(patience=100,
                                   checkpoint_dir=args.checkpoint_dir,
                                   delta=1e-5)
 
@@ -126,15 +126,11 @@ def train(args):
                 dice_metric(y_pred=val_outputs, y=val_labels)
 
             metric = dice_metric.aggregate().item()
-            metric_list.append(metric)
             writer.add_scalar('val/dice', metric, n_iter_val)
             n_iter_val += 1
             dice_metric.reset()
 
-        # All validation patients processed
-        mean_dice_metric = np.mean(np.array(metric_list))
-
-        early_stop_condition, best_epoch = early_stopper(val_loss=-1*mean_dice_metric,
+        early_stop_condition, best_epoch = early_stopper(val_loss=-1*metric,
                                                          curr_epoch=epoch,
                                                          model=model,
                                                          optimizer=optimizer,

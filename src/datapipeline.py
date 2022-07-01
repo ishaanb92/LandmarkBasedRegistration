@@ -71,10 +71,6 @@ def create_dataloader(data_dicts=None, train=True, batch_size=4):
                                                   nonzero=True,
                                                   channel_wise=True),
 
-                              RandSpatialCropd(keys=["image", "label"],
-                                               roi_size=[128, 128, 48],
-                                               random_size=False),
-
                               EnsureTyped(keys=["image", "label"])
                               ])
 
@@ -88,7 +84,10 @@ def create_dataloader(data_dicts=None, train=True, batch_size=4):
                         shuffle=train,
                         num_workers=4)
 
-    return loader
+    if train is True:
+        return loader
+    else:
+        return loader, transforms
 
 def debug_dataloader(data_dicts=None, batch_size=4):
     """
