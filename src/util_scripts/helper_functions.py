@@ -10,7 +10,7 @@ import os
 
 
 
-def create_data_dicts(patient_dir_list=None):
+def create_data_dicts(patient_dir_list=None, n_channels=6, channel_id=3):
 
 
     data_dicts = []
@@ -21,9 +21,13 @@ def create_data_dicts(patient_dir_list=None):
         for s_dir in scan_dirs:
             s_id = s_dir.split(os.sep)[-1]
             data_dict = {}
-            data_dict['image'] = []
-            for chidx in range(6):
-                data_dict['image'].append(os.path.join(s_dir, 'DCE_channel_{}.nii'.format(chidx)))
+            if n_channels > 1:
+                data_dict['image'] = []
+                for chidx in range(n_channels):
+                    data_dict['image'].append(os.path.join(s_dir, 'DCE_channel_{}.nii'.format(chidx)))
+            else:
+                data_dict['image'] = os.path.join(s_dir, 'DCE_channel_{}.nii'.format(channel_id))
+
             data_dict['label'] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['patient_id'] = p_id
             data_dict['scan_id'] = s_id
