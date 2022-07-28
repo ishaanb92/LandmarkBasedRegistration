@@ -23,14 +23,28 @@ from helper_functions import *
 from datapipeline import *
 import SimpleITK as sitk
 
-def create_displacement_grid_affine(shape,
-                                    angles=[0.0, 0.0, 0.0],
-                                    scaling=None,
-                                    shear_matrix=None,
-                                    translation=None):
 
+def create_affine_transform(ndim=3,
+                            center=[0, 0, 0],
+                            angles=[0, 0, 0],
+                            scaling=None,
+                            shear_matrix=None,
+                            translation=None):
+
+    aff_transform = gryds.AffineTransformation(ndim=ndim,
+                                               center=center,
+                                               angles=angles,
+                                               scaling=scaling,
+                                               shear_matrix=shear_matrix,
+                                               translation=translation)
+    return aff_transform
+
+
+def create_deformation_grid(shape,
+                            transforms=[]):
     ndim = len(shape)
-    print(shape)
+    assert(isinstance(transforms, list))
+    assert(len(transforms)>=1)
 
     if ndim == 3:
         grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
@@ -49,23 +63,16 @@ def create_displacement_grid_affine(shape,
 
     image_grid = gryds.Grid(grid=grid)
 
-    aff_transform = gryds.AffineTransformation(ndim=ndim,
-                                               center=center,
-                                               angles=angles,
-                                               scaling=scaling,
-                                               shear_matrix=shear_matrix,
-                                               translation=translation)
 
-    deformed_grid = image_grid.transform(aff_transform)
+    deformed_grid = image_grid.transform(*transforms)
 
     flow_grid = deformed_grid.grid
-
-    # FIXME!! REMOVE!!!!
-#    np.testing.assert_array_equal(flow_grid, image_grid.grid)
+    # Rearrange axes to make the deformation grid torch-friendly
+    ndim, k, j, i = flow_grid.shape
+    flow_grid = np.reshape(flow_grid, (ndim, -1)).T
+    flow_grid = np.reshape(flow_grid, (k, j, i, ndim))
 
     return flow_grid
-
-
 
 
 # Test deformations
@@ -92,25 +99,25 @@ if __name__ == '__main__':
     for b_id, batch_data in enumerate(data_loader):
         images = batch_data['image']
 
-        b, c, x, y, z = images.shape
+        b, c, i, j, k = images.shape
         # To see why the deformation grid and image have different axes ordering
         # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
-        batch_deformation_grid = np.zeros((b, z, y, x, 3),
+        # (i, j, k) --> (k, j, i) [i: z, j: y, k: x]
+        batch_deformation_grid = np.zeros((b, k, j, i, 3),
                                           dtype=np.float32)
-#        images = images[:, :, 60, ...]
 
         # Loop over batch and generated a unique deformation grid for each batch element
         for batch_idx in range(images.shape[0]):
             image = images[batch_idx, ...]
-            deformed_grid = create_displacement_grid_affine(shape=[z, y, x],
-                                                            angles=[np.pi/4, 0, 0])
+            aff_transform = create_affine_transform(ndim=3,
+                                                    angles=[np.pi/4, 0, 0],
+                                                    center=[0, 0, 0])
 
-            ndim, _, _, _ = deformed_grid.shape
-            deformed_grid = np.reshape(deformed_grid, (ndim, -1)).T
-            deformed_grid = np.reshape(deformed_grid, (z, y, x, ndim))
+            deformed_grid = create_deformation_grid(shape=[k, j, i],
+                                                    transforms=[aff_transform])
+
 
             batch_deformation_grid[batch_idx, ...] = deformed_grid
-
 
         #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
         batch_deformation_grid = torch.Tensor(batch_deformation_grid)
@@ -120,51 +127,28 @@ if __name__ == '__main__':
                                         align_corners=False,
                                         mode="bilinear")
 
-        print(deformed_images.shape)
+        # (x, y, z) -> (i, j, k)
+        deformed_images = deformed_images.permute(0, 1, 4, 3, 2)
 
         save_dir = 'images_b_{}'.format(b_id)
 
-        if os.path.exists(os.path.join(save_dir)) is False:
-            os.makedirs(save_dir)
-
-        for batch_idx in range(deformed_images.shape[0]):
-            d_image = np.squeeze(deformed_images[batch_idx, ...].numpy(), axis=0)
-            image = np.squeeze(images[batch_idx, ...].numpy(), axis=0)
-
-            d_image_itk = sitk.GetImageFromArray(d_image)
-            image_itk = sitk.GetImageFromArray(image.transpose((2, 1, 0)))
-
-            sitk.WriteImage(d_image_itk, os.path.join(save_dir, 'd_image.nii.gz'))
-            sitk.WriteImage(image_itk, os.path.join(save_dir, 'image.nii.gz'))
+        batch_data['d_image'] = deformed_images
 
 
+        # Save as ITK images with meta-data
+        batch_data = [post_transforms(i) for i in decollate_batch(batch_data)]
 
-#        print(images.shape)
-#        print(deformed_images.shape)
-#        print(torch.max(images))
-#        print(torch.max(deformed_images))
-#
-#        print(torch.min(images))
-#        print(torch.min(deformed_images))
-#
-#
-#        batch_data['d_image'] = deformed_images
-#
-#
-#        # Save as ITK images with meta-data
-#        batch_data = [post_transforms(i) for i in decollate_batch(batch_data)]
-#
-#        save_op_image = SaveImaged(keys='image',
-#                                   output_postfix='image',
-#                                   output_dir=save_dir,
-#                                   separate_folder=False)
-#
-#        save_op_d_image = SaveImaged(keys='d_image',
-#                                   output_postfix='d_image',
-#                                   output_dir=save_dir,
-#                                   separate_folder=False)
-#
-#        for batch_dict in batch_data:
-#            save_op_image(batch_dict)
-#            save_op_d_image(batch_dict)
-#
+        save_op_image = SaveImaged(keys='image',
+                                   output_postfix='image',
+                                   output_dir=save_dir,
+                                   separate_folder=False)
+
+        save_op_d_image = SaveImaged(keys='d_image',
+                                   output_postfix='d_image',
+                                   output_dir=save_dir,
+                                   separate_folder=False)
+
+        for batch_dict in batch_data:
+            save_op_image(batch_dict)
+            save_op_d_image(batch_dict)
+
