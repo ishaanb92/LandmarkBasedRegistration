@@ -40,6 +40,15 @@ def create_affine_transform(ndim=3,
     return aff_transform
 
 
+def create_bspline_transform():
+    random_grid = np.random.rand(3, 3, 3, 3).astype(np.float32) # Make a random 3D 3 x 3 x 3 grid
+    random_grid -= 0.5
+    random_grid /= 5
+
+    bspline_transform = gryds.BSplineTransformation(random_grid)
+
+    return bspline_transform
+
 def create_deformation_grid(shape,
                             transforms=[]):
     ndim = len(shape)
@@ -52,6 +61,7 @@ def create_deformation_grid(shape,
                                     np.linspace(-1, 1, shape[2]),
                                     indexing="ij"),
                         dtype=np.float32)
+
         center = [0, 0, 0]
     elif ndim == 2:
         grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
@@ -66,11 +76,17 @@ def create_deformation_grid(shape,
 
     deformed_grid = image_grid.transform(*transforms)
 
+    jac_det = deformed_grid.jacobian_det(*transforms)
+
+    # Check for folding
+    assert(np.amin(jac_det)>0)
+
     flow_grid = deformed_grid.grid
     # Rearrange axes to make the deformation grid torch-friendly
     ndim, k, j, i = flow_grid.shape
     flow_grid = np.reshape(flow_grid, (ndim, -1)).T
     flow_grid = np.reshape(flow_grid, (k, j, i, ndim))
+
 
     return flow_grid
 
@@ -113,8 +129,10 @@ if __name__ == '__main__':
                                                     angles=[np.pi/4, 0, 0],
                                                     center=[0, 0, 0])
 
+            elastic_transform = create_bspline_transform()
+
             deformed_grid = create_deformation_grid(shape=[k, j, i],
-                                                    transforms=[aff_transform])
+                                                    transforms=[aff_transform, elastic_transform])
 
 
             batch_deformation_grid[batch_idx, ...] = deformed_grid
