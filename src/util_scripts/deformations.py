@@ -30,6 +30,7 @@ def create_displacement_grid_affine(shape,
                                     translation=None):
 
     ndim = len(shape)
+    print(shape)
 
     if ndim == 3:
         grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
@@ -91,37 +92,35 @@ if __name__ == '__main__':
     for b_id, batch_data in enumerate(data_loader):
         images = batch_data['image']
 
-        # Shape: N, C, D, H, W
-        images = images.permute(0, 1, 4, 3, 2)
-        b, c, d, h, w = images.shape
-        batch_deformation_grid = np.zeros((b, h, w, 2),
+        b, c, x, y, z = images.shape
+        # To see why the deformation grid and image have different axes ordering
+        # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
+        batch_deformation_grid = np.zeros((b, z, y, x, 3),
                                           dtype=np.float32)
-        images = images[:, :, 60, ...]
+#        images = images[:, :, 60, ...]
 
         # Loop over batch and generated a unique deformation grid for each batch element
         for batch_idx in range(images.shape[0]):
             image = images[batch_idx, ...]
-            deformed_grid = create_displacement_grid_affine(shape=list(torch.squeeze(image, dim=0).shape),
-                                                            angles=[np.pi/4])
+            deformed_grid = create_displacement_grid_affine(shape=[z, y, x],
+                                                            angles=[np.pi/4, 0, 0])
 
-            ndim , y, x = deformed_grid.shape
+            ndim, _, _, _ = deformed_grid.shape
             deformed_grid = np.reshape(deformed_grid, (ndim, -1)).T
-            deformed_grid = np.reshape(deformed_grid, (y, x, ndim))
-            # Transpose to torch-friendly axes ordering (H, W, D, 3)
-            batch_deformation_grid[batch_idx, ...] = np.transpose(deformed_grid, (1, 0, 2))
+            deformed_grid = np.reshape(deformed_grid, (z, y, x, ndim))
+
+            batch_deformation_grid[batch_idx, ...] = deformed_grid
 
 
         #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
         batch_deformation_grid = torch.Tensor(batch_deformation_grid)
-
-        print(images.shape)
-        print(batch_deformation_grid.shape)
 
         deformed_images = F.grid_sample(input=images,
                                         grid=batch_deformation_grid,
                                         align_corners=False,
                                         mode="bilinear")
 
+        print(deformed_images.shape)
 
         save_dir = 'images_b_{}'.format(b_id)
 
@@ -133,7 +132,7 @@ if __name__ == '__main__':
             image = np.squeeze(images[batch_idx, ...].numpy(), axis=0)
 
             d_image_itk = sitk.GetImageFromArray(d_image)
-            image_itk = sitk.GetImageFromArray(image)
+            image_itk = sitk.GetImageFromArray(image.transpose((2, 1, 0)))
 
             sitk.WriteImage(d_image_itk, os.path.join(save_dir, 'd_image.nii.gz'))
             sitk.WriteImage(image_itk, os.path.join(save_dir, 'image.nii.gz'))
