@@ -53,7 +53,7 @@ def create_dataloader(data_dicts=None, train=True, batch_size=4):
                               EnsureTyped(keys=["image", "label"])
                               ])
 
-       else:
+    else:
         transforms = Compose([LoadImaged(keys=["image", "label"]),
 
                               # Add fake channel to the label
