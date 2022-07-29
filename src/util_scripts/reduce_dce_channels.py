@@ -15,6 +15,8 @@ import os
 
 DATA_DIR = '/home/ishaan/UMC_Data/follow_up_scans'
 
+# Reduce 16-channel DCE MRI to 6-channel
+# Used for liver/lesion segmentation
 def reduce_image_channels(dce_img, label, save_dir=None):
 
     assert(isinstance(dce_img, sitk.Image))
@@ -43,6 +45,29 @@ def reduce_image_channels(dce_img, label, save_dir=None):
         temp_itk.SetDirection(direction)
         sitk.WriteImage(temp_itk, os.path.join(save_dir, 'DCE_channel_{}.nii'.format(chidx)))
 
+
+# Save average of channels 5 and 6 since these are the channels
+# where the vessel structure is brightest
+def extract_bright_vessel_channels(dce_img, label, save_dir=None):
+
+    assert(isinstance(dce_img, sitk.Image))
+
+    origin = label.GetOrigin()
+    spacing = label.GetSpacing()
+    direction = label.GetDirection()
+
+    dce_np = sitk.GetArrayFromImage(dce_img)
+
+    channels, d, h, w = dce_np.shape
+
+    bright_vessel_image = np.mean(dce_np[5:7, ...], axis=0).astype(np.float32)
+    bright_vessel_image_itk = sitk.GetImageFromArray(bright_vessel_image)
+    bright_vessel_image_itk.SetOrigin(origin)
+    bright_vessel_image_itk.SetSpacing(spacing)
+    bright_vessel_image_itk.SetDirection(direction)
+    sitk.WriteImage(bright_vessel_image_itk, os.path.join(save_dir, 'DCE_vessel_image.nii'))
+
+
 if __name__ == '__main__':
 
     pat_dirs = [f.path for f in os.scandir(DATA_DIR) if f.is_dir()]
@@ -55,3 +80,4 @@ if __name__ == '__main__':
             dce_img = sitk.ReadImage(os.path.join(s_dir, 'e-THRIVE_reg.nii'))
             label = sitk.ReadImage(os.path.join(s_dir, 'LiverMask.nii'))
             reduce_image_channels(dce_img, label, save_dir=s_dir)
+            extract_bright_vessel_channels(dce_img, label, save_dir=s_dir)
