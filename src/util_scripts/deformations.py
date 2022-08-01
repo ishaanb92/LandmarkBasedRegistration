@@ -90,6 +90,46 @@ def create_deformation_grid(shape,
     return flow_grid
 
 
+def create_batch_deformation_grid(shape,
+                                  device='cpu'):
+
+    b, c, i, j, k = shape
+
+    # To see why the deformation grid and image have different axes ordering
+    # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
+    # (i, j, k) --> (k, j, i) [i: z, j: y, k: x]
+    batch_deformation_grid = np.zeros((b, k, j, i, 3),
+                                      dtype=np.float32)
+
+    # Loop over batch and generated a unique deformation grid for each image in the batch
+    for batch_idx in range(images.shape[0]):
+        image = images[batch_idx, ...]
+
+        # Sample angles for affine transformation
+        z_axis_rotation = np.random.uniform(low=-np.pi/6, high=np.pi/6)
+        x_axis_rotation = np.random.uniform(low=-np.pi/18, high=np.pi/18)
+        y_axis_rotation = np.random.uniform(low=-np.pi/18, high=np.pi/18)
+        angles = [z_axis_rotation, x_axis_rotation, y_axis_rotation]
+
+        aff_transform = create_affine_transform(ndim=3,
+                                                angles=angles,
+                                                center=[0, 0, 0])
+
+
+        elastic_transform = create_bspline_transform()
+
+        # Create deformation grid by composing transforms
+        deformed_grid = create_deformation_grid(shape=[k, j, i],
+                                                transforms=[aff_transform, elastic_transform])
+
+        batch_deformation_grid[batch_idx, ...] = deformed_grid
+
+    #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
+    batch_deformation_grid = torch.Tensor(batch_deformation_grid).to(device)
+    return batch_deformation_grid
+
+
+
 # Test deformations
 if __name__ == '__main__':
 
@@ -98,7 +138,7 @@ if __name__ == '__main__':
     train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=True,
+                                                                train=False,
                                                                 batch_size=1)
 
     post_transforms = Compose([EnsureTyped(keys=['d_image']),
@@ -111,32 +151,7 @@ if __name__ == '__main__':
 
     for b_id, batch_data in enumerate(data_loader):
         images = batch_data['image']
-
-        b, c, i, j, k = images.shape
-        # To see why the deformation grid and image have different axes ordering
-        # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
-        # (i, j, k) --> (k, j, i) [i: z, j: y, k: x]
-        batch_deformation_grid = np.zeros((b, k, j, i, 3),
-                                          dtype=np.float32)
-
-        # Loop over batch and generated a unique deformation grid for each batch element
-        for batch_idx in range(images.shape[0]):
-            image = images[batch_idx, ...]
-            aff_transform = create_affine_transform(ndim=3,
-                                                    angles=[np.pi/4, 0, 0],
-                                                    center=[0, 0, 0])
-
-            elastic_transform = create_bspline_transform()
-
-            deformed_grid = create_deformation_grid(shape=[k, j, i],
-                                                    transforms=[aff_transform, elastic_transform])
-
-
-            batch_deformation_grid[batch_idx, ...] = deformed_grid
-
-        #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
-        batch_deformation_grid = torch.Tensor(batch_deformation_grid)
-
+        batch_deformation_grid = create_batch_deformation_grid(shape=images.shape)
         deformed_images = F.grid_sample(input=images,
                                         grid=batch_deformation_grid,
                                         align_corners=False,
