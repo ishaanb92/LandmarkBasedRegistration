@@ -19,7 +19,6 @@ import torch.nn.functional as F
 import gryds
 import joblib
 import os
-from helper_functions import *
 from datapipeline import *
 import SimpleITK as sitk
 
@@ -96,19 +95,17 @@ if __name__ == '__main__':
 
     # Load all patient paths
     train_patients = joblib.load('../train_patients.pkl')
-    train_dict = create_data_dicts([train_patients[0]],
-                                   n_channels=1,
-                                   channel_id=3)
+    train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
-    data_loader, transforms = create_dataloader(data_dicts=train_dict,
-                                      train=False,
-                                      batch_size=1)
+    data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
+                                                                train=True,
+                                                                batch_size=1)
 
     post_transforms = Compose([EnsureTyped(keys=['d_image']),
-                               Invertd(keys=['d_image', 'label', 'image'],
+                               Invertd(keys=['d_image', 'liver_mask', 'image', 'vessel_mask'],
                                        transform=transforms,
                                        orig_keys='image',
-                                       meta_keys=['d_image_meta_dict', 'label_meta_dict', 'image_meta_dict'],
+                                       meta_keys=['d_image_meta_dict', 'liver_mask_meta_dict', 'image_meta_dict', 'vessel_mask_meta_dict'],
                                        nearest_interp=False,
                                        to_tensor=True)])
 

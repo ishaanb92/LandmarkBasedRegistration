@@ -53,60 +53,57 @@ def create_data_dicts_lesion_matching(patient_dir_list=None):
             data_dict['vessel_mask'] = os.path.join(s_dir, 'vessel_mask.nii')
             data_dict['patient_id'] = p_id
             data_dict['scan_id'] = s_id
-            data_dict.append(data_dict)
+            data_dicts.append(data_dict)
 
     return data_dicts
 
 def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4):
 
     if train is True:
-        transforms = Compose([LoadImaged(keys=["image", "label"]),
+        transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
 
-                              # Add fake channel to the label
-                              AddChanneld(keys=["label"]),
+                              # Add fake channel to the liver_mask
+                              AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
 
-                              # Make sure image is channel first
-                              EnsureChannelFirstd(keys=["image"]),
-
-                              Orientationd(keys=["image", "label"], axcodes="RAS"),
+                              Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
 
                               # Isotropic spacing
-                              Spacingd(keys=["image", "label"],
+                              Spacingd(keys=["image", "liver_mask", "vessel_mask"],
                                        pixdim=(1.543, 1.543, 1.543),
-                                       mode=("bilinear", "nearest")),
+                                       mode=("bilinear", "nearest", "nearest")),
 
                               # Extract 128x128x48 3-D patches
-                              RandSpatialCropd(keys=["image", "label"],
-                                               roi_size=[128, 128, 48],
-                                               random_size=False),
+                              RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
+                                                     label_key="liver_mask",
+                                                     spatial_size=(128, 128, 48),
+                                                     pos=1.0,
+                                                     neg=0.0),
 
                               NormalizeIntensityd(keys=["image"],
                                                   nonzero=True,
                                                   channel_wise=True),
 
 
-                              EnsureTyped(keys=["image", "label"])
+                              EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
                               ])
 
     else:
-        transforms = Compose([LoadImaged(keys=["image", "label"]),
+        transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
 
-                              # Add fake channel to the label
-                              AddChanneld(keys=["label"]),
+                              # Add fake channel to the liver_mask
+                              AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
 
-                              EnsureChannelFirstd(keys=["image"]),
+                              Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
 
-                              Orientationd(keys=["image", "label"], axcodes="RAS"),
-
-                              Spacingd(keys=["image", "label"],
+                              Spacingd(keys=["image", "liver_mask", "vessel_mask"],
                                        pixdim=(1.543, 1.543, 1.543),
-                                       mode=("bilinear", "nearest")),
+                                       mode=("bilinear", "nearest", "nearest")),
 
                               NormalizeIntensityd(keys=["image"],
                                                   nonzero=True,
                                                   channel_wise=True),
 
-                              EnsureTyped(keys=["image", "label"])
+                              EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
                               ])
 
     ds = CacheDataset(data=data_dicts,
@@ -119,10 +116,7 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4)
                         shuffle=train,
                         num_workers=4)
 
-    if train is True:
-        return loader
-    else:
-        return loader, transforms
+    return loader, transforms
 
 
 def create_dataloader_liver_seg(data_dicts=None, train=True, batch_size=4):
