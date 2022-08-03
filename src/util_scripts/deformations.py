@@ -133,15 +133,15 @@ def create_batch_deformation_grid(shape,
 
         elastic_transform_coarse = create_bspline_transform(coarse=True,
                                                             shape=[k, j, i],
-                                                            displacements=(5, 3, 3))
+                                                            displacements=(2.5, 1.5, 1.5))
 
         elastic_transform_fine = create_bspline_transform(coarse=False,
                                                           shape=[k, j, i],
-                                                          displacements=(1, 2, 2))
+                                                          displacements=(1, 0.75, 0.75))
 
         # Create deformation grid by composing transforms
         deformed_grid = create_deformation_grid(shape=[k, j, i],
-                                                transforms=[elastic_transform_coarse, elastic_transform_fine])
+                                                transforms=[aff_transform, elastic_transform_coarse, elastic_transform_fine])
 
         # Rearrange axes to make the deformation grid torch-friendly
         ndim, k, j, i = deformed_grid.shape
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=False,
+                                                                train=True,
                                                                 batch_size=1)
 
     post_transforms = Compose([EnsureTyped(keys=['d_image']),
