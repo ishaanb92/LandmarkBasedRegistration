@@ -15,12 +15,14 @@ import torch.nn.functional as F
 
 
 
-def create_ground_truth_correspondences(kpts1, kpts2, deformation):
+def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=1):
     """
 
     Using the (known) deformation grid create ground truth for keypoints
     A candidate is chosen as a keypoint if it maps to a point in the transformed image
     that is also a keypoint candidate (repeatability)
+
+    pixel_thresh :  in-plane pixel threshold
 
     """
 
@@ -28,7 +30,9 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation):
 
     b, z, y, x, _ = deformation.shape
 
-    thresh = torch.Tensor([max(2/z, 2/y, 2/x)]).to(kpts1.device).type(kpts1.dtype)
+    thresh = torch.Tensor([max((2/z),
+                               (pixel_thresh)*(2/y),
+                               (pixel_thresh)*(2/x))]).to(kpts1.device).type(kpts1.dtype)
 
     # Reshape deformations to : [B, X, Y, Z] to ensure torch conventions
     deformation = deformation.permute(0, 4, 3, 2, 1)
@@ -63,6 +67,7 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation):
     matches = matches.type(kpts1.dtype)
 
     indices = torch.nonzero(matches)
+    num_matches = indices.shape[0]
 
     gt1 = torch.zeros(b, matches.shape[1], dtype=torch.float).to(device)
     gt2 = torch.zeros(b, matches.shape[2], dtype=torch.float).to(device)
@@ -70,19 +75,19 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation):
     gt1[indices[:, 0], indices[:, 1]] = 1.
     gt2[indices[:, 0], indices[:, 2]] = 1.
 
-    return gt1, gt2, matches
+    return gt1, gt2, matches, num_matches
 
 
 
 def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs_norm, gt1, gt2, match_target, k, device="cuda:0"):
 
     # LandmarkProbabilityLoss Image 1
-    landmark_logits1_lossa = torch.mean(torch.tensor(1.).to(device) - torch.sum(landmark_logits1, dim=(1)) / torch.tensor(float(k)).to(device))
+    landmark_logits1_lossa = torch.mean(torch.tensor(1.).to(device) - torch.sum(torch.sigmoid(landmark_logits1), dim=(1)) / torch.tensor(float(k)).to(device))
     landmark_logits1_lossb = F.binary_cross_entropy_with_logits(landmark_logits1, gt1)
     landmark_logits1_loss = landmark_logits1_lossa + landmark_logits1_lossb
 
     # LandmarkProbabilityLoss Image 2
-    landmark_logits2_lossa = torch.mean(torch.tensor(1.).to(device) - torch.sum(landmark_logits2, dim=(1)) / torch.tensor(float(k)).to(device))
+    landmark_logits2_lossa = torch.mean(torch.tensor(1.).to(device) - torch.sum(torch.sigmoid(landmark_logits2), dim=(1)) / torch.tensor(float(k)).to(device))
     landmark_logits2_lossb =	F.binary_cross_entropy_with_logits(landmark_logits2, gt2)
     landmark_logits2_loss = landmark_logits2_lossa + landmark_logits2_lossa
 

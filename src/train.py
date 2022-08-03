@@ -27,6 +27,7 @@ from model import LesionMatchingModel
 from loss import *
 from deformations import *
 from datapipeline import *
+from tqdm import tqdm
 
 
 
@@ -40,6 +41,8 @@ def train(args):
 
     if os.path.exists(args.checkpoint_dir) is False:
         os.makedirs(args.checkpoint_dir)
+
+    checkpoint_dir = args.checkpoint_dir
 
     log_dir = os.path.join(args.checkpoint_dir, 'logs')
 
@@ -72,7 +75,7 @@ def train(args):
     optimizer = torch.optim.Adam(model.parameters(),
                                  1e-4)
 
-    early_stopper = EarlyStopping(patience=100,
+    early_stopper = EarlyStopping(patience=args.patience,
                                   checkpoint_dir=args.checkpoint_dir,
                                   delta=1e-5)
 
@@ -80,11 +83,14 @@ def train(args):
 
     model.to(device)
     n_iter = 0
+    n_iter_val = 0
 
     print('Start training')
     for epoch in range(10000):
 
         model.train()
+        nbatches = len(train_loader)
+        pbar = tqdm(enumerate(train_loader), desc="training", total=nbatches, unit="batches")
 
         for batch_data in train_loader:
 
@@ -98,6 +104,7 @@ def train(args):
                                        align_corners=False,
                                        mode="bilinear")
 
+            # TODO: Add intensity augmentation for images_hat
 
             optimizer.zero_grad()
 
@@ -108,9 +115,9 @@ def train(args):
                                 images_hat.to(device),
                                 training=True)
 
-                gt1, gt2, matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
-                                                                        kpts2=outputs['kpt_sampling_grid'][1],
-                                                                        deformation=batch_deformation_grid)
+                gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
+                                                                                     kpts2=outputs['kpt_sampling_grid'][1],
+                                                                                     deformation=batch_deformation_grid)
 
                 loss = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
                                    landmark_logits2=outputs['kpt_logits'][1],
@@ -126,10 +133,66 @@ def train(args):
             scaler.step(optimizer)
             scaler.update()
 
+            pbar.set_postfix({'Training loss': loss.item()})
+            writer.add_scalar('loss/train', loss.item(), n_iter)
+            writer.add_scalar('matches/train', num_matches, n_iter)
             n_iter += 1
 
-        # TODO: Add validation + early stopping
         print('EPOCH {} done'.format(epoch))
+        with torch.no_grad():
+            model.eval()
+            val_loss = []
+            pbar_val = tqdm(enumerate(val_loader), desc="validation", total=nbatches, unit="batches")
+            for val_data in val_loader:
+                images, liver_mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
+
+                batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
+                                                                       device=images.device)
+
+                images_hat = F.grid_sample(input=images,
+                                           grid=batch_deformation_grid,
+                                           align_corners=False,
+                                           mode="bilinear")
+
+                outputs = model(images.to(device),
+                                images_hat.to(device),
+                                training=True)
+
+                gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
+                                                                                     kpts2=outputs['kpt_sampling_grid'][1],
+                                                                                     deformation=batch_deformation_grid,
+                                                                                     pixel_thresh=1)
+
+                loss = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
+                                   landmark_logits2=outputs['kpt_logits'][1],
+                                   desc_pairs_score=outputs['desc_score'],
+                                   desc_pairs_norm=outputs['desc_norm'],
+                                   gt1=gt1,
+                                   gt2=gt2,
+                                   match_target=matches,
+                                   k=512,
+                                   device=device)
+
+                writer.add_scalar('loss/val', loss.item(), n_iter)
+                writer.add_scalar('matches/val', num_matches, n_iter)
+                val_loss.append(loss.item())
+                pbar.set_postfix({'Validation loss': loss.item()})
+                n_iter_val += 1
+
+            mean_val_loss = np.mean(np.array(val_loss))
+
+            early_stop_condition, best_epoch = early_stopper(val_loss=mean_val_loss,
+                                                             curr_epoch=epoch,
+                                                             model=model,
+                                                             optimizer=optimizer,
+                                                             scheduler=None,
+                                                             scaler=scaler,
+                                                             n_iter=n_iter,
+                                                             n_iter_val=n_iter_val)
+            if early_stop_condition is True:
+                print('Best epoch = {}, stopping training'.format(best_epoch))
+                return
+
 
 if __name__ == '__main__':
 
@@ -137,6 +200,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_dir', type=str, required=True)
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--fp16', action='store_true')
 
     args = parser.parse_args()
