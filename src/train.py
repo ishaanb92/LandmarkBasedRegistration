@@ -28,7 +28,9 @@ from loss import *
 from deformations import *
 from datapipeline import *
 from tqdm import tqdm
-
+import resource
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 
 def train(args):
@@ -56,6 +58,9 @@ def train(args):
     # Set up data pipeline
     train_patients = joblib.load('train_patients.pkl')
     val_patients = joblib.load('val_patients.pkl')
+    print('Number of patients in training set: {}'.format(len(train_patients)))
+    print('Number of patients in validation set: {}'.format(len(val_patients)))
+
 
     train_dicts = create_data_dicts_lesion_matching(train_patients)
     val_dicts = create_data_dicts_lesion_matching(val_patients)
@@ -64,9 +69,11 @@ def train(args):
                                                         train=True,
                                                         batch_size=args.batch_size)
 
+    # Patch-based validation
     val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
-                                                      train=False,
-                                                      batch_size=1)
+                                                      train=True,
+                                                      batch_size=1,
+                                                      num_workers=4)
 
 
     model = LesionMatchingModel(K=512,
@@ -88,11 +95,12 @@ def train(args):
     print('Start training')
     for epoch in range(10000):
 
+
         model.train()
         nbatches = len(train_loader)
         pbar = tqdm(enumerate(train_loader), desc="training", total=nbatches, unit="batches")
 
-        for batch_data in train_loader:
+        for batch_idx, batch_data in pbar:
 
             images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
@@ -139,11 +147,14 @@ def train(args):
             n_iter += 1
 
         print('EPOCH {} done'.format(epoch))
+
         with torch.no_grad():
+            print('Start validation')
             model.eval()
             val_loss = []
+            nbatches = len(val_loader)
             pbar_val = tqdm(enumerate(val_loader), desc="validation", total=nbatches, unit="batches")
-            for val_data in val_loader:
+            for batch_val_idx, val_data in pbar_val:
                 images, liver_mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
@@ -173,10 +184,10 @@ def train(args):
                                    k=512,
                                    device=device)
 
-                writer.add_scalar('loss/val', loss.item(), n_iter)
-                writer.add_scalar('matches/val', num_matches, n_iter)
+                writer.add_scalar('loss/val', loss.item(), n_iter_val)
+                writer.add_scalar('matches/val', num_matches, n_iter_val)
                 val_loss.append(loss.item())
-                pbar.set_postfix({'Validation loss': loss.item()})
+                pbar_val.set_postfix({'Validation loss': loss.item()})
                 n_iter_val += 1
 
             mean_val_loss = np.mean(np.array(val_loss))

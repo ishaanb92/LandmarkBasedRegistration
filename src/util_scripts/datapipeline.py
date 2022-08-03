@@ -62,7 +62,7 @@ def create_data_dicts_lesion_matching(patient_dir_list=None):
 
     return data_dicts
 
-def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4):
+def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4, num_workers=4):
 
     if train is True:
         transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
@@ -114,12 +114,12 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4)
     ds = CacheDataset(data=data_dicts,
                       transform=transforms,
                       cache_rate=1.0,
-                      num_workers=4)
+                      num_workers=num_workers)
 
     loader = DataLoader(ds,
                         batch_size=batch_size,
                         shuffle=train,
-                        num_workers=4)
+                        num_workers=num_workers)
 
     return loader, transforms
 
