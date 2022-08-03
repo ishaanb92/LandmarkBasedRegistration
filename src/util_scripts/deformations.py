@@ -39,35 +39,58 @@ def create_affine_transform(ndim=3,
     return aff_transform
 
 
-def create_bspline_transform():
-    random_grid = np.random.rand(3, 3, 3, 3).astype(np.float32) # Make a random 3D 3 x 3 x 3 grid
-    random_grid -= 0.5
-    random_grid /= 5
+def create_bspline_transform(coarse=True,
+                             shape=None,
+                             displacements=(5, 3, 3)):
+    """
+
+    Displacements are in terms of voxels
+    dispacement[k] = m => Along the kth axis, displacements will be in the range (-m , m)
+
+    """
+
+    x, y, z = shape
+
+    if coarse is True:
+        random_grid = np.random.rand(3, 4, 4, 4).astype(np.float32) # Make a random 3D 3 x 3 x 3 grid
+        random_grid = random_grid*2 - 1 # Shift range to [-1, 1]
+        random_grid[0, ...] = random_grid[0, ...]*(2/x)*displacements[0]
+        random_grid[1, ...] = random_grid[1, ...]*(2/y)*displacements[1]
+        random_grid[2, ...] = random_grid[2, ...]*(2/z)*displacements[2]
+    else: # Fine with a larger control grid
+        random_grid = np.random.rand(3, 8, 8, 8).astype(np.float32) # Make a random 3D 3 x 3 x 3 grid
+        random_grid = random_grid*2 - 1 # Shift range to [-1, 1]
+        random_grid[0, ...] = random_grid[0, ...]*(2/x)*displacements[0]
+        random_grid[1, ...] = random_grid[1, ...]*(2/y)*displacements[1]
+        random_grid[2, ...] = random_grid[2, ...]*(2/z)*displacements[2]
 
     bspline_transform = gryds.BSplineTransformation(random_grid)
 
     return bspline_transform
 
-def create_deformation_grid(shape,
+def create_deformation_grid(grid=None,
+                            shape=None,
                             transforms=[]):
-    ndim = len(shape)
-    assert(isinstance(transforms, list))
-    assert(len(transforms)>=1)
 
-    if ndim == 3:
-        grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
-                                    np.linspace(-1, 1, shape[1]),
-                                    np.linspace(-1, 1, shape[2]),
-                                    indexing="ij"),
-                        dtype=np.float32)
+    if grid is None:
+        ndim = len(shape)
+        assert(isinstance(transforms, list))
+        assert(len(transforms)>=1)
 
-        center = [0, 0, 0]
-    elif ndim == 2:
-        grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
-                                    np.linspace(-1, 1, shape[1]),
-                                    indexing="ij"),
-                        dtype=np.float32)
-        center = [0, 0]
+        if ndim == 3:
+            grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
+                                        np.linspace(-1, 1, shape[1]),
+                                        np.linspace(-1, 1, shape[2]),
+                                        indexing="ij"),
+                            dtype=np.float32)
+
+            center = [0, 0, 0]
+        elif ndim == 2:
+            grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
+                                        np.linspace(-1, 1, shape[1]),
+                                        indexing="ij"),
+                            dtype=np.float32)
+            center = [0, 0]
 
 
     image_grid = gryds.Grid(grid=grid)
@@ -80,14 +103,7 @@ def create_deformation_grid(shape,
     # Check for folding
     assert(np.amin(jac_det)>0)
 
-    flow_grid = deformed_grid.grid
-    # Rearrange axes to make the deformation grid torch-friendly
-    ndim, k, j, i = flow_grid.shape
-    flow_grid = np.reshape(flow_grid, (ndim, -1)).T
-    flow_grid = np.reshape(flow_grid, (k, j, i, ndim))
-
-
-    return flow_grid
+    return deformed_grid.grid
 
 
 def create_batch_deformation_grid(shape,
@@ -115,11 +131,22 @@ def create_batch_deformation_grid(shape,
                                                 center=[0, 0, 0])
 
 
-        elastic_transform = create_bspline_transform()
+        elastic_transform_coarse = create_bspline_transform(coarse=True,
+                                                            shape=[k, j, i],
+                                                            displacements=(5, 3, 3))
+
+        elastic_transform_fine = create_bspline_transform(coarse=False,
+                                                          shape=[k, j, i],
+                                                          displacements=(1, 2, 2))
 
         # Create deformation grid by composing transforms
         deformed_grid = create_deformation_grid(shape=[k, j, i],
-                                                transforms=[aff_transform, elastic_transform])
+                                                transforms=[elastic_transform_coarse, elastic_transform_fine])
+
+        # Rearrange axes to make the deformation grid torch-friendly
+        ndim, k, j, i = deformed_grid.shape
+        deformed_grid = np.reshape(deformed_grid, (ndim, -1)).T
+        deformed_grid = np.reshape(deformed_grid, (k, j, i, ndim))
 
         batch_deformation_grid[batch_idx, ...] = deformed_grid
 
