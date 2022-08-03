@@ -51,6 +51,11 @@ def create_data_dicts_lesion_matching(patient_dir_list=None):
             data_dict['image'] = os.path.join(s_dir, 'DCE_vessel_image.nii')
             data_dict['liver_mask'] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['vessel_mask'] = os.path.join(s_dir, 'vessel_mask.nii')
+
+            if os.path.exists(os.path.join(s_dir, 'vessel_mask.nii')) is False:
+                print('Vessel mask does not exist for Patient {}, scan-ID : {}'.format(p_id, s_dir))
+                continue
+
             data_dict['patient_id'] = p_id
             data_dict['scan_id'] = s_id
             data_dicts.append(data_dict)
@@ -72,10 +77,10 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4)
                                        pixdim=(1.543, 1.543, 1.543),
                                        mode=("bilinear", "nearest", "nearest")),
 
-                              # Extract 128x128x48 3-D patches
+                              # Extract 128x128x64 3-D patches
                               RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
                                                      label_key="liver_mask",
-                                                     spatial_size=(128, 128, 48),
+                                                     spatial_size=(128, 128, 64),
                                                      pos=1.0,
                                                      neg=0.0),
 

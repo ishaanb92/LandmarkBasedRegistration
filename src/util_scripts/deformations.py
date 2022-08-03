@@ -102,8 +102,7 @@ def create_batch_deformation_grid(shape,
                                       dtype=np.float32)
 
     # Loop over batch and generated a unique deformation grid for each image in the batch
-    for batch_idx in range(images.shape[0]):
-        image = images[batch_idx, ...]
+    for batch_idx in range(b):
 
         # Sample angles for affine transformation
         z_axis_rotation = np.random.uniform(low=-np.pi/6, high=np.pi/6)
