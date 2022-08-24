@@ -11,6 +11,9 @@ import os
 from monai.transforms import *
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 import joblib
+import torch
+from monai.transforms import StdShiftIntensity
+import numpy as np
 
 def create_data_dicts_liver_seg(patient_dir_list=None, n_channels=6, channel_id=3):
 
@@ -54,7 +57,7 @@ def create_data_dicts_lesion_matching(patient_dir_list=None):
 
             if os.path.exists(os.path.join(s_dir, 'vessel_mask.nii')) is False:
                 print('Vessel mask does not exist for Patient {}, scan-ID : {}'.format(p_id, s_dir))
-                continue
+                data_dict['vessel_mask'] = os.path.join(s_dir, 'LiverMask.nii')
 
             data_dict['patient_id'] = p_id
             data_dict['scan_id'] = s_id
@@ -243,6 +246,15 @@ def debug_dataloader_liver_seg(data_dicts=None, batch_size=4):
 
     print('Created data loader')
     return loader
+
+
+def shift_intensity(images):
+
+    assert(isinstance(images, torch.Tensor))
+
+    factor = np.random.uniform(low=0.6, high=1.0)
+    images_shifted = StdShiftIntensity(factor=factor)(images)
+    return images_shifted
 
 if __name__ == '__main__':
 
