@@ -28,6 +28,8 @@ from loss import *
 from deformations import *
 from datapipeline import *
 from tqdm import tqdm
+
+# Required for CacheDataset
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
@@ -159,6 +161,9 @@ def train(args):
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device)
+                # Folding may have occured
+                if batch_deformation_grid is None:
+                    continue
 
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
@@ -172,7 +177,7 @@ def train(args):
                 gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
                                                                                      kpts2=outputs['kpt_sampling_grid'][1],
                                                                                      deformation=batch_deformation_grid,
-                                                                                     pixel_thresh=1)
+                                                                                     pixel_thresh=5)
 
                 loss = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
                                    landmark_logits2=outputs['kpt_logits'][1],

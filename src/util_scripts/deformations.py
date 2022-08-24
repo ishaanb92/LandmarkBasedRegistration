@@ -101,7 +101,9 @@ def create_deformation_grid(grid=None,
     jac_det = deformed_grid.jacobian_det(*transforms)
 
     # Check for folding
-    assert(np.amin(jac_det)>0)
+    if np.amin(jac_det) < 0:
+        print('Folding has occured!. Skip this batch')
+        return None
 
     return deformed_grid.grid
 
@@ -142,6 +144,9 @@ def create_batch_deformation_grid(shape,
         # Create deformation grid by composing transforms
         deformed_grid = create_deformation_grid(shape=[k, j, i],
                                                 transforms=[aff_transform, elastic_transform_coarse, elastic_transform_fine])
+
+        if deformed_grid is None:
+            return None
 
         # Rearrange axes to make the deformation grid torch-friendly
         ndim, k, j, i = deformed_grid.shape
