@@ -70,6 +70,91 @@ class LesionMatchingModel(nn.Module):
 
         return output_dict
 
+    def inference(self, x1, x2):
+
+        b, _, _, _, _ = x1.shape
+
+        # 1. Landmark (candidate) detections
+
+        kpts_1, features_1 = self.cnn(x1)
+        kpts_2, features_2 = self.cnn(x2)
+
+
+        b, c, i, j, k = kpts_1.shape
+
+        # 2. Sampling grid + descriptors
+        kpt_sampling_grid_1, kpt_logits_1, descriptors_1 = self.sampling_block(kpt_map=kpts_1,
+                                                                               features=features_1,
+                                                                               W=self.W,
+                                                                               num_pts=self.K,
+                                                                               training=False)
+
+        kpt_sampling_grid_2, kpt_logits_2, descriptors_2 = self.sampling_block(kpt_map=kpts_2,
+                                                                               features=features_2,
+                                                                               W=self.W,
+                                                                               num_pts=self.K,
+                                                                               training=False)
+
+        landmarks_1 = self.convert_grid_to_image_coords(kpt_sampling_grid_1,
+                                                        shape=(k, j, i))
+
+        landmarks_2 = self.convert_grid_to_image_coords(kpt_sampling_grid_2,
+                                                        shape=(k, j, i))
+
+        # 3. Compute descriptor matching scores
+        desc_pairs_score, desc_pair_norm = self.descriptor_matching(descriptors_1,
+                                                                    descriptors_2)
+
+        _, k1, k2 = desc_pair_norm.shape
+
+        # Match probability
+        desc_pairs_prob = F.softmax(desc_pairs_score, dim=1)[:, 1].view(b, k1, k2)
+
+        # Two-way matching
+        matches = []
+        for batch_idx in range(b):
+
+            pairs_prob = desc_pairs_prob[batch_idx]
+            pairs_norm = desc_pair_norm[batch_idx]
+
+            # 2-way matching w.r.t pair probabilities
+            match_cols = torch.zeros((k1, k2))
+            match_cols[torch.argmax(pairs_prob, dim=0), torch.arange(k2)] = 1
+            match_rows = torch.zeros((k1, k2))
+            match_rows[torch.arange(k1), torch.argmax(pairs_prob, dim=1)] = 1
+            match = match_rows*match_cols
+
+            # 2-way matching w.r.t probabilities & min norm
+            match_cols = torch.zeros((k1, k2))
+            match_cols[torch.argmax(pairs_norm, dim=0), torch.arange(k2)] = 1
+            match_rows = torch.zeros((k1, k2))
+            match_rows[torch.arange(k1), torch.argmax(pairs_norm, dim=1)] = 1
+            match = match*match_rows*match_cols
+
+            matches.append(match)
+
+        matches = torch.stack(matches)
+
+
+        return landmarks_1, landmarks_2, matches
+
+    @staticmethod
+    def convert_grid_to_image_coords(pts, shape=(64, 128, 128)):
+        """
+        Convert grid points ([-1, 1] range) to image coords
+
+        """
+
+        pts = pts.squeeze(dim=1).squeeze(dim=1) # Shape: [B, K, 3]
+
+        # Scale to [0, 1] range
+        pts = (pts + 1.)/2.
+
+        # Scale to image dimensions
+        pts = pts * torch.Tensor([(shape[0]-1, shape[1]-1, shape[2]-1)]).view(1, 1, 3).to(pts.device)
+
+        return pts
+
 
     def sampling_block(self,
                        kpt_map=None,

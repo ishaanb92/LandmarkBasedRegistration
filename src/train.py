@@ -13,6 +13,7 @@ See:
 
 from monai.utils import first, set_determinism
 from monai.metrics import DiceMetric
+from monai.transforms import ShiftIntensity
 import torch
 import torch.nn as nn
 from argparse import ArgumentParser
@@ -109,12 +110,16 @@ def train(args):
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                    device=images.device)
 
+            if batch_deformation_grid is None:
+                continue
+
             images_hat = F.grid_sample(input=images,
                                        grid=batch_deformation_grid,
                                        align_corners=False,
                                        mode="bilinear")
 
-            # TODO: Add intensity augmentation for images_hat
+            # Image intensity augmentation
+            images_hat = shift_intensity(images_hat)
 
             optimizer.zero_grad()
 
@@ -170,6 +175,8 @@ def train(args):
                                            align_corners=False,
                                            mode="bilinear")
 
+                # Intensity shifts for images_hat
+
                 outputs = model(images.to(device),
                                 images_hat.to(device),
                                 training=True)
@@ -177,7 +184,7 @@ def train(args):
                 gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
                                                                                      kpts2=outputs['kpt_sampling_grid'][1],
                                                                                      deformation=batch_deformation_grid,
-                                                                                     pixel_thresh=5)
+                                                                                     pixel_thresh=2)
 
                 loss = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
                                    landmark_logits2=outputs['kpt_logits'][1],

@@ -98,7 +98,8 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
                                  match_target.long().view(-1),
                                  weight=torch.tensor([wt, 1 - wt]).to(device))
 
-    # Descriptor loss: Contrastive loss
+    # Descriptor loss: Contrastive loss (with margin)
+    # TODO: Margin (pos and neg should be hyper-parameters)
     Npos = match_target.sum()
     Nneg = b*k1*k2 - Npos
     pos_loss = torch.sum(match_target * torch.max(torch.zeros_like(desc_pairs_norm).to(device), desc_pairs_norm - 0.1)) / (2*Npos + 1e-6)

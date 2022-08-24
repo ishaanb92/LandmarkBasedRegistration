@@ -41,6 +41,7 @@ def create_data_dicts_liver_seg(patient_dir_list=None, n_channels=6, channel_id=
     return data_dicts
 
 
+# Data dicts for synthetic transforms (eg: training/evaluation w.r.t repeatability)
 def create_data_dicts_lesion_matching(patient_dir_list=None):
 
     data_dicts = []
@@ -62,6 +63,30 @@ def create_data_dicts_lesion_matching(patient_dir_list=None):
             data_dict['patient_id'] = p_id
             data_dict['scan_id'] = s_id
             data_dicts.append(data_dict)
+
+    return data_dicts
+
+# Data dicts for "real" paired data
+def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
+
+    data_dicts = []
+
+    for p_dir in patient_dir_list:
+        p_id = p_dir.split(os.sep)[-1]
+        scan_dirs  = [f.path for f in os.scandir(p_dir) if f.is_dir()]
+        data_dict = {}
+        data_dict['patient_id'] = p_id
+        for idx, s_dir in enumerate(scan_dirs):
+            s_id = s_dir.split(os.sep)[-1]
+            data_dict['image_{}'.format(idx+1)] = os.path.join(s_dir, 'DCE_vessel_image.nii')
+            data_dict['liver_mask_{}'.format(idx+1)] = os.path.join(s_dir, 'LiverMask.nii')
+            data_dict['vessel_mask_{}'.format(idx+1)] = os.path.join(s_dir, 'vessel_mask.nii')
+            if os.path.exists(os.path.join(s_dir, 'vessel_mask.nii')) is False:
+                print('Vessel mask does not exist for Patient {}, scan-ID : {}'.format(p_id, s_dir))
+                data_dict['vessel_mask_{}'.format(idx+1)] = os.path.join(s_dir, 'LiverMask.nii')
+            data_dict['scan_id_{}'.format(idx)] = s_id
+
+        data_dicts.append(data_dict)
 
     return data_dicts
 
@@ -113,6 +138,57 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
 
                               EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
                               ])
+
+    ds = CacheDataset(data=data_dicts,
+                      transform=transforms,
+                      cache_rate=1.0,
+                      num_workers=num_workers)
+
+    loader = DataLoader(ds,
+                        batch_size=batch_size,
+                        shuffle=train,
+                        num_workers=num_workers)
+
+    return loader, transforms
+
+
+# With "real" paired data
+def create_dataloader_lesion_matching_inference(data_dicts=None, batch_size=4, num_workers=4):
+
+    transforms = Compose([LoadImaged(keys=["image_1",  "liver_mask_1", "vessel_mask_1",
+                                           "image_2",  "liver_mask_2", "vessel_mask_2"]),
+
+                          # Add fake channel to the liver_mask
+                          AddChanneld(keys=["image_1", "liver_mask_1", "vessel_mask_1",
+                                            "image_2",  "liver_mask_2", "vessel_mask_2"]),
+
+                          Orientationd(keys=["image_1", "liver_mask_1", "vessel_mask_1",
+                                             "image_2",  "liver_mask_2", "vessel_mask_2"], axcodes="RAS"),
+
+                          # Isotropic spacing
+                          Spacingd(keys=["image_1", "liver_mask_1", "vessel_mask_1",
+                                         "image_2",  "liver_mask_2", "vessel_mask_2"],
+                                   pixdim=(1.543, 1.543, 1.543),
+                                   mode=("bilinear", "nearest", "nearest",
+                                         "bilinear", "nearest", "nearest")),
+
+                          # Extract 128x128x64 3-D patches
+                          RandCropByPosNegLabeld(keys=["image_1", "liver_mask_1", "vessel_mask_1",
+                                                       "image_2", "liver_mask_2", "vessel_mask_2"],
+                                                 label_key="liver_mask_1",
+                                                 spatial_size=(128, 128, 64),
+                                                 pos=1.0,
+                                                 neg=0.0),
+
+                          NormalizeIntensityd(keys=["image_1", "image_2"],
+                                              nonzero=True,
+                                              channel_wise=True),
+
+
+                          EnsureTyped(keys=["image_1", "liver_mask_1", "vessel_mask_1",
+                                            "image_2", "liver_mask_2", "vessel_mask_2"])
+                          ])
+
 
     ds = CacheDataset(data=data_dicts,
                       transform=transforms,
