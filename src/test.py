@@ -9,6 +9,7 @@ Script to evaluate trained models (with visualization)
 from monai.utils import first, set_determinism
 from monai.metrics import DiceMetric
 from monai.transforms import ShiftIntensity
+from monai.inferers import sliding_window_inference
 import torch
 import torch.nn as nn
 from argparse import ArgumentParser
@@ -73,6 +74,7 @@ def test(args):
 
                 images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
+                print(images.shape)
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device)
 
@@ -84,18 +86,38 @@ def test(args):
                                            align_corners=False,
                                            mode="bilinear")
 
-                landmarks_1, landmarks_2, matches = model.inference(images.to(device),
-                                                                    images_hat.to(device))
+                images_hat = images_hat.permute(0, 1, 4, 3, 2)
 
-                print(matches.shape)
-                print(landmarks_1.shape)
-                print(landmarks_2.shape)
+                # Concatenate along channel axis so that sliding_window_inference can
+                # be used
+                images_cat = torch.cat([images, images_hat], dim=1)
+
+                print(images_cat.shape)
+
+                kpts_1, kpts_2 = sliding_window_inference(inputs=images_cat.to(device),
+                                                          roi_size=(128, 128, 64),
+                                                          sw_batch_size=1,
+                                                          predictor=model.get_patch_keypoint_scores,
+                                                          overlap=0.50)
+
+                features_1, features_1 = sliding_window_inference(inputs=images_cat.to(device),
+                                                                  roi_size=(128, 128, 64),
+                                                                  sw_batch_size=1,
+                                                                  predictor=model.get_patch_feature_descriptors,
+                                                                  overlap=0.50)
+
+                print(kpts_1.shape)
+                print(features_1.shape)
+
+#                landmarks_1, landmarks_2, matches = model.inference(images.to(device),
+#                                                                    images_hat.to(device))
+#
+#                print(matches.shape)
+#                print(landmarks_1.shape)
+#                print(landmarks_2.shape)
 
             else: #TODO
                 pass
-
-
-
 
 
 if __name__ == '__main__':

@@ -118,8 +118,12 @@ def train(args):
                                        align_corners=False,
                                        mode="bilinear")
 
+            images_hat = images_hat.permute(0, 1, 4, 3, 2)
+
             # Image intensity augmentation
             images_hat = shift_intensity(images_hat)
+
+            assert(images.shape == images_hat.shape)
 
             optimizer.zero_grad()
 
@@ -175,7 +179,9 @@ def train(args):
                                            align_corners=False,
                                            mode="bilinear")
 
-                # Intensity shifts for images_hat
+                images_hat = images_hat.permute(0, 1, 4, 3, 2)
+
+                assert(images.shape == images_hat.shape)
 
                 outputs = model(images.to(device),
                                 images_hat.to(device),

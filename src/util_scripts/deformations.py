@@ -21,7 +21,7 @@ import joblib
 import os
 from datapipeline import *
 import SimpleITK as sitk
-
+import shutil
 
 def create_affine_transform(ndim=3,
                             center=[0, 0, 0],
@@ -169,7 +169,7 @@ if __name__ == '__main__':
     train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=True,
+                                                                train=False,
                                                                 batch_size=1)
 
     post_transforms = Compose([EnsureTyped(keys=['d_image']),
@@ -187,11 +187,13 @@ if __name__ == '__main__':
                                         grid=batch_deformation_grid,
                                         align_corners=False,
                                         mode="bilinear")
-
         # (x, y, z) -> (i, j, k)
         deformed_images = deformed_images.permute(0, 1, 4, 3, 2)
 
         save_dir = 'images_b_{}'.format(b_id)
+
+        if os.path.exists(save_dir) is True:
+            shutil.rmtree(save_dir)
 
         batch_data['d_image'] = deformed_images
 
