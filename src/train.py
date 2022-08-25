@@ -70,11 +70,14 @@ def train(args):
 
     train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
                                                         train=True,
-                                                        batch_size=args.batch_size)
+                                                        data_aug=True,
+                                                        batch_size=args.batch_size,
+                                                        num_workers=4)
 
     # Patch-based validation
     val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
                                                       train=True,
+                                                      data_aug=False,
                                                       batch_size=1,
                                                       num_workers=4)
 
@@ -138,23 +141,27 @@ def train(args):
                                                                                      kpts2=outputs['kpt_sampling_grid'][1],
                                                                                      deformation=batch_deformation_grid)
 
-                loss = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
-                                   landmark_logits2=outputs['kpt_logits'][1],
-                                   desc_pairs_score=outputs['desc_score'],
-                                   desc_pairs_norm=outputs['desc_norm'],
-                                   gt1=gt1,
-                                   gt2=gt2,
-                                   match_target=matches,
-                                   k=512,
-                                   device=device)
+                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
+                                        landmark_logits2=outputs['kpt_logits'][1],
+                                        desc_pairs_score=outputs['desc_score'],
+                                        desc_pairs_norm=outputs['desc_norm'],
+                                        gt1=gt1,
+                                        gt2=gt2,
+                                        match_target=matches,
+                                        k=512,
+                                        device=device)
             # Backprop
-            scaler.scale(loss).backward()
+            scaler.scale(loss_dict['loss']).backward()
             scaler.step(optimizer)
             scaler.update()
 
-            pbar.set_postfix({'Training loss': loss.item()})
-            writer.add_scalar('loss/train', loss.item(), n_iter)
-            writer.add_scalar('matches/train', num_matches, n_iter)
+            pbar.set_postfix({'Training loss': loss_dict['loss'].item()})
+            writer.add_scalar('train/loss', loss_dict['loss'].item(), n_iter)
+            writer.add_scalar('train/landmark_1_loss', loss_dict['landmark_1_loss'].item(), n_iter)
+            writer.add_scalar('train/landmark_2_loss', loss_dict['landmark_2_loss'].item(), n_iter)
+            writer.add_scalar('train/desc_loss_ce', loss_dict['desc_loss_ce'].item(), n_iter)
+            writer.add_scalar('train/desc_loss_hinge', loss_dict['desc_loss_hinge'].item(), n_iter)
+            writer.add_scalar('train/matches', num_matches, n_iter)
             n_iter += 1
 
         print('EPOCH {} done'.format(epoch))
@@ -192,20 +199,24 @@ def train(args):
                                                                                      deformation=batch_deformation_grid,
                                                                                      pixel_thresh=2)
 
-                loss = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
-                                   landmark_logits2=outputs['kpt_logits'][1],
-                                   desc_pairs_score=outputs['desc_score'],
-                                   desc_pairs_norm=outputs['desc_norm'],
-                                   gt1=gt1,
-                                   gt2=gt2,
-                                   match_target=matches,
-                                   k=512,
-                                   device=device)
+                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
+                                        landmark_logits2=outputs['kpt_logits'][1],
+                                        desc_pairs_score=outputs['desc_score'],
+                                        desc_pairs_norm=outputs['desc_norm'],
+                                        gt1=gt1,
+                                        gt2=gt2,
+                                        match_target=matches,
+                                        k=512,
+                                        device=device)
 
-                writer.add_scalar('loss/val', loss.item(), n_iter_val)
-                writer.add_scalar('matches/val', num_matches, n_iter_val)
-                val_loss.append(loss.item())
-                pbar_val.set_postfix({'Validation loss': loss.item()})
+                writer.add_scalar('val/loss', loss_dict['loss'].item(), n_iter_val)
+                writer.add_scalar('val/landmark_1_loss', loss_dict['landmark_1_loss'].item(), n_iter_val)
+                writer.add_scalar('val/landmark_2_loss', loss_dict['landmark_2_loss'].item(), n_iter_val)
+                writer.add_scalar('val/desc_loss_ce', loss_dict['desc_loss_ce'].item(), n_iter_val)
+                writer.add_scalar('val/desc_loss_hinge', loss_dict['desc_loss_hinge'].item(), n_iter_val)
+                writer.add_scalar('val/matches', num_matches, n_iter_val)
+                val_loss.append(loss_dict['loss'].item())
+                pbar_val.set_postfix({'Validation loss': loss_dict['loss'].item()})
                 n_iter_val += 1
 
             mean_val_loss = np.mean(np.array(val_loss))

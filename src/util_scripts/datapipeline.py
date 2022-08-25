@@ -90,35 +90,78 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
 
     return data_dicts
 
-def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4, num_workers=4):
+def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4, num_workers=4, data_aug=True):
 
     if train is True:
-        transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
+        if data_aug is True:
+            transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
 
-                              # Add fake channel to the liver_mask
-                              AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
+                                  # Add fake channel to the liver_mask
+                                  AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
 
-                              Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
+                                  Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
 
-                              # Isotropic spacing
-                              Spacingd(keys=["image", "liver_mask", "vessel_mask"],
-                                       pixdim=(1.543, 1.543, 1.543),
-                                       mode=("bilinear", "nearest", "nearest")),
+                                  # Isotropic spacing
+                                  Spacingd(keys=["image", "liver_mask", "vessel_mask"],
+                                           pixdim=(1.543, 1.543, 1.543),
+                                           mode=("bilinear", "nearest", "nearest")),
 
-                              # Extract 128x128x64 3-D patches
-                              RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
-                                                     label_key="liver_mask",
-                                                     spatial_size=(128, 128, 64),
-                                                     pos=1.0,
-                                                     neg=0.0),
+                                  # Extract 128x128x64 3-D patches
+                                  RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
+                                                         label_key="liver_mask",
+                                                         spatial_size=(128, 128, 64),
+                                                         pos=1.0,
+                                                         neg=0.0),
 
-                              NormalizeIntensityd(keys=["image"],
-                                                  nonzero=True,
-                                                  channel_wise=True),
+                                  RandRotated(keys=["image", "liver_mask", "vessel_mask"],
+                                              range_x=(np.pi/180)*30,
+                                              range_y=(np.pi/180)*15,
+                                              range_z=(np.pi/180)*15,
+                                              mode=["bilinear", "nearest", "nearest"],
+                                              prob=0.5),
+
+                                  RandAxisFlipd(keys=["image", "liver_mask", "vessel_mask"],
+                                               prob=0.7),
+
+                                  RandZoomd(keys=["image", "liver_mask", "vessel_mask"],
+                                            p=0.3),
 
 
-                              EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
-                              ])
+                                  NormalizeIntensityd(keys=["image"],
+                                                      nonzero=True,
+                                                      channel_wise=True),
+
+
+                                  EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
+                                  ])
+        else:
+
+            transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
+
+                                  # Add fake channel to the liver_mask
+                                  AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
+
+                                  Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
+
+                                  # Isotropic spacing
+                                  Spacingd(keys=["image", "liver_mask", "vessel_mask"],
+                                           pixdim=(1.543, 1.543, 1.543),
+                                           mode=("bilinear", "nearest", "nearest")),
+
+                                  # Extract 128x128x64 3-D patches
+                                  RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
+                                                         label_key="liver_mask",
+                                                         spatial_size=(128, 128, 64),
+                                                         pos=1.0,
+                                                         neg=0.0),
+
+                                  NormalizeIntensityd(keys=["image"],
+                                                      nonzero=True,
+                                                      channel_wise=True),
+
+
+                                  EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
+                                  ])
 
     else:
         transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),

@@ -110,7 +110,14 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     # total loss
     loss = landmark_logits1_loss + landmark_logits2_loss + desc_loss
 
-    return loss
+    loss_dict = {}
+    loss_dict['loss'] = loss
+    loss_dict['landmark_1_loss'] = landmark_logits1_loss
+    loss_dict['landmark_2_loss'] = landmark_logits2_loss
+    loss_dict['desc_loss_ce'] = desc_loss1
+    loss_dict['desc_loss_hinge'] = desc_loss2
+
+    return loss_dict
 
 
 
