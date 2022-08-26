@@ -123,28 +123,17 @@ def create_batch_deformation_grid(shape,
     # Loop over batch and generated a unique deformation grid for each image in the batch
     for batch_idx in range(b):
 
-        # Sample angles for affine transformation
-        z_axis_rotation = np.random.uniform(low=-np.pi/6, high=np.pi/6)
-        x_axis_rotation = np.random.uniform(low=-np.pi/18, high=np.pi/18)
-        y_axis_rotation = np.random.uniform(low=-np.pi/18, high=np.pi/18)
-        angles = [z_axis_rotation, x_axis_rotation, y_axis_rotation]
-
-        aff_transform = create_affine_transform(ndim=3,
-                                                angles=angles,
-                                                center=[0, 0, 0])
-
-
         elastic_transform_coarse = create_bspline_transform(coarse=True,
                                                             shape=[k, j, i],
-                                                            displacements=(2.5, 1.5, 1.5))
+                                                            displacements=(2, 2, 2))
 
         elastic_transform_fine = create_bspline_transform(coarse=False,
                                                           shape=[k, j, i],
-                                                          displacements=(1, 0.75, 0.75))
+                                                          displacements=(0.75, 0.75, 0.75))
 
         # Create deformation grid by composing transforms
         deformed_grid = create_deformation_grid(shape=[k, j, i],
-                                                transforms=[aff_transform, elastic_transform_coarse, elastic_transform_fine])
+                                                transforms=[elastic_transform_coarse, elastic_transform_fine])
 
         if deformed_grid is None:
             return None
@@ -173,8 +162,9 @@ if __name__ == '__main__':
     train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=False,
-                                                                batch_size=1)
+                                                                train=True,
+                                                                batch_size=1,
+                                                                data_aug=False)
 
     post_transforms = Compose([EnsureTyped(keys=['d_image']),
                                Invertd(keys=['d_image',
