@@ -28,20 +28,25 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
     device = kpts1.device
 
-    b, z, y, x, _ = deformation.shape
+    b, i, j, k, _ = deformation.shape
 
-    thresh = torch.Tensor([max((2/z),
-                               (pixel_thresh)*(2/y),
-                               (pixel_thresh)*(2/x))]).to(kpts1.device).type(kpts1.dtype)
+    thresh = torch.Tensor([max((pixel_thresh)*(2/i),
+                               (pixel_thresh)*(2/j),
+                               (pixel_thresh)*(2/k))]).to(kpts1.device).type(kpts1.dtype)
 
-    # Reshape deformations to : [B, X, Y, Z] to ensure torch conventions
-    deformation = deformation.permute(0, 4, 3, 2, 1)
+    deformation = deformation.permute(0, 4, 1, 2, 3) # [B, 3, H, W, D]
+
+    # Deformation grid shape: [B, 3, H, W, D]
+    # kpts2 (grid) : [B, 1, 1, K, 3]
+    # kpts2[:, :, :, :, 0] : x (D)
+    # kpts2[:, :, :, :, 1] : x (W)
+    # kpts2[:, :, :, :, 2] : x (H)
     kpts1_projected = F.grid_sample(deformation.to(device).type(kpts2.dtype),
                                     kpts2,
                                     align_corners=False)
 
-
     kpts1_projected = kpts1_projected.permute(0, 4, 2, 3, 1)
+
 
     kpts1_projected = kpts1_projected.squeeze(dim=-2).squeeze(dim=-2)
     kpts1 = kpts1.squeeze(dim=1).squeeze(dim=1)
