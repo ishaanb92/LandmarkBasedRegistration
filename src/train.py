@@ -118,7 +118,7 @@ def train(args):
 
             images_hat = F.grid_sample(input=images,
                                        grid=batch_deformation_grid,
-                                       align_corners=False,
+                                       align_corners=True,
                                        mode="bilinear")
 
             # Image intensity augmentation
@@ -181,7 +181,7 @@ def train(args):
 
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
-                                           align_corners=False,
+                                           align_corners=True,
                                            mode="bilinear")
 
                 assert(images.shape == images_hat.shape)

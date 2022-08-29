@@ -43,9 +43,10 @@ def test(args):
     if args.synthetic is True:
         data_dicts = create_data_dicts_lesion_matching(patients)
         data_loader, _ = create_dataloader_lesion_matching(data_dicts=data_dicts,
-                                                          train=True,
+                                                          train=False,
                                                           batch_size=args.batch_size,
-                                                          num_workers=4)
+                                                          num_workers=4,
+                                                          data_aug=False)
     else: # "Real" data
         data_dicts = create_data_dicts_lesion_matching_inference(patients)
         data_loader, _ = create_dataloader_lesion_matching_inference(data_dicts=data_dicts,
@@ -54,8 +55,7 @@ def test(args):
 
 
     # Define the model
-    model = LesionMatchingModel(K=512,
-                                W=4)
+    model = LesionMatchingModel(W=4)
 
     # Load the model
     load_dict = load_model(model=model,
@@ -74,47 +74,68 @@ def test(args):
 
                 images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
-                print(images.shape)
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                       device=images.device)
+                                                                       device=images.device,
+                                                                       dummy=True)
 
                 if batch_deformation_grid is None:
                     continue
 
+                # FIXME: Change mode when debug done
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
-                                           align_corners=False,
-                                           mode="bilinear")
+                                           align_corners=True,
+                                           mode="nearest")
 
-                images_hat = images_hat.permute(0, 1, 4, 3, 2)
+
+
+                # DEBUG: REMOVEEEE!!!!
+                assert(torch.equal(images, images_hat))
 
                 # Concatenate along channel axis so that sliding_window_inference can
                 # be used
+                assert(images_hat.shape == images.shape)
                 images_cat = torch.cat([images, images_hat], dim=1)
 
-                print(images_cat.shape)
+
+                # Pad so that sliding window inference does not complain
+                # about non-integer output shapes
+                depth = images_cat.shape[-1]
+                pad = 256-depth
+
+                images_cat = F.pad(images_cat, (0, pad), "constant", 0)
+                liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
+
 
                 kpts_1, kpts_2 = sliding_window_inference(inputs=images_cat.to(device),
                                                           roi_size=(128, 128, 64),
-                                                          sw_batch_size=1,
+                                                          sw_batch_size=2,
                                                           predictor=model.get_patch_keypoint_scores,
-                                                          overlap=0.50)
+                                                          overlap=0.5)
 
-                features_1, features_1 = sliding_window_inference(inputs=images_cat.to(device),
-                                                                  roi_size=(128, 128, 64),
-                                                                  sw_batch_size=1,
-                                                                  predictor=model.get_patch_feature_descriptors,
-                                                                  overlap=0.50)
 
-                print(kpts_1.shape)
-                print(features_1.shape)
+                # Mask using liver mask
+                kpts_1 = kpts_1*liver_mask.to(kpts_1.device)
+                kpts_2 = kpts_2*liver_mask.to(kpts_2.device)
 
-#                landmarks_1, landmarks_2, matches = model.inference(images.to(device),
-#                                                                    images_hat.to(device))
-#
-#                print(matches.shape)
-#                print(landmarks_1.shape)
-#                print(landmarks_2.shape)
+                features_1_low, features_1_high, features_2_low, features_2_high =\
+                                                        sliding_window_inference(inputs=images_cat.to(device),
+                                                                                 roi_size=(128, 128, 64),
+                                                                                 sw_batch_size=2,
+                                                                                 predictor=model.get_patch_feature_descriptors,
+                                                                                 overlap=0.0)
+
+                features_1 = (features_1_low, features_1_high)
+                features_2 = (features_2_low, features_1_high)
+
+                # Get landmarks and matches on the full image
+                landmarks_1, landmarks_2, matches = model.inference(kpts_1=kpts_1,
+                                                                    kpts_2=kpts_2,
+                                                                    features_1=features_1,
+                                                                    features_2=features_2)
+
+                match_idxs = torch.nonzero(matches)
+                print(match_idxs.shape)
 
             else: #TODO
                 pass

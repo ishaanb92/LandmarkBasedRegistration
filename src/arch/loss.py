@@ -67,7 +67,7 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
     s2 = torch.eq(cell_distances, min_cell_distances_col)
 
     # Match = 1 => Bidirectionally minimal distances + threshold satisfaction
-    matches = s1 * s2 * torch.ge(thresh, cell_distances)  #b, k, k
+    matches = s1 * s2 * torch.ge(thresh, cell_distances)  #b, k1, k2
     # Bool -> numeric dtype
     matches = matches.type(kpts1.dtype)
 

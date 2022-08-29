@@ -75,7 +75,6 @@ def create_deformation_grid(grid=None,
     if grid is None:
         ndim = len(shape)
         assert(isinstance(transforms, list))
-        assert(len(transforms)>=1)
 
         if ndim == 3:
             grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
@@ -95,6 +94,8 @@ def create_deformation_grid(grid=None,
 
     image_grid = gryds.Grid(grid=grid)
 
+    if len(transforms) == 0: # DEBUG
+        return image_grid.grid
 
     deformed_grid = image_grid.transform(*transforms)
 
@@ -109,7 +110,8 @@ def create_deformation_grid(grid=None,
 
 
 def create_batch_deformation_grid(shape,
-                                  device='cpu'):
+                                  device='cpu',
+                                  dummy=False):
 
     b, c, i, j, k = shape
 
@@ -123,17 +125,22 @@ def create_batch_deformation_grid(shape,
     # Loop over batch and generated a unique deformation grid for each image in the batch
     for batch_idx in range(b):
 
-        elastic_transform_coarse = create_bspline_transform(coarse=True,
-                                                            shape=[k, j, i],
-                                                            displacements=(2, 2, 2))
+        if dummy is False:
+            elastic_transform_coarse = create_bspline_transform(coarse=True,
+                                                                shape=[k, j, i],
+                                                                displacements=(2, 2, 2))
 
-        elastic_transform_fine = create_bspline_transform(coarse=False,
-                                                          shape=[k, j, i],
-                                                          displacements=(0.75, 0.75, 0.75))
+            elastic_transform_fine = create_bspline_transform(coarse=False,
+                                                              shape=[k, j, i],
+                                                              displacements=(0.75, 0.75, 0.75))
+            transforms = [elastic_transform_coarse, elastic_transform_fine]
+        else: # No transforms
+            transforms = []
+
 
         # Create deformation grid by composing transforms
         deformed_grid = create_deformation_grid(shape=[k, j, i],
-                                                transforms=[elastic_transform_coarse, elastic_transform_fine])
+                                                transforms=transforms)
 
         if deformed_grid is None:
             return None
@@ -162,7 +169,7 @@ if __name__ == '__main__':
     train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=True,
+                                                                train=False,
                                                                 batch_size=1,
                                                                 data_aug=False)
 
@@ -182,11 +189,19 @@ if __name__ == '__main__':
 
     for b_id, batch_data in enumerate(data_loader):
         images = batch_data['image']
-        batch_deformation_grid = create_batch_deformation_grid(shape=images.shape)
+        batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
+                                                               dummy=True)
         deformed_images = F.grid_sample(input=images,
                                         grid=batch_deformation_grid,
-                                        align_corners=False,
-                                        mode="bilinear")
+                                        align_corners=True,
+                                        mode="nearest")
+
+        sub_image = images - deformed_images
+
+        print(torch.max(sub_image))
+        print(torch.min(sub_image))
+
+        assert(torch.allclose(images, deformed_images, atol=1e-4))
 
         save_dir = 'images_b_{}'.format(b_id)
 
