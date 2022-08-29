@@ -70,30 +70,54 @@ class LesionMatchingModel(nn.Module):
 
         return output_dict
 
-    def inference(self, x1, x2):
+    # Break the 'inference' function into CNN output and sampling+matching
+    # so that sliding_window_inference can be performed
+    # We need to run the model twice because sliding_window_inference
+    # expects all outputs to be of the same size
+    # THESE FUNCTIONS ARE USED ONLY DURING INFERENCE!!!!
+    def get_patch_keypoint_scores(self, x):
 
-        b, _, _, _, _ = x1.shape
+        x1 = x[:, 0, ...].unsqueeze(dim=1)
+        x2 = x[:, 1, ...].unsqueeze(dim=1)
 
         # 1. Landmark (candidate) detections
+        kpts_1, _ = self.cnn(x1)
+        kpts_2, _ = self.cnn(x2)
 
-        kpts_1, features_1 = self.cnn(x1)
-        kpts_2, features_2 = self.cnn(x2)
+        return kpts_1, kpts_2
 
+    def get_patch_feature_descriptors(self, x):
+
+        x1 = x[:, 0, ...].unsqueeze(dim=1)
+        x2 = x[:, 1, ...].unsqueeze(dim=1)
+
+        # 1. Landmark (candidate) detections
+        _, features_1 = self.cnn(x1)
+        _, features_2 = self.cnn(x2)
+
+        # "features" is a tuple of feature maps from different U-Net resolutions
+        # We return separate tensors so 'sliding_window_inference' works
+        return features_1[0], features_1[1], features_2[0], features_2[1]
+
+
+    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000):
 
         b, c, i, j, k = kpts_1.shape
 
-        # 2. Sampling grid + descriptors
+        # 2.)Sampling grid + descriptors
         kpt_sampling_grid_1, kpt_logits_1, descriptors_1 = self.sampling_block(kpt_map=kpts_1,
                                                                                features=features_1,
                                                                                W=self.W,
-                                                                               num_pts=self.K,
-                                                                               training=False)
+                                                                               num_pts=num_pts,
+                                                                               training=False,
+                                                                               conf_thresh=conf_thresh)
 
         kpt_sampling_grid_2, kpt_logits_2, descriptors_2 = self.sampling_block(kpt_map=kpts_2,
                                                                                features=features_2,
                                                                                W=self.W,
-                                                                               num_pts=self.K,
-                                                                               training=False)
+                                                                               num_pts=num_pts,
+                                                                               training=False,
+                                                                               conf_thresh=conf_thresh)
 
         landmarks_1 = self.convert_grid_to_image_coords(kpt_sampling_grid_1,
                                                         shape=(k, j, i))
@@ -126,10 +150,12 @@ class LesionMatchingModel(nn.Module):
 
             # 2-way matching w.r.t probabilities & min norm
             match_cols = torch.zeros((k1, k2))
-            match_cols[torch.argmax(pairs_norm, dim=0), torch.arange(k2)] = 1
+            match_cols[torch.argmin(pairs_norm, dim=0), torch.arange(k2)] = 1
             match_rows = torch.zeros((k1, k2))
-            match_rows[torch.arange(k1), torch.argmax(pairs_norm, dim=1)] = 1
-            match = match*match_rows*match_cols
+            match_rows[torch.arange(k1), torch.argmin(pairs_norm, dim=1)] = 1
+            match_norm = match_rows*match_cols
+
+            match = match*match_norm
 
             matches.append(match)
 
@@ -150,7 +176,7 @@ class LesionMatchingModel(nn.Module):
         # Scale to [0, 1] range
         pts = (pts + 1.)/2.
 
-        # Scale to image dimensions
+        # Scale to image dimensions (DHW ordering)
         pts = pts * torch.Tensor([(shape[0]-1, shape[1]-1, shape[2]-1)]).view(1, 1, 3).to(pts.device)
 
         return pts
@@ -171,6 +197,7 @@ class LesionMatchingModel(nn.Module):
 
         """
 
+
         b, _, i, j, k = kpt_map.shape
         kpt_probmap = torch.sigmoid(kpt_map)
 
@@ -190,15 +217,15 @@ class LesionMatchingModel(nn.Module):
         kpt_probmax_suppressed = torch.squeeze(kpt_probmax_suppressed,
                                                dim=1)
 
-        # Create keypoint tensor : Each key-point is a 4-D vector: (x, y, z, prob.)
         kpts = torch.zeros(size=(b, num_pts, 4),
                            dtype=kpt_map.dtype).to(kpt_map.device)
 
         for batch_idx in range(b):
-            # Create binary mask of shape [D, H, W]
+            # Create binary mask of shape [H, W, D]
+
             kpt_mask = torch.where(kpt_probmax_suppressed[batch_idx, ...]>=conf_thresh,
-                                   1.0,
-                                   0.0).type(kpt_probmap.dtype)
+                                   torch.ones_like(kpt_probmax_suppressed[batch_idx, ...]),
+                                   torch.zeros_like(kpt_probmax_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
 
             zs, ys, xs= torch.nonzero(kpt_mask,
                                       as_tuple=True)
@@ -206,8 +233,9 @@ class LesionMatchingModel(nn.Module):
             # FIXME: Handle cases where N < num_pts
             N = len(zs)
 
-            if N < num_pts:
-                raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
+            if training is True:
+                if N < num_pts:
+                    raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
 
             item_kpts = torch.zeros(size=(N, 4),
                                     dtype=kpt_map.dtype).to(kpt_map.device)
@@ -220,8 +248,8 @@ class LesionMatchingModel(nn.Module):
             idxs_desc = torch.argsort(-1*item_kpts[:, 3])
 
             item_kpts_sorted = item_kpts[idxs_desc, :]
-            top_k_kpts = item_kpts_sorted[:num_pts, :]
 
+            top_k_kpts = item_kpts_sorted[:num_pts, :]
             kpts[batch_idx, ...] = top_k_kpts
 
 
@@ -232,7 +260,7 @@ class LesionMatchingModel(nn.Module):
         kpts_sampling_grid[:, :, 1] = (kpts_idxs[:, :, 1]*2/(j-1)) - 1
         kpts_sampling_grid[:, :, 2] = (kpts_idxs[:, :, 2]*2/(i-1)) - 1
 
-        # Expected shape: [B, K, 1, 1, 3]
+        # Expected shape: [B, 1, 1, K, 3]
         kpts_sampling_grid = torch.unsqueeze(kpts_sampling_grid, dim=1)
         kpts_sampling_grid = torch.unsqueeze(kpts_sampling_grid, dim=1)
 
@@ -278,8 +306,9 @@ class DescriptorMatcher(nn.Module):
         out1 = out1.view(b, c, d1*h1*w1).permute(0, 2, 1).view(b, d1*h1*w1, 1, c)
         out2 = out2.view(b, c, d2*h2*w2).permute(0, 2, 1).view(b, 1, d2*h2*w2, c)
 
+
         # Outer product to get all possible pairs
-        # Shape: [b, k, k, c]
+        # Shape: [b, k1, k2, c]
         out = out1*out2
 
         out = out.contiguous().view(-1, c)
@@ -291,8 +320,9 @@ class DescriptorMatcher(nn.Module):
         # Compute norms
         desc_l2_norm_1 = torch.norm(out1, p=2, dim=3)
         out1_norm = out1.div(1e-6 + torch.unsqueeze(desc_l2_norm_1, dim=3))
+
         desc_l2_norm_2 = torch.norm(out2, p=2, dim=3)
-        out2_norm = out1.div(1e-6 + torch.unsqueeze(desc_l2_norm_2, dim=3))
+        out2_norm = out2.div(1e-6 + torch.unsqueeze(desc_l2_norm_2, dim=3))
 
         out_norm = torch.norm(out1_norm-out2_norm, p=2, dim=3)
 
