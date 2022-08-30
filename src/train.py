@@ -83,7 +83,7 @@ def train(args):
 
 
     model = LesionMatchingModel(K=512,
-                                W=4)
+                                W=8)
 
     optimizer = torch.optim.Adam(model.parameters(),
                                  1e-4)
@@ -111,18 +111,27 @@ def train(args):
             images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                   device=images.device)
+                                                                   device=images.device,
+                                                                   dummy=args.dummy)
 
             if batch_deformation_grid is None:
                 continue
 
-            images_hat = F.grid_sample(input=images,
-                                       grid=batch_deformation_grid,
-                                       align_corners=True,
-                                       mode="bilinear")
+            if args.dummy is False:
+                images_hat = F.grid_sample(input=images,
+                                           grid=batch_deformation_grid,
+                                           align_corners=True,
+                                           mode="bilinear")
+                # Image intensity augmentation
+                images_hat = shift_intensity(images_hat)
+            else:
+                images_hat = F.grid_sample(input=images,
+                                           grid=batch_deformation_grid,
+                                           align_corners=True,
+                                           mode="nearest")
 
-            # Image intensity augmentation
-            images_hat = shift_intensity(images_hat)
+                assert(torch.equal(images, images_hat))
+
 
             assert(images.shape == images_hat.shape)
 
@@ -134,6 +143,10 @@ def train(args):
                 outputs = model(images.to(device),
                                 images_hat.to(device),
                                 training=True)
+
+                if args.dummy is True:
+                    assert(torch.equal(outputs['kpt_sampling_grid'][0], outputs['kpt_sampling_grid'][1]))
+
 
                 gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
                                                                                      kpts2=outputs['kpt_sampling_grid'][1],
@@ -174,7 +187,8 @@ def train(args):
                 images, liver_mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                       device=images.device)
+                                                                       device=images.device,
+                                                                       dummy=args.dummy)
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
@@ -193,7 +207,7 @@ def train(args):
                 gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
                                                                                      kpts2=outputs['kpt_sampling_grid'][1],
                                                                                      deformation=batch_deformation_grid,
-                                                                                     pixel_thresh=2)
+                                                                                     pixel_thresh=5)
 
                 loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
                                         landmark_logits2=outputs['kpt_logits'][1],
@@ -238,6 +252,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--fp16', action='store_true')
+    parser.add_argument('--dummy', action='store_true')
 
     args = parser.parse_args()
 

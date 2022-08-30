@@ -123,7 +123,7 @@ def test(args):
                                                                                  roi_size=(128, 128, 64),
                                                                                  sw_batch_size=2,
                                                                                  predictor=model.get_patch_feature_descriptors,
-                                                                                 overlap=0.0)
+                                                                                 overlap=0.5)
 
                 features_1 = (features_1_low, features_1_high)
                 features_2 = (features_2_low, features_1_high)
@@ -132,7 +132,8 @@ def test(args):
                 landmarks_1, landmarks_2, matches = model.inference(kpts_1=kpts_1,
                                                                     kpts_2=kpts_2,
                                                                     features_1=features_1,
-                                                                    features_2=features_2)
+                                                                    features_2=features_2,
+                                                                    conf_thresh=0.5)
 
                 match_idxs = torch.nonzero(matches)
                 print(match_idxs.shape)

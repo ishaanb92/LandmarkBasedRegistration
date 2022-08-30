@@ -28,11 +28,14 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
     device = kpts1.device
 
+    assert(kpts1, kpts2)
+
     b, i, j, k, _ = deformation.shape
 
     thresh = torch.Tensor([max((pixel_thresh)*(2/i),
                                (pixel_thresh)*(2/j),
                                (pixel_thresh)*(2/k))]).to(kpts1.device).type(kpts1.dtype)
+
 
     deformation = deformation.permute(0, 4, 1, 2, 3) # [B, 3, H, W, D]
 
@@ -43,7 +46,8 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
     # kpts2[:, :, :, :, 2] : x (H)
     kpts1_projected = F.grid_sample(deformation.to(device).type(kpts2.dtype),
                                     kpts2,
-                                    align_corners=False)
+                                    align_corners=True,
+                                    mode='bilinear')
 
     kpts1_projected = kpts1_projected.permute(0, 4, 2, 3, 1)
 

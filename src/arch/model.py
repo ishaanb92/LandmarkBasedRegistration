@@ -80,7 +80,7 @@ class LesionMatchingModel(nn.Module):
         x1 = x[:, 0, ...].unsqueeze(dim=1)
         x2 = x[:, 1, ...].unsqueeze(dim=1)
 
-        # 1. Landmark (candidate) detections
+        # 1. Landmark (candidate) detections (logits)
         kpts_1, _ = self.cnn(x1)
         kpts_2, _ = self.cnn(x2)
 
@@ -147,6 +147,7 @@ class LesionMatchingModel(nn.Module):
             match_rows = torch.zeros((k1, k2))
             match_rows[torch.arange(k1), torch.argmax(pairs_prob, dim=1)] = 1
             match = match_rows*match_cols
+            print('Matches w.r.t probability : {}'.format(torch.nonzero(match).shape[0]))
 
             # 2-way matching w.r.t probabilities & min norm
             match_cols = torch.zeros((k1, k2))
@@ -154,8 +155,10 @@ class LesionMatchingModel(nn.Module):
             match_rows = torch.zeros((k1, k2))
             match_rows[torch.arange(k1), torch.argmin(pairs_norm, dim=1)] = 1
             match_norm = match_rows*match_cols
+            print('Matches w.r.t L2-norm: {}'.format(torch.nonzero(match_norm).shape[0]))
 
             match = match*match_norm
+            print('Total matches: {}'.format(torch.nonzero(match).shape[0]))
 
             matches.append(match)
 
@@ -185,7 +188,7 @@ class LesionMatchingModel(nn.Module):
     def sampling_block(self,
                        kpt_map=None,
                        features=None,
-                       conf_thresh=0.0001,
+                       conf_thresh=0.1,
                        W=4,
                        training=True,
                        num_pts = 512):
@@ -201,7 +204,6 @@ class LesionMatchingModel(nn.Module):
         b, _, i, j, k = kpt_map.shape
         kpt_probmap = torch.sigmoid(kpt_map)
 
-
         # Only retain the maximum activation in a given neighbourhood of size of W, W, W
         # All non-maximal values set to zero
         kpt_probmap_downsampled, indices = F.max_pool3d(kpt_probmap,
@@ -216,6 +218,7 @@ class LesionMatchingModel(nn.Module):
 
         kpt_probmax_suppressed = torch.squeeze(kpt_probmax_suppressed,
                                                dim=1)
+
 
         kpts = torch.zeros(size=(b, num_pts, 4),
                            dtype=kpt_map.dtype).to(kpt_map.device)
@@ -233,9 +236,8 @@ class LesionMatchingModel(nn.Module):
             # FIXME: Handle cases where N < num_pts
             N = len(zs)
 
-            if training is True:
-                if N < num_pts:
-                    raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
+            if N < num_pts:
+                raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
 
             item_kpts = torch.zeros(size=(N, 4),
                                     dtype=kpt_map.dtype).to(kpt_map.device)
@@ -269,7 +271,7 @@ class LesionMatchingModel(nn.Module):
         # See: https://discuss.pytorch.org/t/runtimeerror-binary-cross-entropy-and-bceloss-are-unsafe-to-autocast/118538
         kpts_scores = F.grid_sample(kpt_map,
                                     kpts_sampling_grid,
-                                    align_corners=False)
+                                    align_corners=True)
 
         # Get rid of fake channels axes
         kpts_scores = kpts_scores.squeeze(dim=1).squeeze(dim=1).squeeze(dim=1)
@@ -279,10 +281,11 @@ class LesionMatchingModel(nn.Module):
         for fmap in features:
             fmap_resampled = F.grid_sample(fmap,
                                            kpts_sampling_grid,
-                                           align_corners=False)
+                                           align_corners=True)
+
             descriptors.append(fmap_resampled)
 
-        # Expected shape: [B, C, 1, ,1, K]
+        # Expected shape: [B, C, 1, 1, K]
         descriptors = torch.cat(descriptors, dim=1)
 
 
