@@ -111,7 +111,9 @@ def create_deformation_grid(grid=None,
 
 def create_batch_deformation_grid(shape,
                                   device='cpu',
-                                  dummy=False):
+                                  dummy=False,
+                                  coarse_displacements=(2, 2, 2),
+                                  fine_displacements=(0.75, 0.75, 0.75)):
 
     b, c, i, j, k = shape
 
@@ -128,11 +130,12 @@ def create_batch_deformation_grid(shape,
         if dummy is False:
             elastic_transform_coarse = create_bspline_transform(coarse=True,
                                                                 shape=[k, j, i],
-                                                                displacements=(2, 2, 2))
+                                                                displacements=coarse_displacements)
 
             elastic_transform_fine = create_bspline_transform(coarse=False,
                                                               shape=[k, j, i],
-                                                              displacements=(0.75, 0.75, 0.75))
+                                                              displacements=fine_displacements)
+
             transforms = [elastic_transform_coarse, elastic_transform_fine]
         else: # No transforms
             transforms = []

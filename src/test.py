@@ -21,7 +21,8 @@ sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 
 from model import LesionMatchingModel
 from deformations import *
 from datapipeline import *
-
+from loss import create_ground_truth_correspondences
+from metrics import get_match_statistics
 
 def test(args):
 
@@ -76,21 +77,26 @@ def test(args):
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device,
-                                                                       dummy=True)
+                                                                       dummy=args.dummy,
+                                                                       coarse_displacements=(6, 3, 3),
+                                                                       fine_displacements=(2, 2, 2))
 
                 if batch_deformation_grid is None:
                     continue
 
-                # FIXME: Change mode when debug done
-                images_hat = F.grid_sample(input=images,
-                                           grid=batch_deformation_grid,
-                                           align_corners=True,
-                                           mode="nearest")
+                if args.dummy is True:
+                    images_hat = F.grid_sample(input=images,
+                                               grid=batch_deformation_grid,
+                                               align_corners=True,
+                                               mode="nearest")
 
+                    assert(torch.equal(images, images_hat))
+                else:
+                    images_hat = F.grid_sample(input=images,
+                                               grid=batch_deformation_grid,
+                                               align_corners=True,
+                                               mode="bilinear")
 
-
-                # DEBUG: REMOVEEEE!!!!
-                assert(torch.equal(images, images_hat))
 
                 # Concatenate along channel axis so that sliding_window_inference can
                 # be used
@@ -107,6 +113,7 @@ def test(args):
                 liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
 
 
+                # Keypoint logits
                 kpts_1, kpts_2 = sliding_window_inference(inputs=images_cat.to(device),
                                                           roi_size=(128, 128, 64),
                                                           sw_batch_size=2,
@@ -118,6 +125,7 @@ def test(args):
                 kpts_1 = kpts_1*liver_mask.to(kpts_1.device)
                 kpts_2 = kpts_2*liver_mask.to(kpts_2.device)
 
+                # Feature maps
                 features_1_low, features_1_high, features_2_low, features_2_high =\
                                                         sliding_window_inference(inputs=images_cat.to(device),
                                                                                  roi_size=(128, 128, 64),
@@ -128,15 +136,54 @@ def test(args):
                 features_1 = (features_1_low, features_1_high)
                 features_2 = (features_2_low, features_1_high)
 
-                # Get landmarks and matches on the full image
-                landmarks_1, landmarks_2, matches = model.inference(kpts_1=kpts_1,
-                                                                    kpts_2=kpts_2,
-                                                                    features_1=features_1,
-                                                                    features_2=features_2,
-                                                                    conf_thresh=0.5)
 
-                match_idxs = torch.nonzero(matches)
-                print(match_idxs.shape)
+
+                # Get (predicted) landmarks and matches on the full image
+                # These landmarks are predicted based on L2-norm between feature descriptors
+                # and predicted matching probability
+                outputs = model.inference(kpts_1=kpts_1,
+                                          kpts_2=kpts_2,
+                                          features_1=features_1,
+                                          features_2=features_2,
+                                          conf_thresh=0.5)
+
+                # Get ground truth matches based on projecting keypoints using the deformation grid
+                gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
+                                                                                           kpts2=outputs['kpt_sampling_grid_2'],
+                                                                                           deformation=batch_deformation_grid,
+                                                                                           pixel_thresh=5)
+
+                print('Number of ground truth matches (based on projecting keypoints) = {}'.format(num_gt_matches))
+                print('Number of matches based on feature descriptor distance '
+                      '& matching probability = {}'.format(torch.nonzero(outputs['matches']).shape[0]))
+
+                # Get TP, FP, FN matches
+                for batch_id in range(gt_matches.shape[0]):
+                    batch_gt_matches = gt_matches[batch_id, ...] # Shape: (K, K)
+                    batch_pred_matches = outputs['matches'][batch_id, ...] # Shape (K, K)
+                    batch_pred_matches_norm = outputs['matches_norm'][batch_id, ...] # Shape (K, K)
+                    batch_pred_matches_prob = outputs['matches_prob'][batch_id, ...] # Shape (K, K)
+
+                    stats = get_match_statistics(gt=batch_gt_matches.cpu(),
+                                                 pred=batch_pred_matches.cpu())
+                    print('Matches :: TP matches = {} FP = {} FN = {}'.format(stats['True Positives'],
+                                                                              stats['False Positives'],
+                                                                              stats['False Negatives']))
+
+                    stats = get_match_statistics(gt=batch_gt_matches.cpu(),
+                                                 pred=batch_pred_matches_norm.cpu())
+                    print('Matches w.r.t L2-Norm:: TP matches = {} FP = {} FN = {}'.format(stats['True Positives'],
+                                                                                           stats['False Positives'],
+                                                                                           stats['False Negatives']))
+
+                    stats = get_match_statistics(gt=batch_gt_matches.cpu(),
+                                                 pred=batch_pred_matches_prob.cpu())
+                    print('Matches w.r.t match probability:: TP matches = {} FP = {} FN = {}'.format(stats['True Positives'],
+                                                                                                     stats['False Positives'],
+                                                                                                     stats['False Negatives']))
+
+                    # TODO: Save outputs (images, landmarks points) for visualization
+
 
             else: #TODO
                 pass
@@ -150,6 +197,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--synthetic', action='store_true')
+    parser.add_argument('--dummy', action='store_true')
 
     args = parser.parse_args()
 

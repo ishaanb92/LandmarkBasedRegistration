@@ -136,6 +136,9 @@ class LesionMatchingModel(nn.Module):
 
         # Two-way matching
         matches = []
+        matches_norm = []
+        matches_prob = []
+
         for batch_idx in range(b):
 
             pairs_prob = desc_pairs_prob[batch_idx]
@@ -146,8 +149,7 @@ class LesionMatchingModel(nn.Module):
             match_cols[torch.argmax(pairs_prob, dim=0), torch.arange(k2)] = 1
             match_rows = torch.zeros((k1, k2))
             match_rows[torch.arange(k1), torch.argmax(pairs_prob, dim=1)] = 1
-            match = match_rows*match_cols
-            print('Matches w.r.t probability : {}'.format(torch.nonzero(match).shape[0]))
+            match_prob = match_rows*match_cols
 
             # 2-way matching w.r.t probabilities & min norm
             match_cols = torch.zeros((k1, k2))
@@ -155,17 +157,28 @@ class LesionMatchingModel(nn.Module):
             match_rows = torch.zeros((k1, k2))
             match_rows[torch.arange(k1), torch.argmin(pairs_norm, dim=1)] = 1
             match_norm = match_rows*match_cols
-            print('Matches w.r.t L2-norm: {}'.format(torch.nonzero(match_norm).shape[0]))
 
-            match = match*match_norm
-            print('Total matches: {}'.format(torch.nonzero(match).shape[0]))
+            match = match_prob*match_norm
 
             matches.append(match)
+            matches_norm.append(match_norm)
+            matches_prob.append(match_prob)
 
         matches = torch.stack(matches)
+        matches_norm = torch.stack(matches_norm)
+        matches_prob = torch.stack(matches_prob)
+
+        outputs = {}
+        outputs['landmarks_1'] = landmarks_1
+        outputs['landmarks_2'] = landmarks_2
+        outputs['matches'] = matches
+        outputs['matches_norm'] = matches_norm
+        outputs['matches_prob'] = matches_prob
+        outputs['kpt_sampling_grid_1'] = kpt_sampling_grid_1
+        outputs['kpt_sampling_grid_2'] = kpt_sampling_grid_2
 
 
-        return landmarks_1, landmarks_2, matches
+        return outputs
 
     @staticmethod
     def convert_grid_to_image_coords(pts, shape=(64, 128, 128)):
