@@ -8,8 +8,19 @@ import os
 from elastix.elastix_interface import *
 from argparse import ArgumentParser
 import shutil
+import sys
 
 ELASTIX_BIN = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/bin/elastix'
+ELASTIX_LIB = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/lib'
+
+# Update LD_LIBRARY_PATH so that the elastix binary can find the .so file
+def add_library_path(path):
+    old_path = os.environ.get('LD_LIBRARY_PATH')
+
+    if old_path is not None:
+        os.environ['LD_LIBRARY_PATH'] = old_path + ":" + path
+    else:
+        os.environ['LD_LIBRARY_PATH'] = path
 
 def register_image_pair(fixed_image=None,
                         moving_image=None,
@@ -41,7 +52,7 @@ if __name__ == '__main__':
 
     os.makedirs(args.out_dir)
 
-    print('About to register images')
+    add_library_path(ELASTIX_LIB)
 
     register_image_pair(fixed_image=args.f,
                         moving_image=args.m,
