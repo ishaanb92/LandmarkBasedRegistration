@@ -98,7 +98,7 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     # LandmarkProbabilityLoss Image 2
     landmark_logits2_lossa = torch.mean(torch.tensor(1.).to(device) - torch.sum(torch.sigmoid(landmark_logits2), dim=(1)) / torch.tensor(float(k)).to(device))
     landmark_logits2_lossb =	F.binary_cross_entropy_with_logits(landmark_logits2, gt2)
-    landmark_logits2_loss = landmark_logits2_lossa + landmark_logits2_lossa
+    landmark_logits2_loss = landmark_logits2_lossa + landmark_logits2_lossb
 
     # Descriptor loss: Weighted CE
     b, k1, k2 = match_target.shape

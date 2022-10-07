@@ -30,6 +30,10 @@ def register_image_pair(fixed_image=None,
 
     el = ElastixInterface(elastix_path=ELASTIX_BIN)
 
+    # Copy fixed and moving images to output directory
+    shutil.copyfile(fixed_image, os.path.join(out_dir, 'fixed_image.nii.gz'))
+    shutil.copyfile(moving_image, os.path.join(out_dir, 'moving_image.nii.gz'))
+
     el.register(fixed_image=fixed_image,
                 moving_image=moving_image,
                 parameters=param_file_list,
@@ -41,7 +45,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--f', type=str, help='fixed image file path')
     parser.add_argument('--m', type=str, help='moving image file path')
-    parser.add_argument('--p', type=str, help='Parameter file path')
+    parser.add_argument('--p', type=str, help='Parameter file path(s)', nargs='+')
     parser.add_argument('--out_dir', type=str, help='Output directory')
     parser.add_argument('--t', type=str, help='Initial transformation', default=None)
 
@@ -56,7 +60,7 @@ if __name__ == '__main__':
 
     register_image_pair(fixed_image=args.f,
                         moving_image=args.m,
-                        param_file_list=[args.p],
+                        param_file_list=args.p,
                         initial_transform=args.t,
                         out_dir=args.out_dir)
 

@@ -1,0 +1,64 @@
+// Parameter file created by ElastixParameterFile module
+
+// Registration parameters
+(Registration "MultiResolutionRegistration")
+(FixedImageDimension 3)
+(MovingImageDimension 3)
+(FixedInternalImagePixelType "float")
+(MovingInternalImagePixelType "float")
+(UseDirectionCosines "true")
+(NumberOfResolutions 4)
+
+// Transform parameters
+(Transform "AffineTransform")
+(HowToCombineTransforms "Compose")
+(AutomaticScalesEstimation "true" "true" "true")
+(AutomaticTransformInitialization "true")
+
+// Metric parameters
+(Metric "NormalizedMutualInformation")
+(ShowExactMetricValues "false" "false" "false")
+(CheckNumberOfSamples "false" "false" "false")
+(RequiredRatioOfValidSamples 0.25)
+(NumberOfHistogramBins 32)
+(NumberOfFixedHistogramBins 32)
+(NumberOfMovingHistogramBins 32)
+(MovingKernelBSplineOrder 3 3 3)
+
+// Optimizer parameters
+(Optimizer "AdaptiveStochasticGradientDescent")
+(NewSamplesEveryIteration "true")
+(MaximumNumberOfIterations 2000)
+(AutomaticParameterEstimation "true")
+(UseAdaptiveStepSizes "true")
+(NumberOfSamplesForExactGradient 100000)
+
+// Interpolator parameters
+(Interpolator "NearestNeighborInterpolator")
+
+// ResampleInterpolator parameters
+(ResampleInterpolator "FinalNearestNeighborInterpolator")
+
+// ImageSampler parameters
+(ImageSampler "RandomCoordinate")
+(NumberOfSpatialSamples 4096)
+(UseRandomSampleRegion "false")
+
+// FixedImagePyramid parameters
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+(FixedImagePyramidSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
+
+// MovingImagePyramid parameters
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+(MovingImagePyramidSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
+
+(WritePyramidImagesAfterEachResolution "false")
+
+// Resampler parameters
+(Resampler "DefaultResampler")
+(WriteResultImage "true")
+(CompressResultImage "false")
+(ResultImageFormat "nii")
+(ResultImagePixelType "short")
+(WriteResultImageAfterEachResolution "false")
+
