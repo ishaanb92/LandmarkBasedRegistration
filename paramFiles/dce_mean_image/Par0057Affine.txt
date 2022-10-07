@@ -7,7 +7,7 @@
 (FixedInternalImagePixelType "float")
 (MovingInternalImagePixelType "float")
 (UseDirectionCosines "true")
-(NumberOfResolutions 1)
+(NumberOfResolutions 3)
 (ErodeFixedMask "false" "false" "false")
 (ErodeMovingMask "false" "false" "false")
 
@@ -31,7 +31,7 @@
 // Optimizer parameters
 (Optimizer "AdaptiveStochasticGradientDescent")
 (NewSamplesEveryIteration "true")
-(MaximumNumberOfIterations 2000)
+(MaximumNumberOfIterations 1000)
 (MaximumNumberOfSamplingAttempts 0)
 (AutomaticParameterEstimation "true")
 (SigmoidInitialTime 0 0 0)
@@ -46,7 +46,6 @@
 (ResampleInterpolator "FinalBSplineInterpolator")
 (FinalBSplineInterpolationOrder 3)
 
-
 // ImageSampler parameters
 (ImageSampler "RandomCoordinate")
 (NumberOfSpatialSamples 10000)
@@ -55,11 +54,11 @@
 
 // FixedImagePyramid parameters
 (FixedImagePyramid "FixedSmoothingImagePyramid")
-(FixedImagePyramidSchedule 1 1 1)
+(FixedImagePyramidSchedule 4 4 4 2 2 2 1 1 1)
 
 // MovingImagePyramid parameters
 (MovingImagePyramid "MovingSmoothingImagePyramid")
-(MovingImagePyramidSchedule 1 1 1)
+(MovingImagePyramidSchedule 4 4 4 2 2 2 1 1 1)
 
 (WritePyramidImagesAfterEachResolution "false")
 

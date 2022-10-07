@@ -1,6 +1,10 @@
 """"
 
-Script to register images using the python wrapper for elastic
+Script to register a pair of images using the python wrapper for elastic
+Use for quick prototyping/checking effect of changes on a single pair
+
+@author: Ishaan Bhat
+@email: ishaan@isi.uu.nl
 
 """
 

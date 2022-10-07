@@ -20,9 +20,9 @@
 (ShowExactMetricValues "false" "false" "false")
 (CheckNumberOfSamples "false" "false" "false")
 (RequiredRatioOfValidSamples 0.25)
-(NumberOfHistogramBins 32)
-(NumberOfFixedHistogramBins 32)
-(NumberOfMovingHistogramBins 32)
+(NumberOfHistogramBins 2)
+(NumberOfFixedHistogramBins 2)
+(NumberOfMovingHistogramBins 2)
 (MovingKernelBSplineOrder 3 3 3)
 
 // Optimizer parameters

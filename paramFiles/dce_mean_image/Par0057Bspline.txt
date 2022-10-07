@@ -7,14 +7,14 @@
 (FixedInternalImagePixelType "float")
 (MovingInternalImagePixelType "float")
 (UseDirectionCosines "true")
-(NumberOfResolutions 1)
+(NumberOfResolutions 4)
 (ErodeFixedMask "false" "false" "false")
 (ErodeMovingMask "false" "false" "false")
 
 // Transform parameters
 (Transform "BSplineTransform")
-(FinalGridSpacingInPhysicalUnits 60 60 40)
-(GridSpacingSchedule 1 1 1)
+(FinalGridSpacingInVoxels 16 16 16)
+(GridSpacingSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
 (HowToCombineTransforms "Compose")
 (AutomaticScalesEstimation "true" "true" "true")
 (AutomaticTransformInitialization "true")
@@ -58,11 +58,11 @@
 
 // FixedImagePyramid parameters
 (FixedImagePyramid "FixedSmoothingImagePyramid")
-(FixedImagePyramidSchedule 1 1 1)
+(FixedImagePyramidSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
 
 // MovingImagePyramid parameters
 (MovingImagePyramid "MovingSmoothingImagePyramid")
-(MovingImagePyramidSchedule 1 1 1)
+(MovingImagePyramidSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
 
 (WritePyramidImagesAfterEachResolution "false")
 

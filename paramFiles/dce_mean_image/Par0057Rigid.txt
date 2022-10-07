@@ -7,7 +7,7 @@
 (FixedInternalImagePixelType "float")
 (MovingInternalImagePixelType "float")
 (UseDirectionCosines "true")
-(NumberOfResolutions 2)
+(NumberOfResolutions 3)
 (ErodeFixedMask "false" "false" "false")
 (ErodeMovingMask "false" "false" "false")
 
@@ -15,7 +15,6 @@
 (Transform "EulerTransform")
 (HowToCombineTransforms "Compose")
 (AutomaticScalesEstimation "true" "true" "true")
-//(Scales 17000 17000 140000 1 1 1)
 (AutomaticTransformInitialization "true")
 
 // Metric parameters
@@ -23,18 +22,17 @@
 (ShowExactMetricValues "false" "false" "false")
 (CheckNumberOfSamples "false" "false" "false")
 (RequiredRatioOfValidSamples 0.25)
-(NumberOfHistogramBins 32)
-(NumberOfFixedHistogramBins 32)
-
-(NumberOfMovingHistogramBins 32)
+(NumberOfHistogramBins 64)
+(NumberOfFixedHistogramBins 64)
+(NumberOfMovingHistogramBins 64)
 (MovingKernelBSplineOrder 3 3 3)
 
 
 // Optimizer parameters
-(Optimizer "StandardGradientDescent")
+(Optimizer "AdaptiveStochasticGradientDescent")
 (NewSamplesEveryIteration "true")
-(MaximumNumberOfIterations 2000)
-(MaximumNumberOfSamplingAttempts 0 0 0)
+(MaximumNumberOfIterations 500)
+(MaximumNumberOfSamplingAttempts 0)
 (AutomaticParameterEstimation "true")
 (SigmoidInitialTime 0 0 0)
 (UseAdaptiveStepSizes "true")
@@ -42,31 +40,30 @@
 
 // Interpolator parameters
 (Interpolator "LinearInterpolator")
-//(BSplineInterpolationOrder 1 1 1)
 
 // ResampleInterpolator parameters
 (ResampleInterpolator "FinalBSplineInterpolator")
 (FinalBSplineInterpolationOrder 3)
 
 // ImageSampler parameters
-(ImageSampler "Grid")
-//(NumberOfSpatialSamples 4096)
+(ImageSampler "RandomCoordinate")
+(NumberOfSpatialSamples 10000)
 (UseRandomSampleRegion "false")
 (FixedImageBSplineInterpolationOrder 1 1 1)
 
 // FixedImagePyramid parameters
-(FixedImagePyramid "FixedShrinkingImagePyramid")
-(FixedImagePyramidSchedule 2 2 2 1 1 1)
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+(FixedImagePyramidSchedule 4 4 4 2 2 2 1 1 1)
 
 // MovingImagePyramid parameters
-(MovingImagePyramid "MovingShrinkingImagePyramid")
-(MovingImagePyramidSchedule 2 2 2 1 1 1)
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+(MovingImagePyramidSchedule 4 4 4 2 2 2 1 1 1)
 
 (WritePyramidImagesAfterEachResolution "false")
 
 // Resampler parameters
 (Resampler "DefaultResampler")
-(WriteResultImage "false")
+(WriteResultImage "true")
 (CompressResultImage "false")
 (ResultImageFormat "nii")
 (ResultImagePixelType "short")
