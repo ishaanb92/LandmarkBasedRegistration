@@ -28,6 +28,8 @@ def add_library_path(path):
 
 def register_image_pair(fixed_image=None,
                         moving_image=None,
+                        fixed_image_mask=None,
+                        moving_image_mask=None,
                         param_file_list=None,
                         initial_transform=None,
                         out_dir=None):
@@ -40,6 +42,8 @@ def register_image_pair(fixed_image=None,
 
     el.register(fixed_image=fixed_image,
                 moving_image=moving_image,
+                fixed_mask=fixed_image_mask,
+                moving_mask=moving_image_mask,
                 parameters=param_file_list,
                 initial_transform=initial_transform,
                 output_dir=out_dir)

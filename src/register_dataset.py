@@ -77,6 +77,19 @@ if __name__ == '__main__':
                                          scan_dirs[moving_image_idx],
                                          image_name)
 
+        # Use liver mask to guide registration for image-based registration
+        if args.mode == 'image':
+            fixed_image_mask = os.path.join(pat_dir,
+                                            scan_dirs[fixed_image_idx],
+                                            'LiverMask_dilated.nii')
+
+            moving_image_mask = os.path.join(pat_dir,
+                                             scan_dirs[moving_image_idx],
+                                             'LiverMask_dilated.nii')
+        else:
+            fixed_image_mask = None
+            moving_image_mask = None
+
         if os.path.exists(fixed_image_path) is False or os.path.exists(moving_image_path) is False:
             print('One (or both) of the images cannot be found. Abort for patient {} '.format(p_id))
             continue
@@ -88,6 +101,8 @@ if __name__ == '__main__':
         # Register the images
         register_image_pair(fixed_image=fixed_image_path,
                             moving_image=moving_image_path,
+                            fixed_image_mask=fixed_image_mask,
+                            moving_image_mask=moving_image_mask,
                             param_file_list=args.p,
                             out_dir=out_dir)
 
