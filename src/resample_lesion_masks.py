@@ -22,6 +22,63 @@ import numpy as np
 ELASTIX_LIB = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/lib'
 TRANSFORMIX_BIN = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/bin/transformix'
 
+
+
+def create_separate_lesion_masks(fname):
+    """
+    For ease of creating ground truth matches, we split the lesion annotation into separate
+    masks, each mask contains a single lesion. This is done for both fixed and moving lesion
+    masks.
+
+    Return number of lesions so that each (moving) lesion can be resampled
+
+    """
+    # Is it fixed or moving?
+    mask_type = fname.split(os.sep)[-1].split('_')[0]
+    lesion_mask_itk = sitk.ReadImage(fname)
+    lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk)
+
+    if lesion_mask_np.ndim != 3:
+        return -1
+
+    # Handle non-binary masks!!!
+    if np.amax(lesion_mask_np) > 1:
+        lesion_mask_np = np.where(lesion_mask_np >=1, 1, lesion_mask_np)
+        lesion_mask_itk_binary = sitk.GetImageFromArray(lesion_mask_np)
+        lesion_mask_itk_binary.SetOrigin(lesion_mask_itk.GetOrigin())
+        lesion_mask_itk_binary.SetDirection(lesion_mask_itk.GetDirection())
+        lesion_mask_itk_binary.SetSpacing(lesion_mask_itk.GetSpacing())
+        # Overwrite old file
+        sitk.WriteImage(lesion_mask_itk_binary, fname)
+        # Convert the fixed binary ITK image to a numpy ndarray
+        lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk_binary)
+
+    lesion_slices, n_lesions = return_lesion_coordinates(lesion_mask_np)
+
+    for idx, lesion_slice in enumerate(lesion_slices):
+
+        # Create a new mask for a single lesion
+        single_lesion_mask = np.zeros_like(lesion_mask_np)
+        single_lesion_mask[lesion_slice] += lesion_mask_np[lesion_slice]
+        single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
+
+        # Add metadata
+        single_lesion_mask_itk.SetOrigin(lesion_mask_itk.GetOrigin())
+        single_lesion_mask_itk.SetDirection(lesion_mask_itk.GetDirection())
+        single_lesion_mask_itk.SetSpacing(lesion_mask_itk.GetSpacing())
+
+        lesion_dir = os.path.join(reg_dir, '{}_lesion_{}'.format(mask_type, idx))
+        if os.path.exists(lesion_dir) is True:
+            shutil.rmtree(lesion_dir)
+        os.makedirs(lesion_dir)
+
+        lesion_fpath = os.path.join(lesion_dir, 'lesion.nii.gz')
+        sitk.WriteImage(single_lesion_mask_itk,
+                        lesion_fpath)
+
+    return n_lesions
+
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -65,7 +122,7 @@ if __name__ == '__main__':
 
         reg_dir = os.path.join(args.out_dir, pat_id)
 
-        # Copy the fixed and moving lesion masks
+        # Copy the fixed and moving lesion masks to the registration output directory
         shutil.copyfile(fixed_lesion_mask, os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
         shutil.copyfile(moving_lesion_mask, os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
 
@@ -88,71 +145,25 @@ if __name__ == '__main__':
                                   transformix_path=TRANSFORMIX_BIN)
 
         # Save each lesion as a separate mask
-
-        # 1. Lesions in the fixed lesion mask
-        f_lesion_mask_itk = sitk.ReadImage(os.path.join(reg_dir, 'fixed_lesion_mask.nii'))
-        f_lesion_mask_np = sitk.GetArrayFromImage(f_lesion_mask_itk)
-
-        if f_lesion_mask_np.ndim != 3:
-            print('Fixed lesion mask for patient {} has {} dimensions. Skipping'.format(pat_id,
-                                                                                        f_lesion_mask_np.ndim))
+        n_fixed_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
+        if n_fixed_lesions < 0:
+            print('Error encountered while processing fixed lesion mask for Patient {}. Skipping'.format(pat_id))
             continue
 
-        f_lesion_slices, n_lesions = return_lesion_coordinates(f_lesion_mask_np)
-
-        for idx, lesion_slice in enumerate(f_lesion_slices):
-
-            # Create a new mask for a single lesion
-            single_lesion_mask = np.zeros_like(f_lesion_mask_np)
-            single_lesion_mask[lesion_slice] += f_lesion_mask_np[lesion_slice]
-            single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
-
-            # Add metadata
-            single_lesion_mask_itk.SetOrigin(f_lesion_mask_itk.GetOrigin())
-            single_lesion_mask_itk.SetDirection(f_lesion_mask_itk.GetDirection())
-            single_lesion_mask_itk.SetSpacing(f_lesion_mask_itk.GetSpacing())
-
-            fixed_lesion_dir = os.path.join(reg_dir, 'fixed_lesion_{}'.format(idx))
-            if os.path.exists(fixed_lesion_dir) is True:
-                shutil.rmtree(fixed_lesion_dir)
-            os.makedirs(fixed_lesion_dir)
-
-            lesion_fpath = os.path.join(fixed_lesion_dir, 'lesion.nii.gz')
-            sitk.WriteImage(single_lesion_mask_itk,
-                            lesion_fpath)
-
-        # 2. Lesions in the moving lesion mask
-        m_lesion_mask_itk = sitk.ReadImage(os.path.join(reg_dir, 'moving_lesion_mask.nii'))
-        m_lesion_mask_np = sitk.GetArrayFromImage(m_lesion_mask_itk)
-
-        if m_lesion_mask_np.ndim != 3:
-            print('Moving lesion mask for patient {} has {} dimensions. Skipping'.format(pat_id,
-                                                                                         m_lesion_mask_np.ndim))
+        n_moving_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
+        if n_moving_lesions < 0:
+            print('Error encountered while processing moving lesion mask for Patient {}. Skipping'.format(pat_id))
             continue
-        m_lesion_slices, n_lesions = return_lesion_coordinates(m_lesion_mask_np)
 
-        for idx, lesion_slice in enumerate(m_lesion_slices):
+        # Resample each lesion in the moving image separately
+        for m_lesion_idx in range(n_moving_lesions):
 
-            # Create a new mask for a single lesion
-            single_lesion_mask = np.zeros_like(m_lesion_mask_np)
-            single_lesion_mask[lesion_slice] += m_lesion_mask_np[lesion_slice]
-            single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
+            moving_lesion_dir = os.path.join(reg_dir,
+                                             'moving_lesion_{}'.format(m_lesion_idx))
 
-            # Add metadata
-            single_lesion_mask_itk.SetOrigin(m_lesion_mask_itk.GetOrigin())
-            single_lesion_mask_itk.SetDirection(m_lesion_mask_itk.GetDirection())
-            single_lesion_mask_itk.SetSpacing(m_lesion_mask_itk.GetSpacing())
+            lesion_fpath = os.path.join(moving_lesion_dir,
+                                        'lesion.nii.gz')
 
-            moving_lesion_dir = os.path.join(reg_dir, 'moving_lesion_{}'.format(idx))
-            if os.path.exists(moving_lesion_dir) is True:
-                shutil.rmtree(moving_lesion_dir)
-            os.makedirs(moving_lesion_dir)
-
-            lesion_fpath = os.path.join(moving_lesion_dir, 'lesion.nii.gz')
-            sitk.WriteImage(single_lesion_mask_itk,
-                            lesion_fpath)
-
-            # Resample lesion mask
             tr.transform_image(image_path=lesion_fpath,
                                output_dir=moving_lesion_dir)
 
