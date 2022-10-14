@@ -15,6 +15,8 @@ import SimpleITK as sitk
 from argparse import ArgumentParser
 import glob
 import shutil
+from utils.image_utils import return_lesion_coordinates
+import joblib
 
 def merge_lesions_masks(dir_list=None):
 
@@ -31,6 +33,30 @@ def merge_lesions_masks(dir_list=None):
     return lesion_mask_np
 
 
+def get_lesion_slices(dir_list=None, fixed=True):
+
+    if fixed is True:
+        fname = 'lesion.nii.gz'
+    else:
+        fname = 'result.nii'
+
+    slices = []
+    for idx, lesion_dir in enumerate(dir_list):
+        single_lesion_mask_itk = sitk.ReadImage(os.path.join(lesion_dir, fname))
+        single_lesion_mask_np = sitk.GetArrayFromImage(single_lesion_mask_itk)
+        lesion_slices, n_lesions = return_lesion_coordinates(single_lesion_mask_np)
+        if n_lesions > 1:
+            print(lesion_slices)
+            raise RuntimeError('Weird, there should be only one lesion present, but there are {}. ID = {}, fixed = {}'.format(n_lesions,
+                                                                                                                              idx,
+                                                                                                                              fixed))
+        slices.append(lesion_slices[0])
+
+    return slices
+
+
+
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -41,11 +67,20 @@ if __name__ == '__main__':
     pat_dirs  = [f.path for f in os.scandir(args.out_dir) if f.is_dir()]
 
     print('Number of patients = {}'.format(len(pat_dirs)))
+    review_patients = joblib.load(os.path.join(args.out_dir, 'patients_to_review.pkl'))
+    print('{} patients need to be reviewed'.format(len(review_patients)))
+    failed_registrations = joblib.load(os.path.join(args.out_dir, 'failed_registrations.pkl'))
+    print('Registration failed for {} patients'.format(len(failed_registrations)))
 
     for pat_dir in pat_dirs:
         pat_id = pat_dir.split(os.sep)[-1]
 
+        if pat_id in review_patients or pat_id in failed_registrations:
+            continue
+
         m_lesion_dirs = [d for d in glob.glob(os.path.join(pat_dir, 'moving_lesion_*')) if os.path.isdir(d)]
+        f_lesion_dirs = [d for d in glob.glob(os.path.join(pat_dir, 'fixed_lesion_*')) if os.path.isdir(d)]
+
         if len(m_lesion_dirs) == 0:
             print('No lesions present in moving image for patient {}'.format(pat_id))
             continue
@@ -64,14 +99,33 @@ if __name__ == '__main__':
                         os.path.join(pat_dir, 'moving_lesion_mask_resampled.nii.gz'))
 
         print('Create correspondence graph for Patient {}'.format(pat_id))
-        # Create the correspondence graph
-        dgraph = create_correspondence_graph(seg=moving_lesion_mask_resampled,
-                                             gt=fixed_lesion_mask_np,
-                                             seg_prefix='Moving',
-                                             gt_prefix='Fixed',
-                                             min_overlap=0.5,
-                                             verbose=True)
 
+        # Create the correspondence graph
+        # To maintain consistency of 'Lesion ID' (which might get shuffled)
+        # if find_objects() is called AFTER resampling, we manually construct
+        # a list of Lesion objects to create a graph
+        # Create a list of lesions in the moving image
+        fixed_lesion_slices = get_lesion_slices(dir_list=f_lesion_dirs,
+                                                fixed=True)
+        moving_lesion_slices = get_lesion_slices(dir_list=m_lesion_dirs,
+                                                 fixed=False)
+        fixed_lesions = []
+        for idx, f_lesion_slice in enumerate(fixed_lesion_slices):
+            fixed_lesions.append(Lesion(coordinates=f_lesion_slice,
+                                        idx=idx,
+                                        prefix='Fixed'))
+
+        moving_lesions = []
+        for idx, m_lesion_slice in enumerate(moving_lesion_slices):
+            moving_lesions.append(Lesion(coordinates=m_lesion_slice,
+                                        idx=idx,
+                                        prefix='Moving'))
+
+        dgraph = create_correspondence_graph_from_list(pred_lesions=moving_lesions,
+                                                       gt_lesions=fixed_lesions,
+                                                       seg=moving_lesion_mask_resampled,
+                                                       gt=fixed_lesion_mask_np,
+                                                       min_overlap=0.5)
 
         # Visualize correspondence graph
         fname = os.path.join(pat_dir, 'lesion_correspondence.pdf')

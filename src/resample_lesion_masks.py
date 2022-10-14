@@ -60,6 +60,13 @@ def create_separate_lesion_masks(fname):
         # Create a new mask for a single lesion
         single_lesion_mask = np.zeros_like(lesion_mask_np)
         single_lesion_mask[lesion_slice] += lesion_mask_np[lesion_slice]
+
+        # DEBUG -- ENSURE EACH MASK CONTAINS A SINGLE LESION
+        lesion_slices_debug, n_lesions_debug = return_lesion_coordinates(single_lesion_mask)
+        if n_lesions_debug != 1:
+            raise RuntimeError('Lesion mask {} contains {} lesions. Ideally only 1 lesion should be present'.format(fname,
+                                                                                                                    n_lesions_debug))
+
         single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
 
         # Add metadata
@@ -90,6 +97,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+
     if args.test is False:
         pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients.pkl'))
         pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients.pkl')))
@@ -97,6 +105,9 @@ if __name__ == '__main__':
         pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients.pkl'))
 
     add_library_path(ELASTIX_LIB)
+
+    review_patients = []
+    failed_registrations = []
 
     for pat_dir in pat_dirs:
 
@@ -144,15 +155,35 @@ if __name__ == '__main__':
         tr = TransformixInterface(parameters=transform_file_path,
                                   transformix_path=TRANSFORMIX_BIN)
 
-        # Save each lesion as a separate mask
-        n_fixed_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
-        if n_fixed_lesions < 0:
-            print('Error encountered while processing fixed lesion mask for Patient {}. Skipping'.format(pat_id))
+
+        # Before we proceed, check if folding has occured!
+        jac_det_path = tr.jacobian_determinant(output_dir=reg_dir)
+        jac_det_itk = sitk.ReadImage(jac_det_path)
+        jac_det_np = sitk.GetArrayFromImage(jac_det_itk)
+        if np.amin(jac_det_np) < 0:
+            print('Registration has failed for patient {} since folding has occured'.format(pat_id))
+            failed_registrations.append(pat_id)
             continue
 
-        n_moving_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
-        if n_moving_lesions < 0:
-            print('Error encountered while processing moving lesion mask for Patient {}. Skipping'.format(pat_id))
+        # Save each lesion as a separate mask
+        try:
+            n_fixed_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
+            if n_fixed_lesions < 0:
+                print('Error encountered while processing fixed lesion mask for Patient {}. Skipping'.format(pat_id))
+                continue
+        except RuntimeError:
+            print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
+            review_patients.append(pat_id)
+            continue
+
+        try:
+            n_moving_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
+            if n_moving_lesions < 0:
+                print('Error encountered while processing moving lesion mask for Patient {}. Skipping'.format(pat_id))
+                continue
+        except RuntimeError:
+            print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
+            review_patients.append(pat_id)
             continue
 
         # Resample each lesion in the moving image separately
@@ -168,8 +199,18 @@ if __name__ == '__main__':
                                output_dir=moving_lesion_dir)
 
 
+    # Save list of patients whose lesion annotations need to be re-examined
+    joblib.dump(value=review_patients,
+                filename=os.path.join(args.out_dir, 'patients_to_review.pkl'))
 
+    joblib.dump(value=failed_registrations,
+                filename=os.path.join(args.out_dir, 'failed_registrations.pkl'))
 
+    # Clean-up : Remove failed or annotations that need review from the result directory
+    for pat_id in failed_registrations:
+        shutil.rmtree(os.path.join(args.out_dir, pat_id))
 
-
+    for pat_id in review_patients:
+        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
+            shutil.rmtree(os.path.join(args.out_dir, pat_id))
 
