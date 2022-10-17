@@ -90,7 +90,7 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
 
     return data_dicts
 
-def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4, num_workers=4, data_aug=True):
+def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4, num_workers=4, data_aug=True, patch_size=(128, 128, 64)):
 
     if train is True:
         if data_aug is True:
@@ -109,7 +109,7 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
                                   # Extract 128x128x64 3-D patches
                                   RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
                                                          label_key="liver_mask",
-                                                         spatial_size=(128, 128, 64),
+                                                         spatial_size=patch_size,
                                                          pos=1.0,
                                                          neg=0.0),
 
@@ -151,7 +151,7 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
                                   # Extract 128x128x64 3-D patches
                                   RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
                                                          label_key="liver_mask",
-                                                         spatial_size=(128, 128, 64),
+                                                         spatial_size=patch_size,
                                                          pos=1.0,
                                                          neg=0.0),
 

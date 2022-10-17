@@ -68,18 +68,21 @@ def train(args):
     train_dicts = create_data_dicts_lesion_matching(train_patients)
     val_dicts = create_data_dicts_lesion_matching(val_patients)
 
+    # FIXME: data augmentation set to False!
     train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
                                                         train=True,
-                                                        data_aug=True,
+                                                        data_aug=False,
                                                         batch_size=args.batch_size,
-                                                        num_workers=4)
+                                                        num_workers=4,
+                                                        patch_size=(96, 96, 48))
 
     # Patch-based validation
     val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
                                                       train=True,
                                                       data_aug=False,
                                                       batch_size=1,
-                                                      num_workers=4)
+                                                      num_workers=4,
+                                                      patch_size=(96, 96, 48))
 
 
     model = LesionMatchingModel(K=512,
@@ -110,9 +113,11 @@ def train(args):
 
             images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
+            # FIXME: (sanity check) non_rigid=False so the only transformations are a 10% translation along the X-axis
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                    device=images.device,
-                                                                   dummy=args.dummy)
+                                                                   dummy=args.dummy,
+                                                                   non_rigid=False)
 
             if batch_deformation_grid is None:
                 continue

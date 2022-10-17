@@ -112,6 +112,7 @@ def create_deformation_grid(grid=None,
 def create_batch_deformation_grid(shape,
                                   device='cpu',
                                   dummy=False,
+                                  non_rigid=True,
                                   coarse_displacements=(2, 2, 2),
                                   fine_displacements=(0.75, 0.75, 0.75)):
 
@@ -128,15 +129,19 @@ def create_batch_deformation_grid(shape,
     for batch_idx in range(b):
 
         if dummy is False:
-            elastic_transform_coarse = create_bspline_transform(coarse=True,
-                                                                shape=[k, j, i],
-                                                                displacements=coarse_displacements)
+            if non_rigid is True:
+                elastic_transform_coarse = create_bspline_transform(coarse=True,
+                                                                    shape=[k, j, i],
+                                                                    displacements=coarse_displacements)
 
-            elastic_transform_fine = create_bspline_transform(coarse=False,
-                                                              shape=[k, j, i],
-                                                              displacements=fine_displacements)
+                elastic_transform_fine = create_bspline_transform(coarse=False,
+                                                                  shape=[k, j, i],
+                                                                  displacements=fine_displacements)
 
-            transforms = [elastic_transform_coarse, elastic_transform_fine]
+                transforms = [elastic_transform_coarse, elastic_transform_fine]
+            else: # Translation only
+                translation_transform = create_affine_transform(translation=[0, 0, 0.1])
+                transforms = [translation_transform]
         else: # No transforms
             transforms = []
 
@@ -193,20 +198,18 @@ if __name__ == '__main__':
     for b_id, batch_data in enumerate(data_loader):
         images = batch_data['image']
         batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                               dummy=True)
+                                                               dummy=False,
+                                                               non_rigid=False)
         deformed_images = F.grid_sample(input=images,
                                         grid=batch_deformation_grid,
                                         align_corners=True,
-                                        mode="nearest")
+                                        mode="bilinear")
 
         sub_image = images - deformed_images
 
-        print(torch.max(sub_image))
-        print(torch.min(sub_image))
+#        assert(torch.allclose(images, deformed_images, atol=1e-4))
 
-        assert(torch.allclose(images, deformed_images, atol=1e-4))
-
-        save_dir = 'images_b_{}'.format(b_id)
+        save_dir = 'images_translation_b_{}'.format(b_id)
 
         if os.path.exists(save_dir) is True:
             shutil.rmtree(save_dir)
