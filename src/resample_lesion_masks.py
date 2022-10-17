@@ -38,6 +38,7 @@ def create_separate_lesion_masks(fname):
     lesion_mask_itk = sitk.ReadImage(fname)
     lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk)
 
+    # Weird!
     if lesion_mask_np.ndim != 3:
         return -1
 
@@ -108,6 +109,7 @@ if __name__ == '__main__':
 
     review_patients = []
     failed_registrations = []
+    missing_lesion_masks = []
 
     for pat_dir in pat_dirs:
 
@@ -129,9 +131,16 @@ if __name__ == '__main__':
 
         if os.path.exists(fixed_lesion_mask) is False or os.path.exists(moving_lesion_mask) is False:
             print('Lesion mask(s) missing for patient {}'.format(pat_id))
+            missing_lesion_masks.append(pat_id)
             continue
 
         reg_dir = os.path.join(args.out_dir, pat_id)
+
+        # The registration result for a patient may be absent
+        # because it may have been deleted in a previous run
+        # (because of a failed registraion, missing lesionmask etc.)
+        if os.path.exists(reg_dir) is False:
+            continue
 
         # Copy the fixed and moving lesion masks to the registration output directory
         shutil.copyfile(fixed_lesion_mask, os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
@@ -180,6 +189,7 @@ if __name__ == '__main__':
             n_moving_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
             if n_moving_lesions < 0:
                 print('Error encountered while processing moving lesion mask for Patient {}. Skipping'.format(pat_id))
+                review_patients.append(pat_id)
                 continue
         except RuntimeError:
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
@@ -206,11 +216,18 @@ if __name__ == '__main__':
     joblib.dump(value=failed_registrations,
                 filename=os.path.join(args.out_dir, 'failed_registrations.pkl'))
 
+    joblib.dump(value=missing_lesion_masks,
+                filename=os.path.join(args.out_dir, 'missing_lesion_masks.pkl'))
+
     # Clean-up : Remove failed or annotations that need review from the result directory
     for pat_id in failed_registrations:
         shutil.rmtree(os.path.join(args.out_dir, pat_id))
 
     for pat_id in review_patients:
+        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
+            shutil.rmtree(os.path.join(args.out_dir, pat_id))
+
+    for pat_id in missing_lesion_masks:
         if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
             shutil.rmtree(os.path.join(args.out_dir, pat_id))
 
