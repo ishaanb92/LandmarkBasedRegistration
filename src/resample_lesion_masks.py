@@ -164,11 +164,11 @@ if __name__ == '__main__':
         tr = TransformixInterface(parameters=transform_file_path,
                                   transformix_path=TRANSFORMIX_BIN)
 
-
         # Before we proceed, check if folding has occured!
         jac_det_path = tr.jacobian_determinant(output_dir=reg_dir)
         jac_det_itk = sitk.ReadImage(jac_det_path)
         jac_det_np = sitk.GetArrayFromImage(jac_det_itk)
+
         if np.amin(jac_det_np) < 0:
             print('Registration has failed for patient {} since folding has occured'.format(pat_id))
             failed_registrations.append(pat_id)
@@ -179,6 +179,7 @@ if __name__ == '__main__':
             n_fixed_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
             if n_fixed_lesions < 0:
                 print('Error encountered while processing fixed lesion mask for Patient {}. Skipping'.format(pat_id))
+                review_patients.append(pat_id)
                 continue
         except RuntimeError:
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
@@ -220,14 +221,14 @@ if __name__ == '__main__':
                 filename=os.path.join(args.out_dir, 'missing_lesion_masks.pkl'))
 
     # Clean-up : Remove failed or annotations that need review from the result directory
-    for pat_id in failed_registrations:
-        shutil.rmtree(os.path.join(args.out_dir, pat_id))
-
-    for pat_id in review_patients:
-        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
-            shutil.rmtree(os.path.join(args.out_dir, pat_id))
-
-    for pat_id in missing_lesion_masks:
-        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
-            shutil.rmtree(os.path.join(args.out_dir, pat_id))
-
+#    for pat_id in failed_registrations:
+#        shutil.rmtree(os.path.join(args.out_dir, pat_id))
+#
+#    for pat_id in review_patients:
+#        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
+#            shutil.rmtree(os.path.join(args.out_dir, pat_id))
+#
+#    for pat_id in missing_lesion_masks:
+#        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
+#            shutil.rmtree(os.path.join(args.out_dir, pat_id))
+#

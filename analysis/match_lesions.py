@@ -80,7 +80,7 @@ if __name__ == '__main__':
     for pat_dir in pat_dirs:
         pat_id = pat_dir.split(os.sep)[-1]
 
-        if pat_id in review_patients or pat_id in failed_registrations:
+        if pat_id in review_patients or pat_id in failed_registrations or pat_id in missing_lesion_masks:
             continue
 
         m_lesion_dirs = [d for d in glob.glob(os.path.join(pat_dir, 'moving_lesion_*')) if os.path.isdir(d)]
@@ -139,6 +139,12 @@ if __name__ == '__main__':
                                                        gt=fixed_lesion_mask_np,
                                                        min_overlap=0.5,
                                                        verbose=False)
+
+        # Save the graph object
+        # NetworkX documentation states that a "graph" is just a dictionaries all the way down
+        # so joblib should work fine to save it
+        joblib.dump(value=dgraph,
+                   filename=os.path.join(pat_dir, 'corr_graph.pkl'))
 
         # Visualize correspondence graph
         fname = os.path.join(pat_dir, 'lesion_correspondence.pdf')
