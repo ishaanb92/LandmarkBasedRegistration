@@ -134,7 +134,9 @@ if __name__ == '__main__':
             missing_lesion_masks.append(pat_id)
             continue
 
+
         reg_dir = os.path.join(args.out_dir, pat_id)
+        print(reg_dir)
 
         # The registration result for a patient may be absent
         # because it may have been deleted in a previous run
@@ -171,8 +173,17 @@ if __name__ == '__main__':
 
         if np.amin(jac_det_np) < 0:
             print('Registration has failed for patient {} since folding has occured'.format(pat_id))
+            # Save the folding map
+            folding_map_np = np.where(jac_det_np < 0, 1, 0).astype(np.uint8)
+            folding_map_itk = sitk.GetImageFromArray(folding_map_np)
+            folding_map_itk.SetOrigin(jac_det_itk.GetOrigin())
+            folding_map_itk.SetSpacing(jac_det_itk.GetSpacing())
+            folding_map_itk.SetDirection(jac_det_itk.GetDirection())
+            sitk.WriteImage(folding_map_itk, os.path.join(reg_dir, 'folding_map.nii.gz'))
             failed_registrations.append(pat_id)
-            continue
+            # Proceed with lesion mask resampling if we're registering liver masks
+            if args.mode == 'image':
+                continue
 
         # Save each lesion as a separate mask
         try:
@@ -219,16 +230,3 @@ if __name__ == '__main__':
 
     joblib.dump(value=missing_lesion_masks,
                 filename=os.path.join(args.out_dir, 'missing_lesion_masks.pkl'))
-
-    # Clean-up : Remove failed or annotations that need review from the result directory
-#    for pat_id in failed_registrations:
-#        shutil.rmtree(os.path.join(args.out_dir, pat_id))
-#
-#    for pat_id in review_patients:
-#        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
-#            shutil.rmtree(os.path.join(args.out_dir, pat_id))
-#
-#    for pat_id in missing_lesion_masks:
-#        if os.path.exists(os.path.join(args.out_dir, pat_id)) is True:
-#            shutil.rmtree(os.path.join(args.out_dir, pat_id))
-#

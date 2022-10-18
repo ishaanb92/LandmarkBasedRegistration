@@ -149,7 +149,8 @@ if __name__ == '__main__':
         # Visualize correspondence graph
         fname = os.path.join(pat_dir, 'lesion_correspondence.pdf')
         visualize_lesion_correspondences(dgraph=dgraph,
-                                         fname=fname)
+                                         fname=fname,
+                                         min_overlap=0.5)
 
 
 
