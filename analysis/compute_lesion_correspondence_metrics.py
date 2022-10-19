@@ -40,38 +40,98 @@ def construct_pairs_from_graph(dgraph, min_overlap=0.5):
 
     return predicted_lesion_matches
 
-def construct_pairs_from_gt(pat_df):
 
+def find_unmatched_lesions_in_moving_images(dgraph, min_overlap=0.5):
+
+    unmatched_lesions = 0
+
+    moving_lesion_nodes, fixed_lesion_nodes = bipartite.sets(dgraph)
+
+    assert('moving' in list(moving_lesion_nodes)[0].get_name().lower())
+    assert('fixed' in list(fixed_lesion_nodes)[0].get_name().lower())
+
+    for m_node in moving_lesion_nodes:
+        match_counter = 0
+        for f_node in fixed_lesion_nodes:
+            edge_weight = dgraph[m_node][f_node]['weight']
+            if edge_weight > min_overlap:
+                match_counter += 1
+        # Check match counter, if it hasn't incremented => No match found!
+        if match_counter == 0:
+            unmatched_lesions += 1
+
+
+    return unmatched_lesions
+
+def construct_pairs_from_gt(pat_df):
+    """
+    Construct pair of tuples from the dataframe.
+    The output is a list of tuples of the form:  [(fixed_lesion_id_0, moving_lesion_id_0), ..., (fixed_lesion_id_n, moving_lesion_id_n)]
+
+    """
     gt_lesion_matches = []
     for baseline_id, follow_id in zip(list(pat_df['Baseline'].to_numpy()), list(pat_df['Follow-up'].to_numpy())):
         gt_lesion_matches.append((baseline_id, follow_id))
 
     return gt_lesion_matches
 
+
 def compute_detection_metrics(predicted_lesion_matches, true_lesion_matches):
 
-
+    # Compute from ground truth
     true_matches = 0
+    unmatched_lesions = 0
+
+
+    # Compare prediciton to ground truth
+    true_positive_matches = 0
     false_positive_matches = 0
     false_negatives = 0
+    true_negatives = 0
 
+
+    # How many matches were found via visual inspection?
+    for true_pair in true_lesion_matches:
+        if true_pair[1] != 'None':
+            true_matches += 1
+        else:
+            unmatched_lesions += 1
+
+
+    # How many matches were found via image registration + resampling?
     for pred_pair in predicted_lesion_matches:
         if pred_pair in true_lesion_matches:
-            true_matches += 1
+            true_positive_matches += 1
         else:
             false_positive_matches += 1
 
+    # How many matches were missed after registration + resampling?
     for true_pair in true_lesion_matches:
         if true_pair in predicted_lesion_matches:
             continue
         else:
-            if true_pair[1] != 'None': # If the 2nd ID in the tuple is None => No match found via manual inspection!
+            if true_pair[1] != 'None':
                 false_negatives += 1
 
+    # How many lesions (in the fixed image) that did not have a match via visual inspection
+    # also do not have a non-zero edge weight in the corr. graph?
+    unmatched_fixed_lesions = [p[0] for p in true_lesion_matches if p[1] == 'None']
+    fixed_lesions_in_pred = [p[0] for p in predicted_lesion_matches]
+
+    for u_lesion in unmatched_fixed_lesions:
+        if u_lesion in fixed_lesions_in_pred:
+            continue # Already accounted by false positives!
+        else:
+            true_negatives += 1
+
+
     count_dict = {}
-    count_dict['TP'] = true_matches
+    count_dict['UM'] = unmatched_lesions
+    count_dict['TM'] = true_matches
+    count_dict['TP'] = true_positive_matches
     count_dict['FP'] = false_positive_matches
     count_dict['FN'] = false_negatives
+    count_dict['TN'] = true_negatives
     return count_dict
 
 
@@ -103,9 +163,17 @@ if __name__ == '__main__':
 
     gt_matches_df = pd.read_excel(args.gt)
 
+    # How many patients do we have results for?
+    num_patients = len(set(gt_matches_df['Patient ID'].to_list()))
+    print('We analyze the correspondence graphs for {} patients'.format(num_patients))
+
     true_positives = 0
     false_positives = 0
     false_negatives = 0
+    true_matches = 0
+    true_negatives = 0
+    unmatched_lesions_fixed = 0
+    unmatched_lesions_moving = 0
 
     for pat_dir in pat_dirs:
 
@@ -130,20 +198,43 @@ if __name__ == '__main__':
             continue
 
         true_lesion_matches = construct_pairs_from_gt(pat_df)
+
         count_dict = compute_detection_metrics(predicted_lesion_matches=predicted_lesion_matches,
                                                true_lesion_matches=true_lesion_matches)
 
-        print('Patient {} :: True predicted matches = {}, False predicted matches = {}, Missed matches = {}'.format(pat_id,
-                                                                                                                    count_dict['TP'],
-                                                                                                                    count_dict['FP'],
-                                                                                                                    count_dict['FN']))
+        unmatched_lesions_moving += find_unmatched_lesions_in_moving_images(dgraph,
+                                                                            min_overlap=0.5)
+
+        print('Patient {} :: True matches = {} Unmatched lesions = {} True positive = {} False positives = {} \
+               False negatives = {}  True negatives = {}'.format(pat_id,
+                                                                 count_dict['TM'],
+                                                                 count_dict['UM'],
+                                                                 count_dict['TP'],
+                                                                 count_dict['FP'],
+                                                                 count_dict['FN'],
+                                                                 count_dict['TN']))
+
+        true_matches += count_dict['TM']
+        unmatched_lesions_fixed += count_dict['UM']
         true_positives += count_dict['TP']
         false_positives += count_dict['FP']
         false_negatives += count_dict['FN']
+        true_negatives += count_dict['TN']
 
-
-    print('True matches found = {}'.format(true_positives))
+    print('True matches found via visual inspection = {}'.format(true_matches))
+    print('Unmatched lesions in the fixed lesion mask = {}'.format(unmatched_lesions_fixed))
+    print('Unmatched lesions in the moving lesion mask = {}'.format(unmatched_lesions_moving))
+    print('True positive matches = {}'.format(true_positives))
     print('False matches predicted = {}'.format(false_positives))
     print('Matches missed = {}'.format(false_negatives))
 
+    # Compute precision, recall, and f1-score
+    precision = true_positives/(true_positives + false_positives)
+    recall = true_positives/(true_positives + false_negatives)
+    f1 = (2*precision*recall)/(precision + recall)
 
+    # Compute specificity
+    specificity = true_negatives/(true_negatives + false_positives)
+    print('Precision = {}, Recall = {}, Specificity = {}'.format(precision,
+                                                                 recall,
+                                                                 specificity))
