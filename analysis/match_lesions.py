@@ -17,6 +17,7 @@ import glob
 import shutil
 from utils.image_utils import return_lesion_coordinates
 import joblib
+import warnings
 
 def merge_lesions_masks(dir_list=None):
 
@@ -47,9 +48,11 @@ def get_lesion_slices(dir_list=None, fixed=True):
         single_lesion_mask_np = sitk.GetArrayFromImage(single_lesion_mask_itk)
         lesion_slices, n_lesions = return_lesion_coordinates(single_lesion_mask_np)
         if n_lesions > 1:
-            raise RuntimeError('Weird, there should be only one lesion present, but there are {}. ID = {}, fixed = {}'.format(n_lesions,
-                                                                                                                              idx,
-                                                                                                                              fixed))
+            warning_str =  "Weird, there should be only one lesion present, but there are {}."\
+                            " ID = {}, fixed = {}. Skip this patient".format(n_lesions, idx, fixed)
+            warnings.warn(warning_str, RuntimeWarning)
+            return None
+
         slices.append(lesion_slices[0])
 
     return slices
@@ -70,6 +73,7 @@ if __name__ == '__main__':
 
     review_patients = joblib.load(os.path.join(args.out_dir, 'patients_to_review.pkl'))
     print('{} patients need to be reviewed'.format(len(review_patients)))
+    n_review = len(review_patients)
 
     failed_registrations = joblib.load(os.path.join(args.out_dir, 'failed_registrations.pkl'))
     print('Registration failed for {} patients'.format(len(failed_registrations)))
@@ -121,6 +125,12 @@ if __name__ == '__main__':
 
         moving_lesion_slices = get_lesion_slices(dir_list=m_lesion_dirs_ordered,
                                                  fixed=False)
+
+        if fixed_lesion_slices is None or moving_lesion_slices is None:
+            # Some problem, add patient ID to the review list
+            review_patients.append(pat_id)
+            continue
+
         fixed_lesions = []
         for idx, f_lesion_slice in enumerate(fixed_lesion_slices):
             fixed_lesions.append(Lesion(coordinates=f_lesion_slice,
@@ -152,10 +162,11 @@ if __name__ == '__main__':
                                          fname=fname,
                                          min_overlap=0.5)
 
-
-
-
-
+    # Check if more patients have been added to the review list
+    if n_review < len(review_patients):
+        # Overwrite old list with the updated one
+        joblib.dump(value=review_patients,
+                    filename=os.path.join(args.out_dir, 'patients_to_review.pkl'))
 
 
 

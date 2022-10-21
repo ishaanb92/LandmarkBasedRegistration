@@ -44,8 +44,10 @@ if __name__ == '__main__':
 
     if args.mode == 'mask':
         image_name = 'LiverMask_dilated.nii'
-    elif args.mode == 'image':
+    elif args.mode == 'dce':
         image_name = 'DCE_mean.nii'
+    elif args.mode == 'dwi':
+        image_name = 'DWI_reg_mean.nii'
 
     if os.path.exists(args.out_dir) is True:
         shutil.rmtree(args.out_dir)
@@ -78,7 +80,7 @@ if __name__ == '__main__':
                                          image_name)
 
         # Use liver mask to guide registration for image-based registration
-        if args.mode == 'image':
+        if args.mode == 'dce' or args.mode == 'dwi':
             fixed_image_mask = os.path.join(pat_dir,
                                             scan_dirs[fixed_image_idx],
                                             'LiverMask_dilated.nii')

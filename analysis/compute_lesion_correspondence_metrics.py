@@ -135,9 +135,6 @@ def compute_detection_metrics(predicted_lesion_matches, true_lesion_matches):
     return count_dict
 
 
-# TODO: Store unmatched lesions since these are important diagnostically as well! E.g. : Lesions that went away or new ones
-
-
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -162,10 +159,6 @@ if __name__ == '__main__':
     print('Patients with (at least one) lesion mask(s) missing = {}'.format(len(missing_lesion_masks)))
 
     gt_matches_df = pd.read_excel(args.gt)
-
-    # How many patients do we have results for?
-    num_patients = len(set(gt_matches_df['Patient ID'].to_list()))
-    print('We analyze the correspondence graphs for {} patients'.format(num_patients))
 
     true_positives = 0
     false_positives = 0
