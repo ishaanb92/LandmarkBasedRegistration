@@ -32,7 +32,8 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
     parser.add_argument('--p', type=str, help='Parameter file path(s)', nargs='+', default=None)
     parser.add_argument('--test', action='store_true', help='Use flag so that patients in the test-set are registered')
-    parser.add_argument('--mode', type=str, default='image')
+    parser.add_argument('--mode', type=str, default='dce')
+    parser.add_argument('--ndim', type=int, default=3)
 
     args = parser.parse_args()
 
@@ -45,9 +46,15 @@ if __name__ == '__main__':
     if args.mode == 'mask':
         image_name = 'LiverMask_dilated.nii'
     elif args.mode == 'dce':
-        image_name = 'DCE_mean.nii'
+        if args.ndim == 3:
+            image_name = 'DCE_mean.nii'
+        elif args.ndim == 4:
+            image_name = 'e-THRIVE_reg.nii'
     elif args.mode == 'dwi':
-        image_name = 'DWI_reg_mean.nii'
+        if args.ndim == 3:
+            image_name = 'DWI_reg_mean.nii'
+        elif args.ndim == 4:
+            image_name = 'DWI_reg.nii'
 
     if os.path.exists(args.out_dir) is True:
         shutil.rmtree(args.out_dir)
