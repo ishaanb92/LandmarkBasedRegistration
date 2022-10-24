@@ -14,6 +14,8 @@ import datetime
 import joblib
 
 
+N_DCE_CHANNELS = 6
+N_DWI_CHANNELS = 3
 
 def create_datetime_object_from_str(dt_str):
 
@@ -32,8 +34,8 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
     parser.add_argument('--p', type=str, help='Parameter file path(s)', nargs='+', default=None)
     parser.add_argument('--test', action='store_true', help='Use flag so that patients in the test-set are registered')
+    parser.add_argument('--multichannel', action='store_true', help='Use flag for (pairwise) multichannel registration')
     parser.add_argument('--mode', type=str, default='dce')
-    parser.add_argument('--ndim', type=int, default=3)
 
     args = parser.parse_args()
 
@@ -44,17 +46,23 @@ if __name__ == '__main__':
         pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients.pkl'))
 
     if args.mode == 'mask':
-        image_name = 'LiverMask_dilated.nii'
+        image_name = ['LiverMask_dilated.nii']
     elif args.mode == 'dce':
-        if args.ndim == 3:
-            image_name = 'DCE_mean.nii'
-        elif args.ndim == 4:
-            image_name = 'e-THRIVE_reg.nii'
+        if args.multichannel is False:
+            image_name = ['DCE_mean.nii']
+        else:
+            image_name = []
+            for channel in range(N_DCE_CHANNELS):
+                image_name.append('DCE_channel_{}.nii'.format(channel))
     elif args.mode == 'dwi':
-        if args.ndim == 3:
-            image_name = 'DWI_reg_mean.nii'
-        elif args.ndim == 4:
-            image_name = 'DWI_reg.nii'
+        if args.multichannel is False:
+            image_name = ['DWI_reg_mean.nii']
+        else:
+            image_name = []
+            for channel in range(N_DCE_CHANNELS):
+                image_name.append('DWI_channel_{}.nii'.format(channel))
+
+
 
     if os.path.exists(args.out_dir) is True:
         shutil.rmtree(args.out_dir)
@@ -78,13 +86,23 @@ if __name__ == '__main__':
             fixed_image_idx = 0
 
 
-        fixed_image_path = os.path.join(pat_dir,
-                                        scan_dirs[fixed_image_idx],
-                                        image_name)
+        fixed_image_path = []
+        moving_image_path = []
 
-        moving_image_path = os.path.join(pat_dir,
-                                         scan_dirs[moving_image_idx],
-                                         image_name)
+        files_present = True
+        for iname in image_name:
+            fpath = os.path.join(pat_dir, scan_dirs[fixed_image_idx], iname)
+            mpath = os.path.join(pat_dir, scan_dirs[moving_image_idx], iname)
+            if os.path.exists(fpath) is False or os.path.exists(mpath) is False:
+                files_present = False
+                break
+
+            fixed_image_path.append(fpath)
+            moving_image_path.append(mpath)
+
+        if files_present is False:
+            print('Fixed/moving images are absent for Patient {}. Skipping this patient'.format(p_id))
+            continue
 
         # Use liver mask to guide registration for image-based registration
         if args.mode == 'dce' or args.mode == 'dwi':
@@ -98,10 +116,6 @@ if __name__ == '__main__':
         else:
             fixed_image_mask = None
             moving_image_mask = None
-
-        if os.path.exists(fixed_image_path) is False or os.path.exists(moving_image_path) is False:
-            print('One (or both) of the images cannot be found. Abort for patient {} '.format(p_id))
-            continue
 
         # Create output directory
         out_dir = os.path.join(args.out_dir, '{}'.format(p_id))

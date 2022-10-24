@@ -37,8 +37,11 @@ def register_image_pair(fixed_image=None,
     el = ElastixInterface(elastix_path=ELASTIX_BIN)
 
     # Copy fixed and moving images to output directory
-    shutil.copyfile(fixed_image, os.path.join(out_dir, 'fixed_image.nii.gz'))
-    shutil.copyfile(moving_image, os.path.join(out_dir, 'moving_image.nii.gz'))
+    for idx, fpath in enumerate(fixed_image):
+        shutil.copyfile(fpath, os.path.join(out_dir, 'fixed_image_{}.nii.gz'.format(idx)))
+
+    for idx, mpath in enumerate(moving_image):
+        shutil.copyfile(mpath, os.path.join(out_dir, 'moving_image_{}.nii.gz'.format(idx)))
 
     el.register(fixed_image=fixed_image,
                 moving_image=moving_image,
