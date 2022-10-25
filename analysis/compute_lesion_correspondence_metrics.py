@@ -181,7 +181,8 @@ if __name__ == '__main__':
         # Check if the constructed graph is bipartite!
         assert(bipartite.is_bipartite(dgraph))
 
-        predicted_lesion_matches = construct_pairs_from_graph(dgraph)
+        predicted_lesion_matches = construct_pairs_from_graph(dgraph,
+                                                              min_overlap=0.0)
 
         # Compare predicted matches to GT
         pat_df = gt_matches_df[gt_matches_df['Patient ID'] == int(pat_id)]
@@ -196,7 +197,7 @@ if __name__ == '__main__':
                                                true_lesion_matches=true_lesion_matches)
 
         unmatched_lesions_moving += find_unmatched_lesions_in_moving_images(dgraph,
-                                                                            min_overlap=0.5)
+                                                                            min_overlap=0.0)
 
         print('Patient {} :: True matches = {} Unmatched lesions = {} True positive = {} False positives = {} \
                False negatives = {}  True negatives = {}'.format(pat_id,
@@ -221,13 +222,7 @@ if __name__ == '__main__':
     print('False matches predicted = {}'.format(false_positives))
     print('Matches missed = {}'.format(false_negatives))
 
-    # Compute precision, recall, and f1-score
-    precision = true_positives/(true_positives + false_positives)
-    recall = true_positives/(true_positives + false_negatives)
-    f1 = (2*precision*recall)/(precision + recall)
-
-    # Compute specificity
+    sensitivity = true_positives/(true_positives + false_negatives)
     specificity = true_negatives/(true_negatives + false_positives)
-    print('Precision = {}, Recall = {}, Specificity = {}'.format(precision,
-                                                                 recall,
-                                                                 specificity))
+    print('Sensitivity = {}, Specificity = {}'.format(sensitivity,
+                                                      specificity))
