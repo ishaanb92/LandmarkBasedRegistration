@@ -171,20 +171,6 @@ if __name__ == '__main__':
         jac_det_itk = sitk.ReadImage(jac_det_path)
         jac_det_np = sitk.GetArrayFromImage(jac_det_itk)
 
-        if np.amin(jac_det_np) < 0:
-            print('Registration has failed for patient {} since folding has occured'.format(pat_id))
-            # Save the folding map
-            folding_map_np = np.where(jac_det_np < 0, 1, 0).astype(np.uint8)
-            folding_map_itk = sitk.GetImageFromArray(folding_map_np)
-            folding_map_itk.SetOrigin(jac_det_itk.GetOrigin())
-            folding_map_itk.SetSpacing(jac_det_itk.GetSpacing())
-            folding_map_itk.SetDirection(jac_det_itk.GetDirection())
-            sitk.WriteImage(folding_map_itk, os.path.join(reg_dir, 'folding_map.nii.gz'))
-            failed_registrations.append(pat_id)
-            # Proceed with lesion mask resampling if we're registering liver masks
-            if args.mode == 'image':
-                continue
-
         # Save each lesion as a separate mask
         try:
             n_fixed_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
@@ -207,6 +193,20 @@ if __name__ == '__main__':
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
             review_patients.append(pat_id)
             continue
+
+        # Check if registration has been successful before resampling the moving lesion mask
+        if np.amin(jac_det_np) < 0:
+            print('Registration has failed for patient {} since folding has occured'.format(pat_id))
+            # Save the folding map
+            folding_map_np = np.where(jac_det_np < 0, 1, 0).astype(np.uint8)
+            folding_map_itk = sitk.GetImageFromArray(folding_map_np)
+            folding_map_itk.SetOrigin(jac_det_itk.GetOrigin())
+            folding_map_itk.SetSpacing(jac_det_itk.GetSpacing())
+            folding_map_itk.SetDirection(jac_det_itk.GetDirection())
+            sitk.WriteImage(folding_map_itk, os.path.join(reg_dir, 'folding_map.nii.gz'))
+            failed_registrations.append(pat_id)
+            continue
+
 
         # Resample each lesion in the moving image separately
         for m_lesion_idx in range(n_moving_lesions):
