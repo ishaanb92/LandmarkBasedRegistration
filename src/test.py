@@ -23,6 +23,25 @@ from deformations import *
 from datapipeline import *
 from loss import create_ground_truth_correspondences
 from metrics import get_match_statistics
+import shutil
+import numpy as np
+import random
+
+
+# TODO: Add ITK metadata (spacing, direction, origin)
+def convert_kpt_map_to_itk(kpt_map):
+
+    assert(isinstance(kpt_map, torch.Tensor))
+
+    # Get rid of "channel" axis
+    kpt_map = torch.squeeze(kpt_map, dim=0)
+
+    kpt_map_np = kpt_map.cpu().numpy()
+
+    kpt_map_np = np.transpose(kpt_map_np, (2, 0, 1)) # Z-first for ITK conversion
+    kpt_map_itk = sitk.GetImageFromArray(kpt_map_np)
+    return kpt_map_itk
+
 
 def test(args):
 
@@ -34,12 +53,23 @@ def test(args):
 
     checkpoint_dir = args.checkpoint_dir
 
+    save_dir  = os.path.join(checkpoint_dir, 'saved_outputs')
+    if os.path.exists(save_dir) is True:
+        shutil.rmtree(save_dir)
+    os.makedirs(save_dir)
+
+    # Set the seed
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+
     # Set up data pipeline
     if args.mode == 'val':
         patients = joblib.load('val_patients.pkl')
     elif args.mode == 'test':
         patients = joblib.load('test_patients.pkl')
-
+    elif args.mode == 'train':
+        patient = joblib.load('train_patients.pkl')
 
     if args.synthetic is True:
         data_dicts = create_data_dicts_lesion_matching(patients)
@@ -75,6 +105,7 @@ def test(args):
 
                 images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
+
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device,
                                                                        dummy=args.dummy,
@@ -104,8 +135,8 @@ def test(args):
                 images_cat = torch.cat([images, images_hat], dim=1)
 
 
-                # Pad so that sliding window inference does not complain
-                # about non-integer output shapes
+                # Pad the z-axis to make the image a cube : 256 x 256 x 256
+                # Otherwise, sliding_window_inference complains
                 depth = images_cat.shape[-1]
                 pad = 256-depth
 
@@ -114,16 +145,21 @@ def test(args):
 
 
                 # Keypoint logits
-                kpts_1, kpts_2 = sliding_window_inference(inputs=images_cat.to(device),
-                                                          roi_size=(128, 128, 64),
-                                                          sw_batch_size=2,
-                                                          predictor=model.get_patch_keypoint_scores,
-                                                          overlap=0.5)
+                kpts_logits_1, kpts_logits_2 = sliding_window_inference(inputs=images_cat.to(device),
+                                                                        roi_size=(128, 128, 64),
+                                                                        sw_batch_size=2,
+                                                                        predictor=model.get_patch_keypoint_scores,
+                                                                        overlap=0.5)
 
 
                 # Mask using liver mask
-                kpts_1 = kpts_1*liver_mask.to(kpts_1.device)
-                kpts_2 = kpts_2*liver_mask.to(kpts_2.device)
+                # Assign a large negative value to logit values corr. to voxels outside the liver
+                # => When the sigmoid scales the logits to range [0, 1], the values outside the liver
+                # have probability ~ 0 of being sampled
+                mask_tensor = -1*1e10*torch.ones_like(kpts_logits_1)
+                kpts_logits_1 = torch.where(liver_mask.to(kpts_logits_1.device) == 1, kpts_logits_1, mask_tensor.float())
+                kpts_logits_2 = torch.where(liver_mask.to(kpts_logits_2.device) == 1, kpts_logits_2, mask_tensor.float())
+
 
                 # Feature maps
                 features_1_low, features_1_high, features_2_low, features_2_high =\
@@ -141,11 +177,11 @@ def test(args):
                 # Get (predicted) landmarks and matches on the full image
                 # These landmarks are predicted based on L2-norm between feature descriptors
                 # and predicted matching probability
-                outputs = model.inference(kpts_1=kpts_1,
-                                          kpts_2=kpts_2,
+                outputs = model.inference(kpts_1=kpts_logits_1,
+                                          kpts_2=kpts_logits_2,
                                           features_1=features_1,
                                           features_2=features_2,
-                                          conf_thresh=0.5)
+                                          conf_thresh=0.3)
 
                 # Get ground truth matches based on projecting keypoints using the deformation grid
                 gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
@@ -163,6 +199,7 @@ def test(args):
                     batch_pred_matches = outputs['matches'][batch_id, ...] # Shape (K, K)
                     batch_pred_matches_norm = outputs['matches_norm'][batch_id, ...] # Shape (K, K)
                     batch_pred_matches_prob = outputs['matches_prob'][batch_id, ...] # Shape (K, K)
+
 
                     stats = get_match_statistics(gt=batch_gt_matches.cpu(),
                                                  pred=batch_pred_matches.cpu())
@@ -182,11 +219,38 @@ def test(args):
                                                                                                      stats['False Positives'],
                                                                                                      stats['False Negatives']))
 
-                    # TODO: Save outputs (images, landmarks points) for visualization
+                    patient_id = batch_data['patient_id'][batch_id]
+                    scan_id = batch_data['scan_id'][batch_id]
+                    dump_dir = os.path.join(save_dir, patient_id, scan_id)
+                    os.makedirs(dump_dir)
+
+                    write_image_to_file(image_array=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),
+                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                        metadata_dict=batch_data['image_meta_dict'],
+                                        filename=os.path.join(dump_dir, 'kpts_prob.nii.gz'))
+
+                    write_image_to_file(image_array=torch.sigmoid(kpts_logits_2[batch_id, ...].squeeze(dim=0)),
+                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                        metadata_dict=batch_data['image_meta_dict'],
+                                        filename=os.path.join(dump_dir, 'kpts_prob_deformed.nii.gz'))
+
+
+                    write_image_to_file(image_array=batch_data['image'][batch_id].squeeze(dim=0),
+                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                        metadata_dict=batch_data['image_meta_dict'],
+                                        filename=os.path.join(dump_dir, 'image.nii.gz'))
+
+                    write_image_to_file(image_array=images_hat[batch_id, ...].squeeze(dim=0),
+                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                        metadata_dict=batch_data['image_meta_dict'],
+                                        filename=os.path.join(dump_dir, 'd_image.nii.gz'))
+
+
 
 
             else: #TODO
                 pass
+
 
 
 if __name__ == '__main__':
@@ -195,6 +259,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_dir', type=str, required=True)
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--synthetic', action='store_true')
     parser.add_argument('--dummy', action='store_true')
