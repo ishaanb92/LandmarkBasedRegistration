@@ -40,10 +40,19 @@ class LesionMatchingModel(nn.Module):
         self.W = W
         self.K = K
 
-    def forward(self, x1, x2, training=True):
+    def forward(self, x1, x2, liver_mask=None, training=True):
 
         kpts_1, features_1 = self.cnn(x1)
         kpts_2, features_2 = self.cnn(x2)
+
+        # Mask using liver mask
+        # Assign a large negative value to logit values corr. to voxels outside the liver
+        # => When the sigmoid scales the logits to range [0, 1], the values outside the liver
+        # have probability ~ 0 of being sampled
+        if liver_mask is not None:
+            mask_tensor = -1*1e10*torch.ones_like(kpts_1)
+            kpts_1 = torch.where(liver_mask.to(kpts_1.device) == 1, kpts_1, mask_tensor)
+            kpts_2 = torch.where(liver_mask.to(kpts_2.device) == 1, kpts_2, mask_tensor)
 
         # Sample keypoints and corr. descriptors
         kpt_sampling_grid_1, kpt_logits_1, descriptors_1 = self.sampling_block(kpt_map=kpts_1,
@@ -215,6 +224,7 @@ class LesionMatchingModel(nn.Module):
 
 
         b, _, i, j, k = kpt_map.shape
+
         kpt_probmap = torch.sigmoid(kpt_map)
 
         # Only retain the maximum activation in a given neighbourhood of size of W, W, W
@@ -243,14 +253,36 @@ class LesionMatchingModel(nn.Module):
                                    torch.ones_like(kpt_probmax_suppressed[batch_idx, ...]),
                                    torch.zeros_like(kpt_probmax_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
 
-            zs, ys, xs= torch.nonzero(kpt_mask,
-                                      as_tuple=True)
+            ii, jj, kk = torch.nonzero(kpt_mask,
+                                       as_tuple=True)
 
-            # FIXME: Handle cases where N < num_pts
+            # Re-map coordinates from matrix/tensor convention to Cartesian convention
+            zs = ii
+            ys = jj
+            xs = kk
+
             N = len(zs)
 
             if N < num_pts:
-                raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
+                if training is True:
+                    # Reduce threshold to value of background logit (-1 x 10^10)
+                    kpt_mask = torch.where(kpt_probmax_suppressed[batch_idx, ...]>torch.sigmoid(torch.Tensor([-1*1e10]).to(kpt_map.device)),
+                                           torch.ones_like(kpt_probmax_suppressed[batch_idx, ...]),
+                                           torch.zeros_like(kpt_probmax_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
+
+                    ii, jj, kk = torch.nonzero(kpt_mask,
+                                               as_tuple=True)
+
+                    # Re-map coordinates from matrix/tensor convention to Cartesian convention
+                    zs = ii
+                    ys = jj
+                    xs = kk
+
+                    N = len(zs)
+                    print('Number of keypoints found after reducing the threshold = {}'.format(N))
+                else:
+                    raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
+
 
             item_kpts = torch.zeros(size=(N, 4),
                                     dtype=kpt_map.dtype).to(kpt_map.device)
@@ -270,6 +302,7 @@ class LesionMatchingModel(nn.Module):
 
         kpts_idxs = kpts[:, :, :3]
 
+        # Create sampling grid from kpt coords by recaling them to [-1, 1] range
         kpts_sampling_grid = torch.zeros_like(kpts_idxs)
         kpts_sampling_grid[:, :, 0] = (kpts_idxs[:, :, 0]*2/(k-1)) - 1
         kpts_sampling_grid[:, :, 1] = (kpts_idxs[:, :, 1]*2/(j-1)) - 1

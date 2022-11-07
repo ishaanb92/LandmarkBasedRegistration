@@ -52,7 +52,7 @@ class UNet(nn.Module):
 
         logits = self.outc(x)
 
-        # logits: kpt probability map
+        # logits: kpt logit map
         # features: descriptors
         # TODO: Add 1x1x1 convolution to reduce/increase descriptor length
         return logits, (x3, x4)
