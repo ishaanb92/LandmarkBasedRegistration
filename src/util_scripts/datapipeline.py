@@ -14,6 +14,7 @@ import joblib
 import torch
 from monai.transforms import StdShiftIntensity
 import numpy as np
+import nibabel as nib
 
 def create_data_dicts_liver_seg(patient_dir_list=None, n_channels=6, channel_id=3):
 
@@ -374,6 +375,38 @@ def shift_intensity(images):
     factor = np.random.uniform(low=0.6, high=1.0)
     images_shifted = StdShiftIntensity(factor=factor)(images)
     return images_shifted
+
+def create_nifti_header(metadata_dict):
+
+    header = nib.nifti1.Nifti1Header()
+
+    for key, value in metadata_dict.items():
+        if "affine" in key:
+            continue
+
+        try:
+            header[key] = value
+        except ValueError:
+            continue
+
+    return header
+
+def create_nibabel_image(image_array, affine, metadata_dict):
+
+    assert(isinstance(image_array, np.ndarray))
+    assert(isinstance(metadata_dict, dict))
+
+    # Create Nifti header
+    header = create_nifti_header(metadata_dict)
+
+    # Create Nifti image
+    nib_image = nib.nifti1.Nifti1Image(dataobj=image_array,
+                                       affine=affine,
+                                       header=header)
+    return nib_image
+
+def save_nib_image(img, filename):
+    nib.save(img, filename)
 
 if __name__ == '__main__':
 

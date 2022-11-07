@@ -119,9 +119,9 @@ def create_batch_deformation_grid(shape,
     b, c, i, j, k = shape
 
     # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
-    # grid[:, h, w, d, 0] = new_x (d)
-    # grid[:, h, w, d, 1] = new_y (w)
-    # grid[:, h, w, d, 2] = new_z (h)
+    # grid[:, i, j, k, 0] = new_x (k')
+    # grid[:, i, j, k, 1] = new_y (j')
+    # grid[:, i, j, k, 2] = new_z (i')
     batch_deformation_grid = np.zeros((b, i, j, k, 3),
                                       dtype=np.float32)
 
@@ -158,7 +158,7 @@ def create_batch_deformation_grid(shape,
         deformed_grid = np.reshape(deformed_grid, (ndim, -1)).T
         deformed_grid = np.reshape(deformed_grid, (k, j, i, ndim))
 
-        # Re-order axes to HWD for grid_sample
+        # Re-order axes to HWD (ijk) for grid_sample
         deformed_grid = np.transpose(deformed_grid, (2, 1, 0, 3))
 
         batch_deformation_grid[batch_idx, ...] = deformed_grid
@@ -199,7 +199,7 @@ if __name__ == '__main__':
         images = batch_data['image']
         batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                dummy=False,
-                                                               non_rigid=False)
+                                                               non_rigid=True)
         deformed_images = F.grid_sample(input=images,
                                         grid=batch_deformation_grid,
                                         align_corners=True,
@@ -207,30 +207,30 @@ if __name__ == '__main__':
 
         sub_image = images - deformed_images
 
-#        assert(torch.allclose(images, deformed_images, atol=1e-4))
-
         save_dir = 'images_translation_b_{}'.format(b_id)
 
         if os.path.exists(save_dir) is True:
             shutil.rmtree(save_dir)
 
-        batch_data['d_image'] = deformed_images
+        os.makedirs(save_dir)
 
+        for batch_idx in range(images.shape[0]):
+            image = images[batch_idx, ...]
+            dimage = deformed_images[batch_idx, ...]
+            image_array = torch.squeeze(image, dim=0).numpy() # Get rid of channel axis
+            dimage_array = torch.squeeze(dimage, dim=0).numpy()
+            image_fname = os.path.join(save_dir, 'image.nii')
+            dimage_fname = os.path.join(save_dir, 'deformed_image.nii')
+            image_nib = create_nibabel_image(image_array=image_array,
+                                             metadata_dict=batch_data['image_meta_dict'],
+                                             affine=batch_data['image_meta_dict']['affine'][batch_idx])
 
-        # Save as ITK images with meta-data
-        batch_data = [post_transforms(i) for i in decollate_batch(batch_data)]
+            dimage_nib = create_nibabel_image(image_array=dimage_array,
+                                              metadata_dict=batch_data['image_meta_dict'],
+                                              affine=batch_data['image_meta_dict']['affine'][batch_idx])
 
-        save_op_image = SaveImaged(keys='image',
-                                   output_postfix='image',
-                                   output_dir=save_dir,
-                                   separate_folder=False)
+            save_nib_image(image_nib,
+                           image_fname)
 
-        save_op_d_image = SaveImaged(keys='d_image',
-                                   output_postfix='d_image',
-                                   output_dir=save_dir,
-                                   separate_folder=False)
-
-        for batch_dict in batch_data:
-            save_op_image(batch_dict)
-            save_op_d_image(batch_dict)
-
+            save_nib_image(dimage_nib,
+                           dimage_fname)
