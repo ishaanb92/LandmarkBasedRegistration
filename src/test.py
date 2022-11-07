@@ -157,8 +157,8 @@ def test(args):
                 # => When the sigmoid scales the logits to range [0, 1], the values outside the liver
                 # have probability ~ 0 of being sampled
                 mask_tensor = -1*1e10*torch.ones_like(kpts_logits_1)
-                kpts_logits_1 = torch.where(liver_mask.to(kpts_logits_1.device) == 1, kpts_logits_1, mask_tensor.float())
-                kpts_logits_2 = torch.where(liver_mask.to(kpts_logits_2.device) == 1, kpts_logits_2, mask_tensor.float())
+                kpts_logits_1 = torch.where(liver_mask.to(kpts_logits_1.device) == 1, kpts_logits_1, mask_tensor)
+                kpts_logits_2 = torch.where(liver_mask.to(kpts_logits_2.device) == 1, kpts_logits_2, mask_tensor)
 
 
                 # Feature maps

@@ -29,6 +29,9 @@ from loss import *
 from deformations import *
 from datapipeline import *
 from tqdm import tqdm
+import numpy as np
+import torch
+import random
 
 # Required for CacheDataset
 import resource
@@ -58,6 +61,11 @@ def train(args):
 
     writer = SummaryWriter(log_dir=log_dir)
 
+    # Set the seeds
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+
     # Set up data pipeline
     train_patients = joblib.load('train_patients.pkl')
     val_patients = joblib.load('val_patients.pkl')
@@ -86,7 +94,7 @@ def train(args):
 
 
     model = LesionMatchingModel(K=512,
-                                W=8)
+                                W=4)
 
     optimizer = torch.optim.Adam(model.parameters(),
                                  1e-4)
@@ -147,6 +155,7 @@ def train(args):
 
                 outputs = model(images.to(device),
                                 images_hat.to(device),
+                                liver_mask=liver_mask.to(device),
                                 training=True)
 
                 if args.dummy is True:
@@ -207,6 +216,7 @@ def train(args):
 
                 outputs = model(images.to(device),
                                 images_hat.to(device),
+                                liver_mask=liver_mask.to(device),
                                 training=True)
 
                 gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
@@ -255,6 +265,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_dir', type=str, required=True)
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--dummy', action='store_true')

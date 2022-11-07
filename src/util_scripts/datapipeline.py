@@ -408,6 +408,31 @@ def create_nibabel_image(image_array, affine, metadata_dict):
 def save_nib_image(img, filename):
     nib.save(img, filename)
 
+
+def maybe_convert_tensor_to_array(arr):
+
+    if isinstance(arr, torch.Tensor):
+        if arr.device != torch.device('cpu'):
+            arr = arr.cpu()
+
+        arr = arr.numpy()
+
+    return arr
+
+def write_image_to_file(image_array,
+                        affine,
+                        metadata_dict,
+                        filename):
+
+    image_array = maybe_convert_tensor_to_array(image_array)
+
+    image_nib = create_nibabel_image(image_array,
+                                     affine,
+                                     metadata_dict)
+
+    save_nib_image(image_nib,
+                   filename)
+
 if __name__ == '__main__':
 
     train_patients = joblib.load('train_patients.pkl')
