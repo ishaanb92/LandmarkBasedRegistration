@@ -124,7 +124,8 @@ def train(args):
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                    device=images.device,
                                                                    dummy=args.dummy,
-                                                                   non_rigid=True)
+                                                                   non_rigid=True,
+                                                                   coarse=True)
 
             if batch_deformation_grid is None:
                 continue
@@ -133,14 +134,17 @@ def train(args):
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
                                            align_corners=True,
-                                           mode="bilinear")
+                                           mode="bilinear",
+                                           padding_mode="border")
+
                 # Image intensity augmentation
                 images_hat = shift_intensity(images_hat)
             else:
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
                                            align_corners=True,
-                                           mode="nearest")
+                                           mode="nearest",
+                                           padding_mode="border")
 
                 assert(torch.equal(images, images_hat))
 
@@ -148,7 +152,8 @@ def train(args):
             liver_mask_hat = F.grid_sample(input=liver_mask,
                                            grid=batch_deformation_grid,
                                            align_corners=True,
-                                           mode="nearest")
+                                           mode="nearest",
+                                           padding_mode="border")
 
             assert(images.shape == images_hat.shape)
 
@@ -207,7 +212,9 @@ def train(args):
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device,
-                                                                       dummy=args.dummy)
+                                                                       dummy=args.dummy,
+                                                                       non_rigid=True,
+                                                                       coarse=True)
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
@@ -215,13 +222,15 @@ def train(args):
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
                                            align_corners=True,
-                                           mode="bilinear")
+                                           mode="bilinear",
+                                           padding_mode="border")
 
                 # Transform liver mask
                 liver_mask_hat = F.grid_sample(input=liver_mask,
                                                grid=batch_deformation_grid,
                                                align_corners=True,
-                                               mode="nearest")
+                                               mode="nearest",
+                                               padding_mode="border")
 
                 assert(images.shape == images_hat.shape)
 
