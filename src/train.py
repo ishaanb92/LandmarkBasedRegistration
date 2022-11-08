@@ -121,11 +121,10 @@ def train(args):
 
             images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
-            # FIXME: (sanity check) non_rigid=False so the only transformations are a 10% translation along the X-axis
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                    device=images.device,
                                                                    dummy=args.dummy,
-                                                                   non_rigid=False)
+                                                                   non_rigid=True)
 
             if batch_deformation_grid is None:
                 continue
@@ -145,6 +144,11 @@ def train(args):
 
                 assert(torch.equal(images, images_hat))
 
+            # Transform liver mask
+            liver_mask_hat = F.grid_sample(input=liver_mask,
+                                           grid=batch_deformation_grid,
+                                           align_corners=True,
+                                           mode="nearest")
 
             assert(images.shape == images_hat.shape)
 
@@ -153,9 +157,10 @@ def train(args):
             with torch.cuda.amp.autocast(enabled=args.fp16):
 
 
-                outputs = model(images.to(device),
-                                images_hat.to(device),
-                                liver_mask=liver_mask.to(device),
+                outputs = model(x1=images.to(device),
+                                x2=images_hat.to(device),
+                                mask=liver_mask.to(device),
+                                mask2=liver_mask_hat.to(device),
                                 training=True)
 
                 if args.dummy is True:
@@ -212,11 +217,18 @@ def train(args):
                                            align_corners=True,
                                            mode="bilinear")
 
+                # Transform liver mask
+                liver_mask_hat = F.grid_sample(input=liver_mask,
+                                               grid=batch_deformation_grid,
+                                               align_corners=True,
+                                               mode="nearest")
+
                 assert(images.shape == images_hat.shape)
 
                 outputs = model(images.to(device),
                                 images_hat.to(device),
-                                liver_mask=liver_mask.to(device),
+                                mask=liver_mask.to(device),
+                                mask2=liver_mask_hat.to(device),
                                 training=True)
 
                 gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],

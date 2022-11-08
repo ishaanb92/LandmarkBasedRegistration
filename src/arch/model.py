@@ -40,7 +40,7 @@ class LesionMatchingModel(nn.Module):
         self.W = W
         self.K = K
 
-    def forward(self, x1, x2, liver_mask=None, training=True):
+    def forward(self, x1, x2, mask=None, mask2=None, training=True):
 
         kpts_1, features_1 = self.cnn(x1)
         kpts_2, features_2 = self.cnn(x2)
@@ -49,23 +49,25 @@ class LesionMatchingModel(nn.Module):
         # Assign a large negative value to logit values corr. to voxels outside the liver
         # => When the sigmoid scales the logits to range [0, 1], the values outside the liver
         # have probability ~ 0 of being sampled
-        if liver_mask is not None:
-            mask_tensor = -1*1e10*torch.ones_like(kpts_1)
-            kpts_1 = torch.where(liver_mask.to(kpts_1.device) == 1, kpts_1, mask_tensor)
-            kpts_2 = torch.where(liver_mask.to(kpts_2.device) == 1, kpts_2, mask_tensor)
+#        if liver_mask is not None:
+#            mask_tensor = -1*1e5*torch.ones_like(kpts_1)
+#            kpts_1 = torch.where(liver_mask.to(kpts_1.device) == 1, kpts_1, mask_tensor)
+#            kpts_2 = torch.where(liver_mask.to(kpts_2.device) == 1, kpts_2, mask_tensor)
 
         # Sample keypoints and corr. descriptors
         kpt_sampling_grid_1, kpt_logits_1, descriptors_1 = self.sampling_block(kpt_map=kpts_1,
-                                                                             features=features_1,
-                                                                             W=self.W,
-                                                                             num_pts=self.K,
-                                                                             training=training)
+                                                                               features=features_1,
+                                                                               W=self.W,
+                                                                               num_pts=self.K,
+                                                                               training=training,
+                                                                               mask=mask)
 
         kpt_sampling_grid_2, kpt_logits_2, descriptors_2 = self.sampling_block(kpt_map=kpts_2,
-                                                                             features=features_2,
-                                                                             W=self.W,
-                                                                             num_pts=self.K,
-                                                                             training=training)
+                                                                               features=features_2,
+                                                                               W=self.W,
+                                                                               num_pts=self.K,
+                                                                               training=training,
+                                                                               mask=mask2)
 
         # Match descriptors
         desc_pairs_score, desc_pair_norm = self.descriptor_matching(descriptors_1,
@@ -213,6 +215,7 @@ class LesionMatchingModel(nn.Module):
                        conf_thresh=0.1,
                        W=4,
                        training=True,
+                       mask=None,
                        num_pts = 512):
 
         """
@@ -226,6 +229,10 @@ class LesionMatchingModel(nn.Module):
         b, _, i, j, k = kpt_map.shape
 
         kpt_probmap = torch.sigmoid(kpt_map)
+
+        # Multiply the probability map by the mask (so sampling probability in non-mask regions = 0)
+        if mask is not None:
+            kpt_probmap = kpt_probmap*mask
 
         # Only retain the maximum activation in a given neighbourhood of size of W, W, W
         # All non-maximal values set to zero
@@ -333,7 +340,6 @@ class LesionMatchingModel(nn.Module):
 
         # Expected shape: [B, C, 1, 1, K]
         descriptors = torch.cat(descriptors, dim=1)
-
 
         return kpts_sampling_grid, kpts_scores, descriptors
 

@@ -113,7 +113,7 @@ def create_batch_deformation_grid(shape,
                                   device='cpu',
                                   dummy=False,
                                   non_rigid=True,
-                                  coarse_displacements=(2, 2, 2),
+                                  coarse_displacements=(1.5, 1.5, 1.5),
                                   fine_displacements=(0.75, 0.75, 0.75)):
 
     b, c, i, j, k = shape
