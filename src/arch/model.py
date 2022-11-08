@@ -234,6 +234,7 @@ class LesionMatchingModel(nn.Module):
         if mask is not None:
             kpt_probmap = kpt_probmap*mask
 
+
         # Only retain the maximum activation in a given neighbourhood of size of W, W, W
         # All non-maximal values set to zero
         kpt_probmap_downsampled, indices = F.max_pool3d(kpt_probmap,
@@ -241,12 +242,12 @@ class LesionMatchingModel(nn.Module):
                                                         stride=(W, W, W),
                                                         return_indices=True)
 
-        kpt_probmax_suppressed = F.max_unpool3d(kpt_probmap_downsampled,
+        kpt_probmap_suppressed = F.max_unpool3d(kpt_probmap_downsampled,
                                                 indices=indices,
                                                 kernel_size=(W, W, W),
                                                 stride=(W, W, W))
 
-        kpt_probmax_suppressed = torch.squeeze(kpt_probmax_suppressed,
+        kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
                                                dim=1)
 
 
@@ -255,10 +256,9 @@ class LesionMatchingModel(nn.Module):
 
         for batch_idx in range(b):
             # Create binary mask of shape [H, W, D]
-
-            kpt_mask = torch.where(kpt_probmax_suppressed[batch_idx, ...]>=conf_thresh,
-                                   torch.ones_like(kpt_probmax_suppressed[batch_idx, ...]),
-                                   torch.zeros_like(kpt_probmax_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
+            kpt_mask = torch.where(kpt_probmap_suppressed[batch_idx, ...]>=conf_thresh,
+                                   torch.ones_like(kpt_probmap_suppressed[batch_idx, ...]),
+                                   torch.zeros_like(kpt_probmap_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
 
             ii, jj, kk = torch.nonzero(kpt_mask,
                                        as_tuple=True)
@@ -272,10 +272,10 @@ class LesionMatchingModel(nn.Module):
 
             if N < num_pts:
                 if training is True:
-                    # Reduce threshold to value of background logit (-1 x 10^10)
-                    kpt_mask = torch.where(kpt_probmax_suppressed[batch_idx, ...]>torch.sigmoid(torch.Tensor([-1*1e10]).to(kpt_map.device)),
-                                           torch.ones_like(kpt_probmax_suppressed[batch_idx, ...]),
-                                           torch.zeros_like(kpt_probmax_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
+                    print(torch.max(mask[batch_idx]))
+                    kpt_mask = torch.where(kpt_probmap_suppressed[batch_idx, ...]>0,
+                                           torch.ones_like(kpt_probmap_suppressed[batch_idx, ...]),
+                                           torch.zeros_like(kpt_probmap_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
 
                     ii, jj, kk = torch.nonzero(kpt_mask,
                                                as_tuple=True)
@@ -297,7 +297,7 @@ class LesionMatchingModel(nn.Module):
             item_kpts[:, 0] = xs
             item_kpts[:, 1] = ys
             item_kpts[:, 2] = zs
-            item_kpts[:, 3] = kpt_probmax_suppressed[batch_idx, zs, ys, xs]
+            item_kpts[:, 3] = kpt_probmap_suppressed[batch_idx, zs, ys, xs]
 
             idxs_desc = torch.argsort(-1*item_kpts[:, 3])
 

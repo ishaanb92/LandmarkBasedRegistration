@@ -155,12 +155,21 @@ def train(args):
                                            mode="nearest",
                                            padding_mode="border")
 
+            # Check for empty liver masks!
+            skip_batch = False
+            for bid in range(liver_mask.shape[0]):
+                if torch.max(liver_mask[bid, ...]) == 0 or torch.max(liver_mask_hat[bid, ...]) == 0:
+                    skip_batch = True
+                    break
+
+            if skip_batch is True:
+                continue
+
             assert(images.shape == images_hat.shape)
 
             optimizer.zero_grad()
 
             with torch.cuda.amp.autocast(enabled=args.fp16):
-
 
                 outputs = model(x1=images.to(device),
                                 x2=images_hat.to(device),
