@@ -111,7 +111,7 @@ class LesionMatchingModel(nn.Module):
         return features_1[0], features_1[1], features_2[0], features_2[1]
 
 
-    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000):
+    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None):
 
         b, c, i, j, k = kpts_1.shape
 
@@ -121,14 +121,16 @@ class LesionMatchingModel(nn.Module):
                                                                                W=self.W,
                                                                                num_pts=num_pts,
                                                                                training=False,
-                                                                               conf_thresh=conf_thresh)
+                                                                               conf_thresh=conf_thresh,
+                                                                               mask=mask)
 
         kpt_sampling_grid_2, kpt_logits_2, descriptors_2 = self.sampling_block(kpt_map=kpts_2,
                                                                                features=features_2,
                                                                                W=self.W,
                                                                                num_pts=num_pts,
                                                                                training=False,
-                                                                               conf_thresh=conf_thresh)
+                                                                               conf_thresh=conf_thresh,
+                                                                               mask=mask2)
 
         landmarks_1 = self.convert_grid_to_image_coords(kpt_sampling_grid_1,
                                                         shape=(k, j, i))
@@ -250,7 +252,6 @@ class LesionMatchingModel(nn.Module):
         kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
                                                dim=1)
 
-
         kpts = torch.zeros(size=(b, num_pts, 4),
                            dtype=kpt_map.dtype).to(kpt_map.device)
 
@@ -302,8 +303,8 @@ class LesionMatchingModel(nn.Module):
             idxs_desc = torch.argsort(-1*item_kpts[:, 3])
 
             item_kpts_sorted = item_kpts[idxs_desc, :]
-
             top_k_kpts = item_kpts_sorted[:num_pts, :]
+
             kpts[batch_idx, ...] = top_k_kpts
 
 
