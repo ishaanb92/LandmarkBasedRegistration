@@ -93,7 +93,7 @@ def train(args):
                                                       patch_size=(96, 96, 48))
 
 
-    model = LesionMatchingModel(K=512,
+    model = LesionMatchingModel(K=256,
                                 W=4)
 
     optimizer = torch.optim.Adam(model.parameters(),
@@ -125,7 +125,8 @@ def train(args):
                                                                    device=images.device,
                                                                    dummy=args.dummy,
                                                                    non_rigid=True,
-                                                                   coarse=True)
+                                                                   coarse=True,
+                                                                   coarse_displacements=(3, 3, 3))
 
             if batch_deformation_grid is None:
                 continue
@@ -223,7 +224,8 @@ def train(args):
                                                                        device=images.device,
                                                                        dummy=args.dummy,
                                                                        non_rigid=True,
-                                                                       coarse=True)
+                                                                       coarse=True,
+                                                                       coarse_displacements=(3, 3, 3))
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
