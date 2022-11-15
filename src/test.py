@@ -27,6 +27,7 @@ import shutil
 import numpy as np
 import random
 
+ROI_SIZE = (96, 96, 48)
 
 # TODO: Add ITK metadata (spacing, direction, origin)
 def convert_kpt_map_to_itk(kpt_map):
@@ -128,6 +129,11 @@ def test(args):
                                                align_corners=True,
                                                mode="bilinear")
 
+                liver_mask_hat = F.grid_sample(input=liver_mask,
+                                               grid=batch_deformation_grid,
+                                               align_corners=True,
+                                               mode="nearest")
+
 
                 # Concatenate along channel axis so that sliding_window_inference can
                 # be used
@@ -142,11 +148,12 @@ def test(args):
 
                 images_cat = F.pad(images_cat, (0, pad), "constant", 0)
                 liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
+                liver_mask_hat = F.pad(liver_mask_hat, (0, pad), "constant", 0)
 
 
                 # Keypoint logits
                 kpts_logits_1, kpts_logits_2 = sliding_window_inference(inputs=images_cat.to(device),
-                                                                        roi_size=(128, 128, 64),
+                                                                        roi_size=ROI_SIZE,
                                                                         sw_batch_size=2,
                                                                         predictor=model.get_patch_keypoint_scores,
                                                                         overlap=0.5)
@@ -156,15 +163,15 @@ def test(args):
                 # Assign a large negative value to logit values corr. to voxels outside the liver
                 # => When the sigmoid scales the logits to range [0, 1], the values outside the liver
                 # have probability ~ 0 of being sampled
-                mask_tensor = -1*1e10*torch.ones_like(kpts_logits_1)
-                kpts_logits_1 = torch.where(liver_mask.to(kpts_logits_1.device) == 1, kpts_logits_1, mask_tensor)
-                kpts_logits_2 = torch.where(liver_mask.to(kpts_logits_2.device) == 1, kpts_logits_2, mask_tensor)
+#                mask_tensor = -1*1e10*torch.ones_like(kpts_logits_1)
+#                kpts_logits_1 = torch.where(liver_mask.to(kpts_logits_1.device) == 1, kpts_logits_1, mask_tensor)
+#                kpts_logits_2 = torch.where(liver_mask.to(kpts_logits_2.device) == 1, kpts_logits_2, mask_tensor)
 
 
                 # Feature maps
                 features_1_low, features_1_high, features_2_low, features_2_high =\
                                                         sliding_window_inference(inputs=images_cat.to(device),
-                                                                                 roi_size=(128, 128, 64),
+                                                                                 roi_size=ROI_SIZE,
                                                                                  sw_batch_size=2,
                                                                                  predictor=model.get_patch_feature_descriptors,
                                                                                  overlap=0.5)
@@ -181,7 +188,10 @@ def test(args):
                                           kpts_2=kpts_logits_2,
                                           features_1=features_1,
                                           features_2=features_2,
-                                          conf_thresh=0.3)
+                                          conf_thresh=0.1,
+                                          num_pts=1024,
+                                          mask=liver_mask.to(device),
+                                          mask2=liver_mask_hat.to(device))
 
                 # Get ground truth matches based on projecting keypoints using the deformation grid
                 gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
