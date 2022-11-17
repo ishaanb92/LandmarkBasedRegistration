@@ -18,6 +18,7 @@ from utils.utils import *
 import os, sys
 sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 'util_scripts'))
 sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 'arch'))
+from visualize import *
 from model import LesionMatchingModel
 from deformations import *
 from datapipeline import *
@@ -154,7 +155,7 @@ def test(args):
                 # Keypoint logits
                 kpts_logits_1, kpts_logits_2 = sliding_window_inference(inputs=images_cat.to(device),
                                                                         roi_size=ROI_SIZE,
-                                                                        sw_batch_size=2,
+                                                                        sw_batch_size=4,
                                                                         predictor=model.get_patch_keypoint_scores,
                                                                         overlap=0.5)
 
@@ -172,7 +173,7 @@ def test(args):
                 features_1_low, features_1_high, features_2_low, features_2_high =\
                                                         sliding_window_inference(inputs=images_cat.to(device),
                                                                                  roi_size=ROI_SIZE,
-                                                                                 sw_batch_size=2,
+                                                                                 sw_batch_size=4,
                                                                                  predictor=model.get_patch_feature_descriptors,
                                                                                  overlap=0.5)
 
@@ -234,6 +235,32 @@ def test(args):
                     dump_dir = os.path.join(save_dir, patient_id, scan_id)
                     os.makedirs(dump_dir)
 
+                    # Visualize keypoint matches
+                    visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
+                                           im2=images_hat[batch_id, ...].squeeze(dim=0),
+                                           landmarks1=outputs['landmarks_1'][batch_id, ...],
+                                           landmarks2=outputs['landmarks_2'][batch_id, ...],
+                                           pred_matches=outputs['matches'][batch_id, ...],
+                                           gt_matches=batch_gt_matches,
+                                           out_dir=os.path.join(dump_dir, 'matches'))
+
+                    visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
+                                           im2=images_hat[batch_id, ...].squeeze(dim=0),
+                                           landmarks1=outputs['landmarks_1'][batch_id, ...],
+                                           landmarks2=outputs['landmarks_2'][batch_id, ...],
+                                           pred_matches=outputs['matches_norm'][batch_id, ...],
+                                           gt_matches=batch_gt_matches,
+                                           out_dir=os.path.join(dump_dir, 'matches_l2_norm'))
+
+                    visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
+                                           im2=images_hat[batch_id, ...].squeeze(dim=0),
+                                           landmarks1=outputs['landmarks_1'][batch_id, ...],
+                                           landmarks2=outputs['landmarks_2'][batch_id, ...],
+                                           pred_matches=outputs['matches_prob'][batch_id, ...],
+                                           gt_matches=batch_gt_matches,
+                                           out_dir=os.path.join(dump_dir, 'matches_prob'))
+
+                    # Save images/KP heatmaps
                     write_image_to_file(image_array=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),
                                         affine=batch_data['image_meta_dict']['affine'][batch_id],
                                         metadata_dict=batch_data['image_meta_dict'],
