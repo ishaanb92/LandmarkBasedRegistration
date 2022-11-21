@@ -82,7 +82,7 @@ def visualize_keypoints_2d(im1, im2, output1, output2, pred_mask, gt_mask, out_d
             ii2 = round_float_coords(ii2)
             cv2.circle(im, (jj2+im1.shape[1], ii2), 2, color, -1)
             if pred_mask[k1, k2] == 1:
-                cv2.line(im, (jj1, ii1), (jj2+im1.shape[1], ii2), (1, 0, 0), 1)
+                cv2.line(im, (jj1, ii1), (jj2+im1.shape[1], ii2), (0, 0, 1), 1)
             if gt_mask[k1, k2] == 1:
                 cv2.line(im, (jj1, ii1), (jj2+im1.shape[1], ii2), (0, 1, 0), 1)
 

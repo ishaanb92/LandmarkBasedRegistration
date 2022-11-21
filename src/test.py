@@ -97,8 +97,9 @@ def test(args):
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device,
                                                                        dummy=args.dummy,
-                                                                       coarse_displacements=(6, 3, 3),
-                                                                       fine_displacements=(2, 2, 2))
+                                                                       non_rigid=True,
+                                                                       coarse=True,
+                                                                       coarse_displacements=(4, 4, 4))
 
                 if batch_deformation_grid is None:
                     continue
