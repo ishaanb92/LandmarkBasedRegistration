@@ -179,6 +179,9 @@ def train(args):
                                 mask2=liver_mask_hat.to(device),
                                 training=True)
 
+                if outputs is None: # Too few keypoints found
+                    continue
+
                 if args.dummy is True:
                     assert(torch.equal(outputs['kpt_sampling_grid'][0], outputs['kpt_sampling_grid'][1]))
 

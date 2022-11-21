@@ -62,12 +62,17 @@ class LesionMatchingModel(nn.Module):
                                                                                training=training,
                                                                                mask=mask)
 
+        if kpt_sampling_grid_1 is None:
+            return None
+
         kpt_sampling_grid_2, kpt_logits_2, descriptors_2 = self.sampling_block(kpt_map=kpts_2,
                                                                                features=features_2,
                                                                                W=self.W,
                                                                                num_pts=self.K,
                                                                                training=training,
                                                                                mask=mask2)
+        if kpt_sampling_grid_2 is None:
+            return None
 
         # Match descriptors
         desc_pairs_score, desc_pair_norm = self.descriptor_matching(descriptors_1,
@@ -289,7 +294,13 @@ class LesionMatchingModel(nn.Module):
                     xs = kk
 
                     N = len(zs)
+
                     print('Number of keypoints found after reducing the threshold = {}'.format(N))
+
+                    # Even after reducing the threshold to 0, we still do not have enough kpts => most of the heatmap is "cold"
+                    if num_pts > N:
+                        print('Skip this batch. Too few keypoint candidates')
+                        return None, None, None
                 else:
                     raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
 
@@ -305,7 +316,10 @@ class LesionMatchingModel(nn.Module):
             idxs_desc = torch.argsort(-1*item_kpts[:, 3])
 
             item_kpts_sorted = item_kpts[idxs_desc, :]
+
+
             top_k_kpts = item_kpts_sorted[:num_pts, :]
+
 
             kpts[batch_idx, ...] = top_k_kpts
 
@@ -322,7 +336,7 @@ class LesionMatchingModel(nn.Module):
         kpts_sampling_grid = torch.unsqueeze(kpts_sampling_grid, dim=1)
         kpts_sampling_grid = torch.unsqueeze(kpts_sampling_grid, dim=1)
 
-        # Sample keypoint logits
+        # Sample keypoint logits instead of heatmap probabilities
         # BCEWithLogits safe to use with autocast
         # See: https://discuss.pytorch.org/t/runtimeerror-binary-cross-entropy-and-bceloss-are-unsafe-to-autocast/118538
         kpts_scores = F.grid_sample(kpt_map,
