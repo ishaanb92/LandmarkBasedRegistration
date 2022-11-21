@@ -142,6 +142,8 @@ def test(args):
                 # Keypoint logits
                 kpts_logits_1, kpts_logits_2 = sliding_window_inference(inputs=images_cat.to(device),
                                                                         roi_size=ROI_SIZE,
+                                                                        sw_device=device,
+                                                                        device='cpu',
                                                                         sw_batch_size=4,
                                                                         predictor=model.get_patch_keypoint_scores,
                                                                         overlap=0.5)
@@ -151,21 +153,23 @@ def test(args):
                                                         sliding_window_inference(inputs=images_cat.to(device),
                                                                                  roi_size=ROI_SIZE,
                                                                                  sw_batch_size=4,
+                                                                                 sw_device=device,
+                                                                                 device='cpu',
                                                                                  predictor=model.get_patch_feature_descriptors,
                                                                                  overlap=0.5)
 
-                features_1 = (features_1_low, features_1_high)
-                features_2 = (features_2_low, features_1_high)
+                features_1 = (features_1_low.to(device), features_1_high.to(device))
+                features_2 = (features_2_low.to(device), features_1_high.to(device))
 
 
 
                 # Get (predicted) landmarks and matches on the full image
                 # These landmarks are predicted based on L2-norm between feature descriptors
                 # and predicted matching probability
-                outputs = model.inference(kpts_1=kpts_logits_1,
-                                          kpts_2=kpts_logits_2,
-                                          features_1=features_1,
-                                          features_2=features_2,
+                outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                          kpts_2=kpts_logits_2.to(device),
+                                          features_1=features_1.to(device),
+                                          features_2=features_2.to(device),
                                           conf_thresh=0.1,
                                           num_pts=256,
                                           mask=liver_mask.to(device),
