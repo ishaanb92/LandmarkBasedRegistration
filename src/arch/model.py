@@ -206,7 +206,7 @@ class LesionMatchingModel(nn.Module):
         pts = (pts + 1.)/2.
 
         # Scale to image dimensions (DHW ordering)
-        pts = pts * torch.Tensor([(shape[0]-1, shape[1]-1, shape[2]-1)]).view(1, 1, 3).to(pts.device)
+        pts = pts * torch.Tensor([(shape[0]-1, shape[1]-1, shape[2]-1)]).view(1, 1, 3).int().to(pts.device)
 
         return pts
 
@@ -293,12 +293,12 @@ class LesionMatchingModel(nn.Module):
 
 
             item_kpts = torch.zeros(size=(N, 4),
-                                    dtype=kpt_map.dtype).to(kpt_map.device)
+                                    dtype=kpt_probmap.dtype).to(kpt_map.device)
 
             item_kpts[:, 0] = xs
             item_kpts[:, 1] = ys
             item_kpts[:, 2] = zs
-            item_kpts[:, 3] = kpt_probmap_suppressed[batch_idx, zs, ys, xs]
+            item_kpts[:, 3] = kpt_probmap_suppressed[batch_idx, zs , ys, xs]
 
             idxs_desc = torch.argsort(-1*item_kpts[:, 3])
 

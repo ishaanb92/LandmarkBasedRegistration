@@ -76,10 +76,9 @@ def train(args):
     train_dicts = create_data_dicts_lesion_matching(train_patients)
     val_dicts = create_data_dicts_lesion_matching(val_patients)
 
-    # FIXME: data augmentation set to False!
     train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
                                                         train=True,
-                                                        data_aug=False,
+                                                        data_aug=args.data_aug,
                                                         batch_size=args.batch_size,
                                                         num_workers=4,
                                                         patch_size=(96, 96, 48))
@@ -193,7 +192,7 @@ def train(args):
                                         gt1=gt1,
                                         gt2=gt2,
                                         match_target=matches,
-                                        k=512,
+                                        k=256,
                                         device=device)
             # Backprop
             scaler.scale(loss_dict['loss']).backward()
@@ -263,7 +262,7 @@ def train(args):
                                         gt1=gt1,
                                         gt2=gt2,
                                         match_target=matches,
-                                        k=512,
+                                        k=256,
                                         device=device)
 
                 writer.add_scalar('val/loss', loss_dict['loss'].item(), n_iter_val)
@@ -300,6 +299,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--fp16', action='store_true')
+    parser.add_argument('--data_aug', action='store_true')
     parser.add_argument('--dummy', action='store_true')
 
     args = parser.parse_args()
