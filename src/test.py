@@ -74,7 +74,8 @@ def test(args):
 
 
     # Define the model
-    model = LesionMatchingModel(W=4)
+    model = LesionMatchingModel(W=4,
+                                K=args.kpts_per_batch)
 
     # Load the model
     load_dict = load_model(model=model,
@@ -171,7 +172,7 @@ def test(args):
                                           features_1=features_1.to(device),
                                           features_2=features_2.to(device),
                                           conf_thresh=0.1,
-                                          num_pts=256,
+                                          num_pts=args.kpts_per_batch,
                                           mask=liver_mask.to(device),
                                           mask2=liver_mask_hat.to(device))
 
@@ -279,6 +280,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--mode', type=str, default='test')
+    parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--synthetic', action='store_true')
     parser.add_argument('--dummy', action='store_true')
 
