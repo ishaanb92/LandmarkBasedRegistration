@@ -17,6 +17,7 @@ sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 
 from monai.utils import first, set_determinism
 from monai.metrics import DiceMetric
 from monai.transforms import ShiftIntensity
+from monai.inferers import sliding_window_inference
 import torch
 import torch.nn as nn
 from argparse import ArgumentParser
@@ -38,6 +39,7 @@ import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
+TRAINING_PATCH_SIZE = (96, 96, 48)
 
 def train(args):
 
@@ -76,23 +78,23 @@ def train(args):
     train_dicts = create_data_dicts_lesion_matching(train_patients)
     val_dicts = create_data_dicts_lesion_matching(val_patients)
 
+    # Patch-based training
     train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
                                                         train=True,
                                                         data_aug=args.data_aug,
                                                         batch_size=args.batch_size,
                                                         num_workers=4,
-                                                        patch_size=(96, 96, 48))
+                                                        patch_size=TRAINING_PATCH_SIZE)
 
-    # Patch-based validation
+    # Validation on full image!
     val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
-                                                      train=True,
+                                                      train=False,
                                                       data_aug=False,
                                                       batch_size=1,
-                                                      num_workers=4,
-                                                      patch_size=(96, 96, 48))
+                                                      num_workers=4)
 
 
-    model = LesionMatchingModel(K=256,
+    model = LesionMatchingModel(K=args.kpts_per_batch,
                                 W=4)
 
     optimizer = torch.optim.Adam(model.parameters(),
@@ -192,7 +194,7 @@ def train(args):
                                         gt1=gt1,
                                         gt2=gt2,
                                         match_target=matches,
-                                        k=256,
+                                        k=args.kpts_per_batch,
                                         device=device)
             # Backprop
             scaler.scale(loss_dict['loss']).backward()
@@ -205,7 +207,7 @@ def train(args):
             writer.add_scalar('train/landmark_2_loss', loss_dict['landmark_2_loss'].item(), n_iter)
             writer.add_scalar('train/desc_loss_ce', loss_dict['desc_loss_ce'].item(), n_iter)
             writer.add_scalar('train/desc_loss_hinge', loss_dict['desc_loss_hinge'].item(), n_iter)
-            writer.add_scalar('train/matches', num_matches, n_iter)
+            writer.add_scalar('train/gt_matches', num_matches, n_iter)
             n_iter += 1
 
         print('EPOCH {} done'.format(epoch))
@@ -224,7 +226,7 @@ def train(args):
                                                                        dummy=args.dummy,
                                                                        non_rigid=True,
                                                                        coarse=True,
-                                                                       coarse_displacements=(3, 3, 3))
+                                                                       coarse_displacements=(4, 4, 4))
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
@@ -244,25 +246,68 @@ def train(args):
 
                 assert(images.shape == images_hat.shape)
 
-                outputs = model(images.to(device),
-                                images_hat.to(device),
-                                mask=liver_mask.to(device),
-                                mask2=liver_mask_hat.to(device),
-                                training=True)
+                # Concatenate along channel axis so that sliding_window_inference can
+                # be used
+                assert(images_hat.shape == images.shape)
+                images_cat = torch.cat([images, images_hat], dim=1)
 
-                gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
-                                                                                     kpts2=outputs['kpt_sampling_grid'][1],
-                                                                                     deformation=batch_deformation_grid,
-                                                                                     pixel_thresh=5)
 
-                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
-                                        landmark_logits2=outputs['kpt_logits'][1],
+                # Pad the z-axis to make the image a cube : 256 x 256 x 256
+                # Otherwise, sliding_window_inference complains
+                depth = images_cat.shape[-1]
+                pad = 256-depth
+
+                images_cat = F.pad(images_cat, (0, pad), "constant", 0)
+                liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
+                liver_mask_hat = F.pad(liver_mask_hat, (0, pad), "constant", 0)
+
+
+                # Keypoint logits
+                kpts_logits_1, kpts_logits_2 = sliding_window_inference(inputs=images_cat.to(device),
+                                                                        roi_size=TRAINING_PATCH_SIZE,
+                                                                        sw_batch_size=4,
+                                                                        predictor=model.get_patch_keypoint_scores,
+                                                                        overlap=0.5)
+
+                # Feature maps
+                features_1_low, features_1_high, features_2_low, features_2_high =\
+                                                        sliding_window_inference(inputs=images_cat.to(device),
+                                                                                 roi_size=TRAINING_PATCH_SIZE,
+                                                                                 sw_batch_size=4,
+                                                                                 predictor=model.get_patch_feature_descriptors,
+                                                                                 overlap=0.5)
+
+                features_1 = (features_1_low, features_1_high)
+                features_2 = (features_2_low, features_1_high)
+
+
+
+                # Get (predicted) landmarks and matches on the full image
+                # These landmarks are predicted based on L2-norm between feature descriptors
+                # and predicted matching probability
+                outputs = model.inference(kpts_1=kpts_logits_1,
+                                          kpts_2=kpts_logits_2,
+                                          features_1=features_1,
+                                          features_2=features_2,
+                                          conf_thresh=0.05,
+                                          num_pts=args.kpts_per_batch,
+                                          mask=liver_mask.to(device),
+                                          mask2=liver_mask_hat.to(device))
+
+                # Get ground truth matches based on projecting keypoints using the deformation grid
+                gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
+                                                                                           kpts2=outputs['kpt_sampling_grid_2'],
+                                                                                           deformation=batch_deformation_grid,
+                                                                                           pixel_thresh=5)
+
+                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits_1'],
+                                        landmark_logits2=outputs['kpt_logits_2'],
                                         desc_pairs_score=outputs['desc_score'],
                                         desc_pairs_norm=outputs['desc_norm'],
                                         gt1=gt1,
                                         gt2=gt2,
-                                        match_target=matches,
-                                        k=256,
+                                        match_target=gt_matches,
+                                        k=args.kpts_per_batch,
                                         device=device)
 
                 writer.add_scalar('val/loss', loss_dict['loss'].item(), n_iter_val)
@@ -270,7 +315,8 @@ def train(args):
                 writer.add_scalar('val/landmark_2_loss', loss_dict['landmark_2_loss'].item(), n_iter_val)
                 writer.add_scalar('val/desc_loss_ce', loss_dict['desc_loss_ce'].item(), n_iter_val)
                 writer.add_scalar('val/desc_loss_hinge', loss_dict['desc_loss_hinge'].item(), n_iter_val)
-                writer.add_scalar('val/matches', num_matches, n_iter_val)
+                writer.add_scalar('val/GT matches', num_gt_matches, n_iter_val)
+                writer.add_scalar('val/Predicted matches', torch.sum(outputs['matches']).item(), n_iter_val)
                 val_loss.append(loss_dict['loss'].item())
                 pbar_val.set_postfix({'Validation loss': loss_dict['loss'].item()})
                 n_iter_val += 1
@@ -298,6 +344,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--patience', type=int, default=20)
+    parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--data_aug', action='store_true')
     parser.add_argument('--dummy', action='store_true')

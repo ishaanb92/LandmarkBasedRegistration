@@ -184,12 +184,15 @@ class LesionMatchingModel(nn.Module):
         outputs = {}
         outputs['landmarks_1'] = landmarks_1
         outputs['landmarks_2'] = landmarks_2
+        outputs['desc_score'] = desc_pairs_score
+        outputs['desc_norm'] = desc_pair_norm
         outputs['matches'] = matches
         outputs['matches_norm'] = matches_norm
         outputs['matches_prob'] = matches_prob
         outputs['kpt_sampling_grid_1'] = kpt_sampling_grid_1
         outputs['kpt_sampling_grid_2'] = kpt_sampling_grid_2
-
+        outputs['kpt_logits_1'] = kpt_logits_1
+        outputs['kpt_logits_2'] = kpt_logits_2
 
         return outputs
 
@@ -273,7 +276,6 @@ class LesionMatchingModel(nn.Module):
 
             if N < num_pts:
                 if training is True:
-                    print(torch.max(mask[batch_idx]))
                     kpt_mask = torch.where(kpt_probmap_suppressed[batch_idx, ...]>0,
                                            torch.ones_like(kpt_probmap_suppressed[batch_idx, ...]),
                                            torch.zeros_like(kpt_probmap_suppressed[batch_idx, ...])).type(kpt_probmap.dtype)
