@@ -88,7 +88,15 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
 
 
-def compute_
+def compute_pos_weight_tensor(gt):
+
+    b, k = gt.shape
+    n_pos = torch.nonzero(gt).shape[0]
+    n_neg = k - n_pos
+    pos_weight = n_neg/n_pos
+
+    return torch.Tensor([pos_weight])
+
 
 def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs_norm, gt1, gt2, match_target, k, device="cuda:0"):
 
@@ -96,8 +104,13 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     # Mean over batch (first torch.mean from left) and over #landmarks (=K) (first torch.mean from right)
     landmark_logits1_lossa = torch.mean(1 - torch.mean(torch.sigmoid(landmark_logits1), dim=1))
 
+    pos_weight_1 = compute_pos_weight_tensor(gt1)
 
-    landmark_logits1_lossb = F.binary_cross_entropy_with_logits(landmark_logits1, gt1, reduction='none')
+    landmark_logits1_lossb = F.binary_cross_entropy_with_logits(input=landmark_logits1,
+                                                                target=gt1,
+                                                                pos_weight=pos_weight_1.to(device),
+                                                                reduction='none')
+
     landmark_logits1_lossb = torch.mean(landmark_logits1_lossb, dim=1) # Mean over #landmarks
     landmark_logits1_lossb = torch.mean(landmark_logits1_lossb, dim=0) # Mean over batch
 
@@ -107,7 +120,12 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     # LandmarkProbabilityLoss Image 2
     landmark_logits2_lossa = torch.mean(1 - torch.mean(torch.sigmoid(landmark_logits2), dim=1))
 
-    landmark_logits2_lossb = F.binary_cross_entropy_with_logits(landmark_logits2, gt2, reduction='none')
+    pos_weight_2 = compute_pos_weight_tensor(gt2)
+    landmark_logits2_lossb = F.binary_cross_entropy_with_logits(input=landmark_logits2,
+                                                                target=gt2,
+                                                                pos_weight=pos_weight_2.to(device),
+                                                                reduction='none')
+
     landmark_logits2_lossb = torch.mean(landmark_logits2_lossb, dim=1) # Mean over #landmarks
     landmark_logits2_lossb = torch.mean(landmark_logits2_lossb, dim=0) # Mean over batch
 
@@ -144,6 +162,8 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     loss_dict['landmark_1_loss_wce'] = landmark_logits1_lossb
     loss_dict['landmark_1_loss_max_p'] = landmark_logits1_lossa
     loss_dict['landmark_2_loss_wce'] = landmark_logits2_lossb
+    loss_dict['landmark_1_pos_weight'] = pos_weight_1
+    loss_dict['landmark_2_pos_weight'] = pos_weight_2
     loss_dict['landmark_2_loss_max_p'] = landmark_logits2_lossa
     loss_dict['desc_loss_ce'] = desc_loss1
     loss_dict['desc_loss_hinge'] = desc_loss2
