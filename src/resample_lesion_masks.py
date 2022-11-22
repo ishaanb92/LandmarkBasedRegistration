@@ -136,7 +136,6 @@ if __name__ == '__main__':
 
 
         reg_dir = os.path.join(args.out_dir, pat_id)
-        print(reg_dir)
 
         # The registration result for a patient may be absent
         # because it may have been deleted in a previous run

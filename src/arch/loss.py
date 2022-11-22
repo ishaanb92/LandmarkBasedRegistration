@@ -88,11 +88,14 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
 
 
+def compute_
+
 def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs_norm, gt1, gt2, match_target, k, device="cuda:0"):
 
     # LandmarkProbabilityLoss Image 1
     # Mean over batch (first torch.mean from left) and over #landmarks (=K) (first torch.mean from right)
     landmark_logits1_lossa = torch.mean(1 - torch.mean(torch.sigmoid(landmark_logits1), dim=1))
+
 
     landmark_logits1_lossb = F.binary_cross_entropy_with_logits(landmark_logits1, gt1, reduction='none')
     landmark_logits1_lossb = torch.mean(landmark_logits1_lossb, dim=1) # Mean over #landmarks
@@ -138,6 +141,10 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     loss_dict['loss'] = loss
     loss_dict['landmark_1_loss'] = landmark_logits1_loss
     loss_dict['landmark_2_loss'] = landmark_logits2_loss
+    loss_dict['landmark_1_loss_wce'] = landmark_logits1_lossb
+    loss_dict['landmark_1_loss_max_p'] = landmark_logits1_lossa
+    loss_dict['landmark_2_loss_wce'] = landmark_logits2_lossb
+    loss_dict['landmark_2_loss_max_p'] = landmark_logits2_lossa
     loss_dict['desc_loss_ce'] = desc_loss1
     loss_dict['desc_loss_hinge'] = desc_loss2
 

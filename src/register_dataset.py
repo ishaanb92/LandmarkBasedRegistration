@@ -62,8 +62,6 @@ if __name__ == '__main__':
             for channel in range(N_DCE_CHANNELS):
                 image_name.append('DWI_channel_{}.nii'.format(channel))
 
-
-
     if os.path.exists(args.out_dir) is True:
         shutil.rmtree(args.out_dir)
 
@@ -84,7 +82,6 @@ if __name__ == '__main__':
         else: # Scan[1] is the moving image, Scan[0] is the fixed image
             moving_image_idx = 1
             fixed_image_idx = 0
-
 
         fixed_image_path = []
         moving_image_path = []
