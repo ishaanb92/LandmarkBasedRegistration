@@ -88,8 +88,6 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
 
 
-def compute_
-
 def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs_norm, gt1, gt2, match_target, k, device="cuda:0"):
 
     # LandmarkProbabilityLoss Image 1
