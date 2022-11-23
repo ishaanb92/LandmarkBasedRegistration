@@ -184,7 +184,7 @@ if __name__ == '__main__':
     train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=True,
+                                                                train=False,
                                                                 batch_size=1,
                                                                 data_aug=False,
                                                                 patch_size=(96, 96, 48))
@@ -210,8 +210,8 @@ if __name__ == '__main__':
                                                                non_rigid=True,
                                                                coarse=True,
                                                                fine=True,
-                                                               coarse_displacements=(5, 5, 5),
-                                                               fine_displacements=(2, 2, 2))
+                                                               coarse_displacements=(10, 10, 10),
+                                                               fine_displacements=(4, 4, 4))
         if batch_deformation_grid is not None:
             deformed_images = F.grid_sample(input=images,
                                             grid=batch_deformation_grid,

@@ -127,7 +127,9 @@ def train(args):
                                                                    dummy=args.dummy,
                                                                    non_rigid=True,
                                                                    coarse=True,
-                                                                   coarse_displacements=(3, 3, 3))
+                                                                   fine=True,
+                                                                   coarse_displacements=(4, 4, 4),
+                                                                   fine_displacements=(1, 1, 1))
 
             if batch_deformation_grid is None:
                 continue
@@ -233,7 +235,9 @@ def train(args):
                                                                        dummy=args.dummy,
                                                                        non_rigid=True,
                                                                        coarse=True,
-                                                                       coarse_displacements=(4, 4, 4))
+                                                                       fine=True,
+                                                                       coarse_displacements=(8, 8, 8),
+                                                                       fine_displacements=(3, 3, 3))
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
