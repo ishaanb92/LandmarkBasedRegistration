@@ -52,17 +52,17 @@ def create_bspline_transform(coarse=True,
     x, y, z = shape
 
     if coarse is True:
-        random_grid = np.random.rand(3, 3, 3, 3).astype(np.float32) # Make a random 3D 3 x 3 x 3 grid
+        random_grid = np.random.rand(3, 4, 4, 4).astype(np.float32) # Make a random 3D 3 x 3 x 3 grid
         random_grid = random_grid*2 - 1 # Shift range to [-1, 1]
-        random_grid[0, ...] = random_grid[0, ...]*(2/x)*displacements[0]
-        random_grid[1, ...] = random_grid[1, ...]*(2/y)*displacements[1]
-        random_grid[2, ...] = random_grid[2, ...]*(2/z)*displacements[2]
+        random_grid[0, ...] = random_grid[0, ...]*(1/x)*displacements[0]
+        random_grid[1, ...] = random_grid[1, ...]*(1/y)*displacements[1]
+        random_grid[2, ...] = random_grid[2, ...]*(1/z)*displacements[2]
     else: # Fine with a larger control grid
         random_grid = np.random.rand(3, 8, 8, 8).astype(np.float32) # Make a random 3D 4 x 4 x 4 grid
         random_grid = random_grid*2 - 1 # Shift range to [-1, 1]
-        random_grid[0, ...] = random_grid[0, ...]*(2/x)*displacements[0]
-        random_grid[1, ...] = random_grid[1, ...]*(2/y)*displacements[1]
-        random_grid[2, ...] = random_grid[2, ...]*(2/z)*displacements[2]
+        random_grid[0, ...] = random_grid[0, ...]*(1/x)*displacements[0]
+        random_grid[1, ...] = random_grid[1, ...]*(1/y)*displacements[1]
+        random_grid[2, ...] = random_grid[2, ...]*(1/z)*displacements[2]
 
     bspline_transform = gryds.BSplineTransformation(grid=random_grid,
                                                     order=3)
@@ -78,16 +78,16 @@ def create_deformation_grid(grid=None,
         assert(isinstance(transforms, list))
 
         if ndim == 3:
-            grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
-                                        np.linspace(-1, 1, shape[1]),
-                                        np.linspace(-1, 1, shape[2]),
+            grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
+                                        np.linspace(0, 1, shape[1]),
+                                        np.linspace(0, 1, shape[2]),
                                         indexing="ij"),
                             dtype=np.float32)
 
             center = [0, 0, 0]
         elif ndim == 2:
-            grid = np.array(np.meshgrid(np.linspace(-1, 1, shape[0]),
-                                        np.linspace(-1, 1, shape[1]),
+            grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
+                                        np.linspace(0, 1, shape[1]),
                                         indexing="ij"),
                             dtype=np.float32)
             center = [0, 0]
@@ -107,7 +107,12 @@ def create_deformation_grid(grid=None,
         print('Folding has occured!. Skip this batch')
         return None
 
-    return deformed_grid.grid
+    dgrid = deformed_grid.grid
+
+    # Rescale to [-1, 1] so that this is compliant with torch.nn.functional.grid_sample()
+    dgrid = 2*dgrid - 1
+
+    return dgrid
 
 
 def create_batch_deformation_grid(shape,
@@ -181,7 +186,7 @@ if __name__ == '__main__':
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
                                                                 train=True,
                                                                 batch_size=1,
-                                                                data_aug=True,
+                                                                data_aug=False,
                                                                 patch_size=(96, 96, 48))
 
     post_transforms = Compose([EnsureTyped(keys=['d_image']),
@@ -204,7 +209,9 @@ if __name__ == '__main__':
                                                                dummy=False,
                                                                non_rigid=True,
                                                                coarse=True,
-                                                               fine=False)
+                                                               fine=True,
+                                                               coarse_displacements=(5, 5, 5),
+                                                               fine_displacements=(2, 2, 2))
         if batch_deformation_grid is not None:
             deformed_images = F.grid_sample(input=images,
                                             grid=batch_deformation_grid,
