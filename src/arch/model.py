@@ -248,14 +248,14 @@ class LesionMatchingModel(nn.Module):
         # Only retain the maximum activation in a given neighbourhood of size of W, W, W
         # All non-maximal values set to zero
         kpt_probmap_downsampled, indices = F.max_pool3d(kpt_probmap,
-                                                        kernel_size=(W, W, W),
-                                                        stride=(W, W, W),
+                                                        kernel_size=(W, W, W//2),
+                                                        stride=(W, W, W//2),
                                                         return_indices=True)
 
         kpt_probmap_suppressed = F.max_unpool3d(kpt_probmap_downsampled,
                                                 indices=indices,
-                                                kernel_size=(W, W, W),
-                                                stride=(W, W, W))
+                                                kernel_size=(W, W, W//2),
+                                                stride=(W, W, W//2))
 
         kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
                                                dim=1)

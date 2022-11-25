@@ -15,14 +15,14 @@ import torch.nn.functional as F
 
 
 
-def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=1):
+def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=(2, 4, 4)):
     """
 
     Using the (known) deformation grid create ground truth for keypoints
     A candidate is chosen as a keypoint if it maps to a point in the transformed image
     that is also a keypoint candidate (repeatability)
 
-    pixel_thresh :  in-plane pixel threshold
+    pixel_thresh :  (x_thresh, y_thresh, z_thresh)
 
     """
 
@@ -32,9 +32,9 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
     b, i, j, k, _ = deformation.shape
 
-    thresh = torch.Tensor([max((pixel_thresh)*(2/i),
-                               (pixel_thresh)*(2/j),
-                               (pixel_thresh)*(2/k))]).to(kpts1.device).type(kpts1.dtype)
+    # The grid values are in the [-1, 1] => a single grid spacing = (2/i, 2/j, 2/k)
+    # So we compute the grid thresh that corresponds to the user-supplies pixel thresh
+    grid_thresh = torch.Tensor([pixel_thresh[0]*(2/i), pixel_thresh[1]*(2/j), pixel_thresh[2]*(2/k)])
 
 
     deformation = deformation.permute(0, 4, 1, 2, 3) # [B, 3, H, W, D]
@@ -42,8 +42,8 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
     # Deformation grid shape: [B, 3, H, W, D]
     # kpts2 (grid) : [B, 1, 1, K, 3]
     # kpts2[:, :, :, :, 0] : x (D)
-    # kpts2[:, :, :, :, 1] : x (W)
-    # kpts2[:, :, :, :, 2] : x (H)
+    # kpts2[:, :, :, :, 1] : y (W)
+    # kpts2[:, :, :, :, 2] : z (H)
     kpts1_projected = F.grid_sample(deformation.to(device).type(kpts2.dtype),
                                     kpts2,
                                     align_corners=True,
@@ -59,19 +59,27 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
     kpts1_projected = kpts1_projected.unsqueeze(dim=1)
     kpts1 = kpts1.unsqueeze(dim=2)
 
-    cell_distances = torch.norm(kpts1 - kpts1_projected, dim=3)
+    # Kpts shape : [B, K, 1, 3]
+    # Projected Kpts shape : [B, 1, K, 3]
+    # To decide whether a keypoint pair matches, we check whether the projected keypoints
+    # lie inside an ellipsoid (axis lengths depend on the pixel threshold)
+    ellipsoid_values = torch.pow((kpts1_projected[:, :, :, 0] - kpts1[:, :, :, 0]), 2)/torch.pow(grid_thresh[0], 2) + \
+                       torch.pow((kpts1_projected[:, :, :, 1] - kpts1[:, :, :, 1]), 2)/torch.pow(grid_thresh[1], 2) + \
+                       torch.pow((kpts1_projected[:, :, :, 2] - kpts1[:, :, :, 2]), 2)/torch.pow(grid_thresh[2], 2)
+
 
     # two-way (bruteforce) matching
-    min_cell_distances_row = torch.min(cell_distances, dim=1)[0].view(b, 1, -1)
-    min_cell_distances_col = torch.min(cell_distances, dim=2)[0].view(b, -1, 1)
+    min_ellipsoid_row = torch.min(ellipsoid_values, dim=1)[0].view(b, 1, -1)
+    min_ellipsoid_col = torch.min(ellipsoid_values, dim=2)[0].view(b, -1, 1)
 
     # Forward mask
-    s1 = torch.eq(cell_distances, min_cell_distances_row)
+    s1 = torch.eq(ellipsoid_values, min_ellipsoid_row)
     # Backward mask
-    s2 = torch.eq(cell_distances, min_cell_distances_col)
+    s2 = torch.eq(ellipsoid_values, min_ellipsoid_col)
 
-    # Match = 1 => Bidirectionally minimal distances + threshold satisfaction
-    matches = s1 * s2 * torch.ge(thresh, cell_distances)  #b, k1, k2
+    # If ellipsoid equation for a given pair is <=1 => The pair is a match!
+    matches = s1 * s2 * torch.ge(torch.ones_like(ellipsoid_values),
+                                 ellipsoid_values)  #b, k1, k2
     # Bool -> numeric dtype
     matches = matches.type(kpts1.dtype)
 
@@ -116,8 +124,10 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     Npos = match_target.sum()
     Nneg = b*k1*k2 - Npos
 
-    pos_weight = Nneg/(Npos+Nneg)
-    neg_weight = Npos/(Npos+Nneg)
+
+    # +1 for numerical stability since Npos could be 0 at the start!
+    pos_weight = (Nneg+1)/(Npos+Nneg)
+    neg_weight = (Npos+1)/(Npos+Nneg)
 
     desc_loss1 = F.cross_entropy(desc_pairs_score,
                                  match_target.long().view(-1),

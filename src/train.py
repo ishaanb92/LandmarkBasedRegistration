@@ -269,9 +269,9 @@ def train(args):
                     assert(torch.equal(outputs['kpt_sampling_grid'][0], outputs['kpt_sampling_grid'][1]))
 
 
-                gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
-                                                                                     kpts2=outputs['kpt_sampling_grid'][1],
-                                                                                     deformation=batch_deformation_grid)
+                gt1, gt2, matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
+                                                                                        kpts2=outputs['kpt_sampling_grid'][1],
+                                                                                        deformation=batch_deformation_grid)
 
                 loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
                                         landmark_logits2=outputs['kpt_logits'][1],
@@ -293,7 +293,6 @@ def train(args):
                 writer.add_scalar('val/desc_loss_ce', loss_dict['desc_loss_ce'].item(), n_iter_val)
                 writer.add_scalar('val/desc_loss_hinge', loss_dict['desc_loss_hinge'].item(), n_iter_val)
                 writer.add_scalar('val/GT matches', num_gt_matches, n_iter_val)
-                writer.add_scalar('val/Predicted matches', torch.sum(outputs['matches']).item(), n_iter_val)
                 val_loss.append(loss_dict['loss'].item())
                 pbar_val.set_postfix({'Validation loss': loss_dict['loss'].item()})
                 n_iter_val += 1
