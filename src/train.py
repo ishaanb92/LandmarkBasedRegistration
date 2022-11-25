@@ -86,11 +86,10 @@ def train(args):
                                                         num_workers=4,
                                                         patch_size=TRAINING_PATCH_SIZE)
 
-    # Validation on full image!
     val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
-                                                      train=False,
+                                                      train=True,
                                                       data_aug=False,
-                                                      batch_size=1,
+                                                      batch_size=args.batch_size,
                                                       num_workers=4)
 
 
@@ -236,8 +235,8 @@ def train(args):
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=True,
-                                                                       coarse_displacements=(8, 8, 8),
-                                                                       fine_displacements=(3, 3, 3))
+                                                                       coarse_displacements=(4, 4, 4),
+                                                                       fine_displacements=(1, 1, 1))
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
@@ -257,71 +256,30 @@ def train(args):
 
                 assert(images.shape == images_hat.shape)
 
-                # Concatenate along channel axis so that sliding_window_inference can
-                # be used
-                assert(images_hat.shape == images.shape)
-                images_cat = torch.cat([images, images_hat], dim=1)
+                outputs = model(x1=images.to(device),
+                                x2=images_hat.to(device),
+                                mask=liver_mask.to(device),
+                                mask2=liver_mask_hat.to(device),
+                                training=True)
+
+                if outputs is None: # Too few keypoints found
+                    continue
+
+                if args.dummy is True:
+                    assert(torch.equal(outputs['kpt_sampling_grid'][0], outputs['kpt_sampling_grid'][1]))
 
 
-                # Pad the z-axis to make the image a cube : 256 x 256 x 256
-                # Otherwise, sliding_window_inference complains
-                depth = images_cat.shape[-1]
-                pad = 256-depth
+                gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
+                                                                                     kpts2=outputs['kpt_sampling_grid'][1],
+                                                                                     deformation=batch_deformation_grid)
 
-                images_cat = F.pad(images_cat, (0, pad), "constant", 0)
-                liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
-                liver_mask_hat = F.pad(liver_mask_hat, (0, pad), "constant", 0)
-
-
-                # Keypoint logits
-                kpts_logits_1, kpts_logits_2 = sliding_window_inference(inputs=images_cat,
-                                                                        roi_size=TRAINING_PATCH_SIZE,
-                                                                        sw_batch_size=4,
-                                                                        sw_device=device,
-                                                                        device='cpu',
-                                                                        predictor=model.get_patch_keypoint_scores,
-                                                                        overlap=0.5)
-
-                # Feature maps
-                features_1_low, features_1_high, features_2_low, features_2_high =\
-                                                        sliding_window_inference(inputs=images_cat,
-                                                                                 roi_size=TRAINING_PATCH_SIZE,
-                                                                                 sw_batch_size=4,
-                                                                                 sw_device=device,
-                                                                                 device='cpu',
-                                                                                 predictor=model.get_patch_feature_descriptors,
-                                                                                 overlap=0.5)
-
-                features_1 = (features_1_low.to(device), features_1_high.to(device))
-                features_2 = (features_2_low.to(device), features_1_high.to(device))
-
-
-
-                # Get (predicted) landmarks and matches on the full image
-                # These landmarks are predicted based on L2-norm between feature descriptors
-                # and predicted matching probability
-                outputs = model.inference(kpts_1=kpts_logits_1.to(device),
-                                          kpts_2=kpts_logits_2.to(device),
-                                          features_1=features_1,
-                                          features_2=features_2,
-                                          conf_thresh=0.05,
-                                          num_pts=args.kpts_per_batch,
-                                          mask=liver_mask.to(device),
-                                          mask2=liver_mask_hat.to(device))
-
-                # Get ground truth matches based on projecting keypoints using the deformation grid
-                gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
-                                                                                           kpts2=outputs['kpt_sampling_grid_2'],
-                                                                                           deformation=batch_deformation_grid,
-                                                                                           pixel_thresh=5)
-
-                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits_1'],
-                                        landmark_logits2=outputs['kpt_logits_2'],
+                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
+                                        landmark_logits2=outputs['kpt_logits'][1],
                                         desc_pairs_score=outputs['desc_score'],
                                         desc_pairs_norm=outputs['desc_norm'],
                                         gt1=gt1,
                                         gt2=gt2,
-                                        match_target=gt_matches,
+                                        match_target=matches,
                                         k=args.kpts_per_batch,
                                         device=device)
 
