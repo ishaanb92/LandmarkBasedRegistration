@@ -100,7 +100,9 @@ def test(args):
                                                                        dummy=args.dummy,
                                                                        non_rigid=True,
                                                                        coarse=True,
-                                                                       coarse_displacements=(4, 4, 4))
+                                                                       fine=args.fine_deform,
+                                                                       coarse_displacements=(4, 4, 4),
+                                                                       fine_displacements=(1, 1, 1))
 
                 if batch_deformation_grid is None:
                     continue
@@ -162,15 +164,13 @@ def test(args):
                 features_1 = (features_1_low.to(device), features_1_high.to(device))
                 features_2 = (features_2_low.to(device), features_1_high.to(device))
 
-
-
                 # Get (predicted) landmarks and matches on the full image
                 # These landmarks are predicted based on L2-norm between feature descriptors
                 # and predicted matching probability
                 outputs = model.inference(kpts_1=kpts_logits_1.to(device),
                                           kpts_2=kpts_logits_2.to(device),
-                                          features_1=features_1.to(device),
-                                          features_2=features_2.to(device),
+                                          features_1=features_1,
+                                          features_2=features_2,
                                           conf_thresh=0.1,
                                           num_pts=args.kpts_per_batch,
                                           mask=liver_mask.to(device),
@@ -180,7 +180,7 @@ def test(args):
                 gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
                                                                                            kpts2=outputs['kpt_sampling_grid_2'],
                                                                                            deformation=batch_deformation_grid,
-                                                                                           pixel_thresh=5)
+                                                                                           pixel_thresh=(2, 4, 4))
 
                 print('Number of ground truth matches (based on projecting keypoints) = {}'.format(num_gt_matches))
                 print('Number of matches based on feature descriptor distance '
@@ -283,6 +283,7 @@ if __name__ == '__main__':
     parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--synthetic', action='store_true')
     parser.add_argument('--dummy', action='store_true')
+    parser.add_argument('--fine_deform', action='store_true')
 
     args = parser.parse_args()
 

@@ -126,7 +126,7 @@ def train(args):
                                                                    dummy=args.dummy,
                                                                    non_rigid=True,
                                                                    coarse=True,
-                                                                   fine=True,
+                                                                   fine=args.fine_deform,
                                                                    coarse_displacements=(4, 4, 4),
                                                                    fine_displacements=(1, 1, 1))
 
@@ -234,7 +234,7 @@ def train(args):
                                                                        dummy=args.dummy,
                                                                        non_rigid=True,
                                                                        coarse=True,
-                                                                       fine=True,
+                                                                       fine=args.fine_deform,
                                                                        coarse_displacements=(4, 4, 4),
                                                                        fine_displacements=(1, 1, 1))
                 # Folding may have occured
@@ -324,6 +324,7 @@ if __name__ == '__main__':
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--data_aug', action='store_true')
     parser.add_argument('--dummy', action='store_true')
+    parser.add_argument('--fine_deform', action='store_true')
 
     args = parser.parse_args()
 
