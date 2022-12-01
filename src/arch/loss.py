@@ -30,11 +30,12 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
     assert(kpts1, kpts2)
 
+
     b, i, j, k, _ = deformation.shape
 
-    # The grid values are in the [-1, 1] => a single grid spacing = (2/i, 2/j, 2/k)
+    # The grid values are in the [-1, 1] => a single grid spacing = (2/k, 2/j, 2/i)
     # So we compute the grid thresh that corresponds to the user-supplies pixel thresh
-    grid_thresh = torch.Tensor([pixel_thresh[0]*(2/i), pixel_thresh[1]*(2/j), pixel_thresh[2]*(2/k)])
+    grid_thresh = torch.Tensor([pixel_thresh[0]*(2/k), pixel_thresh[1]*(2/j), pixel_thresh[2]*(2/i)])
 
 
     deformation = deformation.permute(0, 4, 1, 2, 3) # [B, 3, H, W, D]
