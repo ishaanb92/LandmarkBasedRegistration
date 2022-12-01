@@ -116,7 +116,7 @@ class LesionMatchingModel(nn.Module):
         return features_1[0], features_1[1], features_2[0], features_2[1]
 
 
-    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None):
+    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None, test=True):
 
         b, c, i, j, k = kpts_1.shape
 
@@ -125,7 +125,7 @@ class LesionMatchingModel(nn.Module):
                                                                                features=features_1,
                                                                                W=self.W,
                                                                                num_pts=num_pts,
-                                                                               training=False,
+                                                                               training=not(test),
                                                                                conf_thresh=conf_thresh,
                                                                                mask=mask)
 
@@ -133,7 +133,7 @@ class LesionMatchingModel(nn.Module):
                                                                                features=features_2,
                                                                                W=self.W,
                                                                                num_pts=num_pts,
-                                                                               training=False,
+                                                                               training=not(test),
                                                                                conf_thresh=conf_thresh,
                                                                                mask=mask2)
 

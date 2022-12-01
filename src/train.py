@@ -286,7 +286,8 @@ def train(args):
                                           conf_thresh=0.05,
                                           num_pts=args.kpts_per_batch,
                                           mask=liver_mask.to(device),
-                                          mask2=liver_mask_hat.to(device))
+                                          mask2=liver_mask_hat.to(device),
+                                          test=False)
 
                 if outputs is None: # Too few keypoints found
                     continue
