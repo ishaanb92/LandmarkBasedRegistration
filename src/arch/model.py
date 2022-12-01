@@ -137,6 +137,9 @@ class LesionMatchingModel(nn.Module):
                                                                                conf_thresh=conf_thresh,
                                                                                mask=mask2)
 
+        if kpt_sampling_grid_1 is None or kpt_sampling_grid_2 is None:
+            return None
+
         landmarks_1 = self.convert_grid_to_image_coords(kpt_sampling_grid_1,
                                                         shape=(k, j, i))
 
