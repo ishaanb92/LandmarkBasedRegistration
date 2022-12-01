@@ -23,6 +23,7 @@ import torch.nn as nn
 from argparse import ArgumentParser
 import shutil
 from utils import *
+from visualize import *
 from torch.utils.tensorboard import SummaryWriter
 from torchearlystopping.pytorchtools import EarlyStopping
 from model import LesionMatchingModel
@@ -60,6 +61,13 @@ def train(args):
         shutil.rmtree(log_dir)
 
     os.makedirs(log_dir)
+
+    viz_dir = os.path.join(args.checkpoint_dir, 'viz')
+
+    if os.path.exists(viz_dir) is True:
+        shutil.rmtree(viz_dir)
+
+    os.makedirs(viz_dir)
 
     writer = SummaryWriter(log_dir=log_dir)
 
@@ -112,7 +120,6 @@ def train(args):
     print('Start training')
     for epoch in range(10000):
 
-
         model.train()
         nbatches = len(train_loader)
         pbar = tqdm(enumerate(train_loader), desc="training", total=nbatches, unit="batches")
@@ -127,8 +134,8 @@ def train(args):
                                                                    non_rigid=True,
                                                                    coarse=True,
                                                                    fine=args.fine_deform,
-                                                                   coarse_displacements=(4, 4, 4),
-                                                                   fine_displacements=(1, 1, 1))
+                                                                   coarse_displacements=(2, 2, 2),
+                                                                   fine_displacements=(0.75, 0.75, 0.75))
 
             if batch_deformation_grid is None:
                 continue
@@ -218,6 +225,10 @@ def train(args):
             writer.add_scalar('train/gt_matches', num_matches, n_iter)
             n_iter += 1
 
+
+
+
+
         print('EPOCH {} done'.format(epoch))
 
         with torch.no_grad():
@@ -235,8 +246,8 @@ def train(args):
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=args.fine_deform,
-                                                                       coarse_displacements=(4, 4, 4),
-                                                                       fine_displacements=(1, 1, 1))
+                                                                       coarse_displacements=(2, 2, 2),
+                                                                       fine_displacements=(0.75, 0.75, 0.75))
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
@@ -256,11 +267,26 @@ def train(args):
 
                 assert(images.shape == images_hat.shape)
 
-                outputs = model(x1=images.to(device),
-                                x2=images_hat.to(device),
-                                mask=liver_mask.to(device),
-                                mask2=liver_mask_hat.to(device),
-                                training=True)
+                # Run inference block here
+                images_cat = torch.cat([images, images_hat],
+                                       dim=1)
+
+                kpts_logits_1, kpts_logits_2 = model.get_patch_keypoint_scores(images_cat.to(device))
+
+                features_1_low, features_1_high, features_2_low, features_2_high =\
+                                                        model.get_patch_feature_descriptors(images_cat.to(device))
+
+                features_1 = (features_1_low.to(device), features_1_high.to(device))
+                features_2 = (features_2_low.to(device), features_1_high.to(device))
+
+                outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                          kpts_2=kpts_logits_2.to(device),
+                                          features_1=features_1,
+                                          features_2=features_2,
+                                          conf_thresh=0.05,
+                                          num_pts=args.kpts_per_batch,
+                                          mask=liver_mask.to(device),
+                                          mask2=liver_mask_hat.to(device))
 
                 if outputs is None: # Too few keypoints found
                     continue
@@ -269,19 +295,37 @@ def train(args):
                     assert(torch.equal(outputs['kpt_sampling_grid'][0], outputs['kpt_sampling_grid'][1]))
 
 
-                gt1, gt2, matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
-                                                                                        kpts2=outputs['kpt_sampling_grid'][1],
-                                                                                        deformation=batch_deformation_grid)
+                gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
+                                                                                           kpts2=outputs['kpt_sampling_grid_2'],
+                                                                                           deformation=batch_deformation_grid)
 
-                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
-                                        landmark_logits2=outputs['kpt_logits'][1],
+                loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits_1'],
+                                        landmark_logits2=outputs['kpt_logits_2'],
                                         desc_pairs_score=outputs['desc_score'],
                                         desc_pairs_norm=outputs['desc_norm'],
                                         gt1=gt1,
                                         gt2=gt2,
-                                        match_target=matches,
+                                        match_target=gt_matches,
                                         k=args.kpts_per_batch,
                                         device=device)
+
+                for batch_id in range(images.shape[0]):
+                    im1 = images[batch_id, ...].squeeze(dim=0)
+                    im2 = images_hat[batch_id, ...].squeeze(dim=0)
+                    patient_id = val_data['patient_id'][batch_id]
+                    scan_id = val_data['scan_id'][batch_id]
+                    out_dir = os.path.join(viz_dir, patient_id, scan_id, 'epoch_{}'.format(epoch))
+                    if os.path.exists(out_dir) is False:
+                        os.makedirs(out_dir)
+
+                    visualize_keypoints_3d(im1=im1,
+                                           im2=im2,
+                                           landmarks1=outputs['landmarks_1'][batch_id, ...],
+                                           landmarks2=outputs['landmarks_2'][batch_id, ...],
+                                           pred_matches=outputs['matches'][batch_id, ...],
+                                           gt_matches=gt_matches[batch_id, ...],
+                                           out_dir=out_dir,
+                                           verbose=False)
 
                 writer.add_scalar('val/loss', loss_dict['loss'].item(), n_iter_val)
                 writer.add_scalar('val/landmark_1_loss', loss_dict['landmark_1_loss'].item(), n_iter_val)

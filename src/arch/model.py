@@ -244,21 +244,24 @@ class LesionMatchingModel(nn.Module):
         if mask is not None:
             kpt_probmap = kpt_probmap*mask
 
+        if training is True:
+            # Only retain the maximum activation in a given neighbourhood of size of W, W, W
+            # All non-maximal values set to zero
+            kpt_probmap_downsampled, indices = F.max_pool3d(kpt_probmap,
+                                                            kernel_size=(W, W, W//2),
+                                                            stride=(W, W, W//2),
+                                                            return_indices=True)
 
-        # Only retain the maximum activation in a given neighbourhood of size of W, W, W
-        # All non-maximal values set to zero
-        kpt_probmap_downsampled, indices = F.max_pool3d(kpt_probmap,
-                                                        kernel_size=(W, W, W//2),
-                                                        stride=(W, W, W//2),
-                                                        return_indices=True)
+            kpt_probmap_suppressed = F.max_unpool3d(kpt_probmap_downsampled,
+                                                    indices=indices,
+                                                    kernel_size=(W, W, W//2),
+                                                    stride=(W, W, W//2))
 
-        kpt_probmap_suppressed = F.max_unpool3d(kpt_probmap_downsampled,
-                                                indices=indices,
-                                                kernel_size=(W, W, W//2),
-                                                stride=(W, W, W//2))
-
-        kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
-                                               dim=1)
+            kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
+                                                   dim=1)
+        else:
+            kpt_probmap_suppressed = torch.squeeze(kpt_probmap,
+                                                   dim=1)
 
         kpts = torch.zeros(size=(b, num_pts, 4),
                            dtype=kpt_map.dtype).to(kpt_map.device)
