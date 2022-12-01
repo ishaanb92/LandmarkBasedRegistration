@@ -170,9 +170,9 @@ def create_batch_deformation_grid(shape,
 
         batch_deformation_grid[batch_idx, ...] = deformed_grid
 
-        #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
-        batch_deformation_grid = torch.Tensor(batch_deformation_grid).to(device)
-        return batch_deformation_grid
+    #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
+    batch_deformation_grid = torch.Tensor(batch_deformation_grid).to(device)
+    return batch_deformation_grid
 
 
 
@@ -181,37 +181,30 @@ if __name__ == '__main__':
 
     # Load all patient paths
     train_patients = joblib.load('../train_patients.pkl')
-    train_dict = create_data_dicts_lesion_matching([train_patients[0]])
+    train_dict = create_data_dicts_lesion_matching(train_patients[0:2])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=False,
-                                                                batch_size=1,
+                                                                train=True,
+                                                                batch_size=2,
                                                                 data_aug=False,
                                                                 patch_size=(96, 96, 48))
 
-    post_transforms = Compose([EnsureTyped(keys=['d_image']),
-                               Invertd(keys=['d_image',
-                                             'liver_mask',
-                                             'image',
-                                             'vessel_mask'],
-                                       transform=transforms,
-                                       orig_keys='image',
-                                       meta_keys=['d_image_meta_dict',
-                                                  'liver_mask_meta_dict',
-                                                  'image_meta_dict',
-                                                  'vessel_mask_meta_dict'],
-                                       nearest_interp=False,
-                                       to_tensor=True)])
+    print('Length of dataloader = {}'.format(len(data_loader)))
 
     for b_id, batch_data in enumerate(data_loader):
         images = batch_data['image']
+        print('Images shape: {}'.format(images.shape))
+
+        deformed_images = torch.zeros_like(images)
+
         batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                dummy=False,
                                                                non_rigid=True,
                                                                coarse=True,
                                                                fine=True,
-                                                               coarse_displacements=(10, 10, 10),
-                                                               fine_displacements=(4, 4, 4))
+                                                               coarse_displacements=(4, 4, 4),
+                                                               fine_displacements=(1, 1, 1))
+
         if batch_deformation_grid is not None:
             deformed_images = F.grid_sample(input=images,
                                             grid=batch_deformation_grid,
@@ -219,32 +212,37 @@ if __name__ == '__main__':
                                             mode="bilinear",
                                             padding_mode="border")
 
-            sub_image = images - deformed_images
 
-            save_dir = 'images_translation_b_{}'.format(b_id)
+        for batch_idx in range(images.shape[0]):
+            if torch.max(images[batch_idx, ...]) == torch.min(images[batch_idx, ...]):
+                print('Min and max values of image are the same!!!!')
+
+            if torch.max(deformed_images[batch_idx, ...]) == torch.min(deformed_images[batch_idx, ...]):
+                print('Min and max values of deformed image are the same!!!!')
+
+            save_dir = 'images_viz_{}_{}'.format(b_id, batch_idx)
 
             if os.path.exists(save_dir) is True:
                 shutil.rmtree(save_dir)
 
             os.makedirs(save_dir)
 
-            for batch_idx in range(images.shape[0]):
-                image = images[batch_idx, ...]
-                dimage = deformed_images[batch_idx, ...]
-                image_array = torch.squeeze(image, dim=0).numpy() # Get rid of channel axis
-                dimage_array = torch.squeeze(dimage, dim=0).numpy()
-                image_fname = os.path.join(save_dir, 'image.nii')
-                dimage_fname = os.path.join(save_dir, 'deformed_image.nii')
-                image_nib = create_nibabel_image(image_array=image_array,
-                                                 metadata_dict=batch_data['image_meta_dict'],
-                                                 affine=batch_data['image_meta_dict']['affine'][batch_idx])
+            image = images[batch_idx, ...]
+            dimage = deformed_images[batch_idx, ...]
+            image_array = torch.squeeze(image, dim=0).numpy() # Get rid of channel axis
+            dimage_array = torch.squeeze(dimage, dim=0).numpy()
+            image_fname = os.path.join(save_dir, 'image.nii')
+            dimage_fname = os.path.join(save_dir, 'deformed_image.nii')
+            image_nib = create_nibabel_image(image_array=image_array,
+                                             metadata_dict=batch_data['image_meta_dict'],
+                                             affine=batch_data['image_meta_dict']['affine'][batch_idx])
 
-                dimage_nib = create_nibabel_image(image_array=dimage_array,
-                                                  metadata_dict=batch_data['image_meta_dict'],
-                                                  affine=batch_data['image_meta_dict']['affine'][batch_idx])
+            dimage_nib = create_nibabel_image(image_array=dimage_array,
+                                              metadata_dict=batch_data['image_meta_dict'],
+                                              affine=batch_data['image_meta_dict']['affine'][batch_idx])
 
-                save_nib_image(image_nib,
-                               image_fname)
+            save_nib_image(image_nib,
+                           image_fname)
 
-                save_nib_image(dimage_nib,
-                               dimage_fname)
+            save_nib_image(dimage_nib,
+                           dimage_fname)

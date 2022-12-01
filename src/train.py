@@ -129,15 +129,18 @@ def train(args):
             images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                   device=images.device,
-                                                                   dummy=args.dummy,
                                                                    non_rigid=True,
                                                                    coarse=True,
                                                                    fine=args.fine_deform,
                                                                    coarse_displacements=(2, 2, 2),
                                                                    fine_displacements=(0.75, 0.75, 0.75))
-
-            if batch_deformation_grid is None:
+            if batch_deformation_grid is not None:
+                images_hat = F.grid_sample(input=images,
+                                           grid=batch_deformation_grid,
+                                           align_corners=True,
+                                           mode="bilinear",
+                                           padding_mode="border")
+            else:
                 continue
 
             if args.dummy is False:
@@ -165,12 +168,22 @@ def train(args):
                                            mode="nearest",
                                            padding_mode="border")
 
-            # Check for empty liver masks!
+            # Check for empty liver masks and other issues!
             skip_batch = False
             for bid in range(liver_mask.shape[0]):
                 if torch.max(liver_mask[bid, ...]) == 0 or torch.max(liver_mask_hat[bid, ...]) == 0:
                     skip_batch = True
                     break
+                if torch.max(images[bid, ...]) == torch.min(images[bid, ...]):
+                    print('Min and max values of image are the same!!!!')
+                    skip_batch = True
+                    break
+
+                if torch.max(images_hat[bid, ...]) == torch.min(images_hat[bid, ...]):
+                    print('Min and max values of deformed image are the same!!!!')
+                    skip_batch = True
+                    break
+
 
             if skip_batch is True:
                 continue
@@ -242,7 +255,6 @@ def train(args):
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device,
-                                                                       dummy=args.dummy,
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=args.fine_deform,
@@ -258,6 +270,7 @@ def train(args):
                                            mode="bilinear",
                                            padding_mode="border")
 
+
                 # Transform liver mask
                 liver_mask_hat = F.grid_sample(input=liver_mask,
                                                grid=batch_deformation_grid,
@@ -266,6 +279,25 @@ def train(args):
                                                padding_mode="border")
 
                 assert(images.shape == images_hat.shape)
+
+                skip_batch = False
+                for bid in range(liver_mask.shape[0]):
+                    if torch.max(liver_mask[bid, ...]) == 0 or torch.max(liver_mask_hat[bid, ...]) == 0:
+                        skip_batch = True
+                        break
+                    if torch.max(images[bid, ...]) == torch.min(images[bid, ...]):
+                        print('Min and max values of image are the same!!!!')
+                        skip_batch = True
+                        break
+
+                    if torch.max(images_hat[bid, ...]) == torch.min(images_hat[bid, ...]):
+                        print('Min and max values of deformed image are the same!!!!')
+                        skip_batch = True
+                        break
+
+
+                if skip_batch is True:
+                    continue
 
                 # Run inference block here
                 images_cat = torch.cat([images, images_hat],
@@ -315,7 +347,13 @@ def train(args):
                     im2 = images_hat[batch_id, ...].squeeze(dim=0)
                     patient_id = val_data['patient_id'][batch_id]
                     scan_id = val_data['scan_id'][batch_id]
-                    out_dir = os.path.join(viz_dir, patient_id, scan_id, 'epoch_{}'.format(epoch))
+
+                    out_dir = os.path.join(viz_dir,
+                                           patient_id,
+                                           scan_id,
+                                           'epoch_{}'.format(epoch),
+                                           'batch_{}'.format(batch_id))
+
                     if os.path.exists(out_dir) is False:
                         os.makedirs(out_dir)
 
