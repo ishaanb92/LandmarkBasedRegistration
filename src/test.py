@@ -101,8 +101,8 @@ def test(args):
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=args.fine_deform,
-                                                                       coarse_displacements=(4, 4, 4),
-                                                                       fine_displacements=(1, 1, 1))
+                                                                       coarse_displacements=(2, 2, 2),
+                                                                       fine_displacements=(0.75, 0.75, 0.75))
 
                 if batch_deformation_grid is None:
                     continue
