@@ -39,9 +39,9 @@ def create_affine_transform(ndim=3,
     return aff_transform
 
 
-def create_bspline_transform(coarse=True,
-                             shape=None,
-                             displacements=(5, 3, 3)):
+def create_bspline_transform(shape=None,
+                             displacements=(5, 3, 3),
+                             grid_resolution=(4, 4, 4)):
     """
 
     Displacements are in terms of voxels
@@ -51,18 +51,16 @@ def create_bspline_transform(coarse=True,
 
     x, y, z = shape
 
-    if coarse is True:
-        random_grid = np.random.rand(3, 4, 4, 4).astype(np.float32) # Make a random 3D 3 x 3 x 3 grid
-        random_grid = random_grid*2 - 1 # Shift range to [-1, 1]
-        random_grid[0, ...] = random_grid[0, ...]*(1/x)*displacements[0]
-        random_grid[1, ...] = random_grid[1, ...]*(1/y)*displacements[1]
-        random_grid[2, ...] = random_grid[2, ...]*(1/z)*displacements[2]
-    else: # Fine with a larger control grid
-        random_grid = np.random.rand(3, 8, 8, 8).astype(np.float32) # Make a random 3D 4 x 4 x 4 grid
-        random_grid = random_grid*2 - 1 # Shift range to [-1, 1]
-        random_grid[0, ...] = random_grid[0, ...]*(1/x)*displacements[0]
-        random_grid[1, ...] = random_grid[1, ...]*(1/y)*displacements[1]
-        random_grid[2, ...] = random_grid[2, ...]*(1/z)*displacements[2]
+    random_grid = np.random.rand(3,
+                                 grid_resolution[0],
+                                 grid_resolution[1],
+                                 grid_resolution[2]).astype(np.float32)
+
+    random_grid = random_grid*2 - 1 # Shift range to [-1, 1]
+    random_grid[0, ...] = random_grid[0, ...]*(1/x)*displacements[0]
+    random_grid[1, ...] = random_grid[1, ...]*(1/y)*displacements[1]
+    random_grid[2, ...] = random_grid[2, ...]*(1/z)*displacements[2]
+
 
     bspline_transform = gryds.BSplineTransformation(grid=random_grid,
                                                     order=3)
@@ -122,7 +120,9 @@ def create_batch_deformation_grid(shape,
                                   coarse=True,
                                   fine=False,
                                   coarse_displacements=(4, 4, 3),
-                                  fine_displacements=(0.75, 0.75, 0.75)):
+                                  fine_displacements=(0.75, 0.75, 0.75),
+                                  coarse_grid_resolution=(4, 4, 4),
+                                  fine_grid_resolution=(8, 8, 8)):
 
     b, c, i, j, k = shape
 
@@ -139,14 +139,15 @@ def create_batch_deformation_grid(shape,
         if dummy is False:
             if non_rigid is True:
                 if coarse is True:
-                    elastic_transform_coarse = create_bspline_transform(coarse=True,
-                                                                        shape=[k, j, i],
-                                                                        displacements=coarse_displacements)
+                    elastic_transform_coarse = create_bspline_transform(shape=[k, j, i],
+                                                                        displacements=coarse_displacements,
+                                                                        grid_resolution=coarse_grid_resolution)
+
                     transforms.append(elastic_transform_coarse)
                 if fine is True:
-                    elastic_transform_fine = create_bspline_transform(coarse=False,
-                                                                      shape=[k, j, i],
-                                                                      displacements=fine_displacements)
+                    elastic_transform_fine = create_bspline_transform(shape=[k, j, i],
+                                                                      displacements=fine_displacements,
+                                                                      grid_resolution=fine_grid_resolution)
                     transforms.append(elastic_transform_fine)
 
             else: # Translation only
@@ -184,10 +185,10 @@ if __name__ == '__main__':
     train_dict = create_data_dicts_lesion_matching(train_patients[0:2])
 
     data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
-                                                                train=True,
-                                                                batch_size=2,
+                                                                train=False,
+                                                                batch_size=1,
                                                                 data_aug=False,
-                                                                patch_size=(96, 96, 48))
+                                                                patch_size=(128, 128, 128))
 
     print('Length of dataloader = {}'.format(len(data_loader)))
 
@@ -198,12 +199,12 @@ if __name__ == '__main__':
         deformed_images = torch.zeros_like(images)
 
         batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                               dummy=False,
-                                                               non_rigid=True,
                                                                coarse=True,
                                                                fine=True,
                                                                coarse_displacements=(4, 4, 4),
-                                                               fine_displacements=(1, 1, 1))
+                                                               fine_displacements=(1, 1, 1),
+                                                               coarse_grid_resolution=(4, 4*2, 4*2),
+                                                               fine_grid_resolution=(8, 8*2, 8*2))
 
         if batch_deformation_grid is not None:
             deformed_images = F.grid_sample(input=images,
