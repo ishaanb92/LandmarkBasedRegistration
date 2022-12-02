@@ -93,7 +93,7 @@ def visualize_keypoints_2d(im1, im2, output1, output2, pred_mask, gt_mask, out_d
                 (im*255).astype(np.uint8))
 
 
-def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_matches, out_dir, verbose=False):
+def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_matches, out_dir, neighbourhood=5, verbose=False):
     """
     Function to visualize (predicted and true) landmark correspondences.
     Wraps the 2-D visualization function from https://github.com/monikagrewal/End2EndLandmarks
@@ -130,22 +130,19 @@ def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_ma
     for slice_idx in range(n_slices):
 
         # Avoid the slices at the edges!
-        if slice_idx - 2 < 0 or slice_idx + 3 > n_slices:
+        if slice_idx - neighbourhood < 0 or slice_idx + neighbourhood >= n_slices:
             continue
 
         im1_slice = im1[:, :, slice_idx]
-        im2_patch = im2[:, :, slice_idx-2:slice_idx+3]
+        im2_patch = im2[:, :, slice_idx-neighbourhood:slice_idx+neighbourhood+1]
 
         # Filter (3-D) keypoints based on the slice "neighbourhood"
         # Get landmarks on the current slice for 'image'
         slice_landmarks1_rows = np.where(landmarks1[:, 0] == slice_idx)[0]
 
-        # Get all landmarks in the slic "neigbourhood" for the 'image_hat'
-        patch_landmarks2_rows = np.where((landmarks2[:, 0] == slice_idx-2) |
-                                         (landmarks2[:, 0] == slice_idx-1) |
-                                         (landmarks2[:, 0] == slice_idx)   |
-                                         (landmarks2[:, 0] == slice_idx+1) |
-                                         (landmarks2[:, 0] == slice_idx +2))[0]
+        patch_landmarks2_rows = np.where((landmarks2[:, 0] >= slice_idx - neighbourhood) &
+                                         (landmarks2[:, 0] <= slice_idx + neighbourhood))[0]
+
 
         n_landmarks1 = slice_landmarks1_rows.shape[0]
         n_landmarks2 = patch_landmarks2_rows.shape[0]
@@ -198,7 +195,15 @@ def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_ma
 
 
 
-def visualize_keypoints_2d_neighbourhood(im1, im2, output1, output2, pred_mask, gt_mask, out_dir, slice_id, basename="slice"):
+def visualize_keypoints_2d_neighbourhood(im1,
+                                         im2,
+                                         output1,
+                                         output2,
+                                         pred_mask,
+                                         gt_mask,
+                                         out_dir,
+                                         slice_id,
+                                         basename="slice"):
     """
     Function to display matches for a given slice in the original image. To show matches that may occur across slices, we define this hybrid function where the we take only one slice from the original image, but fetch a corresponding "neighbourhood" of slices from the deformed image and display the matches
 
@@ -208,6 +213,7 @@ def visualize_keypoints_2d_neighbourhood(im1, im2, output1, output2, pred_mask, 
     assert(im1.ndim == 2)
     assert(im2.ndim == 3)
 
+    # k : size of neighbourhood
     i, j, k = im2.shape
 
 
@@ -216,7 +222,8 @@ def visualize_keypoints_2d_neighbourhood(im1, im2, output1, output2, pred_mask, 
                   dtype=np.float32)
 
     # Put the original image in the "center" block
-    im[2*i:3*i, :j] = im1
+    middle_block = (k-1)//2
+    im[middle_block*i:(middle_block+1)*i, :j] = im1
 
     for slice_idx in range(k):
         im2_slice = im2[:, :, slice_idx]
@@ -233,7 +240,7 @@ def visualize_keypoints_2d_neighbourhood(im1, im2, output1, output2, pred_mask, 
         jj1 = round_float_coords(jj1)
         ii1 = round_float_coords(ii1)
 
-        cv2.circle(im, (jj1, 2*i + ii1), 2, color, -1)
+        cv2.circle(im, (jj1, middle_block*i + ii1), 2, color, -1)
 
         for k2, l2 in enumerate(output2):
             kk2, jj2, ii2 = l2
@@ -243,17 +250,17 @@ def visualize_keypoints_2d_neighbourhood(im1, im2, output1, output2, pred_mask, 
 
             slice_diff = kk1 - kk2
 
-            cv2.circle(im, (jj2+j, ((2+slice_diff)*i + ii2)), 2, color, -1)
+            cv2.circle(im, (jj2+j, ((middle_block+slice_diff)*i + ii2)), 2, color, -1)
 
             if pred_mask[k1, k2] == 1:
                 if gt_mask[k1, k2] == 1: # True positive
-                    cv2.line(im, (jj1, 2*i + ii1), (jj2+j, (2+slice_diff)*i + ii2), (0, 1, 0), 1) # Green
+                    cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 0), 1) # Green
                 else: # False positive
-                    cv2.line(im, (jj1, 2*i + ii1), (jj2+j, (2+slice_diff)*i + ii2), (0, 1, 1), 1) # Yellow
+                    cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 1), 1) # Yellow
 
             if gt_mask[k1, k2] == 1:
                 if pred_mask[k1, k2] == 0: # False negative
-                    cv2.line(im, (jj1, 2*i + ii1), ((jj2+j, (2+slice_diff)*i + ii2)), (0, 0, 1), 1) # Red
+                    cv2.line(im, (jj1, middle_block*i + ii1), ((jj2+j, (middle_block+slice_diff)*i + ii2)), (0, 0, 1), 1) # Red
 
     cv2.imwrite(os.path.join(out_dir, '{}.jpg'.format(basename)),
                 (im*255).astype(np.uint8))
