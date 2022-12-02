@@ -247,24 +247,20 @@ class LesionMatchingModel(nn.Module):
         if mask is not None:
             kpt_probmap = kpt_probmap*mask
 
-        if training is True:
-            # Only retain the maximum activation in a given neighbourhood of size of W, W, W
-            # All non-maximal values set to zero
-            kpt_probmap_downsampled, indices = F.max_pool3d(kpt_probmap,
-                                                            kernel_size=(W, W, W//2),
-                                                            stride=(W, W, W//2),
-                                                            return_indices=True)
+        # Only retain the maximum activation in a given neighbourhood of size of W, W, W
+        # All non-maximal values set to zero
+        kpt_probmap_downsampled, indices = F.max_pool3d(kpt_probmap,
+                                                        kernel_size=(W, W, W//2),
+                                                        stride=(W, W, W//2),
+                                                        return_indices=True)
 
-            kpt_probmap_suppressed = F.max_unpool3d(kpt_probmap_downsampled,
-                                                    indices=indices,
-                                                    kernel_size=(W, W, W//2),
-                                                    stride=(W, W, W//2))
+        kpt_probmap_suppressed = F.max_unpool3d(kpt_probmap_downsampled,
+                                                indices=indices,
+                                                kernel_size=(W, W, W//2),
+                                                stride=(W, W, W//2))
 
-            kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
-                                                   dim=1)
-        else:
-            kpt_probmap_suppressed = torch.squeeze(kpt_probmap,
-                                                   dim=1)
+        kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
+                                               dim=1)
 
         kpts = torch.zeros(size=(b, num_pts, 4),
                            dtype=kpt_map.dtype).to(kpt_map.device)
@@ -284,6 +280,9 @@ class LesionMatchingModel(nn.Module):
             xs = kk
 
             N = len(zs)
+
+            if training is False:
+                print('Found {} keypoint candidates above confidence threshold'.format(N))
 
             if N < num_pts:
                 if training is True:
@@ -308,7 +307,13 @@ class LesionMatchingModel(nn.Module):
                         print('Skip this batch. Too few keypoint candidates')
                         return None, None, None
                 else:
-                    raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
+                    print('The number of key-points requested ({}) is \
+                          less than the number of keypoints above threshold ({})'.format(num_pts,
+                                                                                         N))
+                    kpts = torch.zeros(size=(b, N, 4),
+                                       dtype=kpt_map.dtype).to(kpt_map.device)
+                    num_pts = N
+                   #raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
 
 
             item_kpts = torch.zeros(size=(N, 4),

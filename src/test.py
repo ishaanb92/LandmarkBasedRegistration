@@ -74,7 +74,7 @@ def test(args):
 
 
     # Define the model
-    model = LesionMatchingModel(W=4,
+    model = LesionMatchingModel(W=8,
                                 K=args.kpts_per_batch)
 
     # Load the model
@@ -171,7 +171,7 @@ def test(args):
                                           kpts_2=kpts_logits_2.to(device),
                                           features_1=features_1,
                                           features_2=features_2,
-                                          conf_thresh=0.7,
+                                          conf_thresh=0.5,
                                           num_pts=args.kpts_per_batch,
                                           mask=liver_mask.to(device),
                                           mask2=liver_mask_hat.to(device))
