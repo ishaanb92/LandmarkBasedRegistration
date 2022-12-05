@@ -40,7 +40,7 @@ import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
-TRAINING_PATCH_SIZE = (96, 96, 48)
+TRAINING_PATCH_SIZE = (128, 128, 64)
 
 def train(args):
 
@@ -98,11 +98,12 @@ def train(args):
                                                       train=True,
                                                       data_aug=False,
                                                       batch_size=args.batch_size,
-                                                      num_workers=4)
+                                                      num_workers=4,
+                                                      patch_size=TRAINING_PATCH_SIZE)
 
 
     model = LesionMatchingModel(K=args.kpts_per_batch,
-                                W=4)
+                                W=args.window_size)
 
     optimizer = torch.optim.Adam(model.parameters(),
                                  1e-4)
@@ -132,8 +133,10 @@ def train(args):
                                                                    non_rigid=True,
                                                                    coarse=True,
                                                                    fine=args.fine_deform,
-                                                                   coarse_displacements=(2, 2, 2),
-                                                                   fine_displacements=(0.75, 0.75, 0.75))
+                                                                   coarse_displacements=(2, 4, 4),
+                                                                   fine_displacements=(1, 2, 2),
+                                                                   coarse_grid_resolution=(4, 4, 4),
+                                                                   fine_grid_resolution=(8, 8, 8))
             if batch_deformation_grid is not None:
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
@@ -238,10 +241,6 @@ def train(args):
             writer.add_scalar('train/gt_matches', num_matches, n_iter)
             n_iter += 1
 
-
-
-
-
         print('EPOCH {} done'.format(epoch))
 
         with torch.no_grad():
@@ -258,8 +257,10 @@ def train(args):
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=args.fine_deform,
-                                                                       coarse_displacements=(2, 2, 2),
-                                                                       fine_displacements=(0.75, 0.75, 0.75))
+                                                                       coarse_displacements=(2, 4, 4),
+                                                                       fine_displacements=(1, 2, 2),
+                                                                       coarse_grid_resolution=(4, 4, 4),
+                                                                       fine_grid_resolution=(8, 8, 8))
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
@@ -351,8 +352,7 @@ def train(args):
                     out_dir = os.path.join(viz_dir,
                                            patient_id,
                                            scan_id,
-                                           'epoch_{}'.format(epoch),
-                                           'batch_{}'.format(batch_id))
+                                           'epoch_{}'.format(epoch))
 
                     if os.path.exists(out_dir) is False:
                         os.makedirs(out_dir)
@@ -364,6 +364,7 @@ def train(args):
                                            pred_matches=outputs['matches'][batch_id, ...],
                                            gt_matches=gt_matches[batch_id, ...],
                                            out_dir=out_dir,
+                                           neighbourhood=5,
                                            verbose=False)
 
                 writer.add_scalar('val/loss', loss_dict['loss'].item(), n_iter_val)
@@ -401,6 +402,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_dir', type=str, required=True)
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--window_size', type=int, default=4)
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--kpts_per_batch', type=int, default=512)
