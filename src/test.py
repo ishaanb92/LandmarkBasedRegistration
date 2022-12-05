@@ -28,7 +28,7 @@ import shutil
 import numpy as np
 import random
 
-ROI_SIZE = (96, 96, 48)
+ROI_SIZE = (128, 128, 64)
 
 
 def test(args):
@@ -74,7 +74,7 @@ def test(args):
 
 
     # Define the model
-    model = LesionMatchingModel(W=8,
+    model = LesionMatchingModel(W=args.window_size,
                                 K=args.kpts_per_batch)
 
     # Load the model
@@ -95,14 +95,29 @@ def test(args):
                 images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
 
+                # Pad image in the k-direction to make the shape [256, 256, 256]
+                # Makes it easier to scale deformation grid size to ensure the same
+                # control point spacing for patches and full images
+                b, c, i, j, k = images.shape
+                pad = 256 - k
+                images = F.pad(images, (0, pad), "constant", 0)
+                liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
+
+                deform_grid_multiplier = [i//ROI_SIZE[0], j//ROI_SIZE[1], k//ROI_SIZE[2]]
+
+
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                       device=images.device,
-                                                                       dummy=args.dummy,
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=args.fine_deform,
-                                                                       coarse_displacements=(2, 2, 2),
-                                                                       fine_displacements=(0.75, 0.75, 0.75))
+                                                                       coarse_displacements=(2, 4, 4),
+                                                                       fine_displacements=(1, 2, 2),
+                                                                       coarse_grid_resolution=(4*deform_grid_multiplier[2],
+                                                                                               4*deform_grid_multiplier[1],
+                                                                                               4*deform_grid_multiplier[0]),
+                                                                       fine_grid_resolution=(8*deform_grid_multiplier[2],
+                                                                                             8*deform_grid_multiplier[1],
+                                                                                             8*deform_grid_multiplier[0]))
 
                 if batch_deformation_grid is None:
                     continue
@@ -130,16 +145,6 @@ def test(args):
                 # be used
                 assert(images_hat.shape == images.shape)
                 images_cat = torch.cat([images, images_hat], dim=1)
-
-
-                # Pad the z-axis to make the image a cube : 256 x 256 x 256
-                # Otherwise, sliding_window_inference complains
-                depth = images_cat.shape[-1]
-                pad = 256-depth
-
-                images_cat = F.pad(images_cat, (0, pad), "constant", 0)
-                liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
-                liver_mask_hat = F.pad(liver_mask_hat, (0, pad), "constant", 0)
 
 
                 # Keypoint logits
@@ -284,6 +289,7 @@ if __name__ == '__main__':
     parser.add_argument('--synthetic', action='store_true')
     parser.add_argument('--dummy', action='store_true')
     parser.add_argument('--fine_deform', action='store_true')
+    parser.add_argument('--window_size', type=int, default=4)
 
     args = parser.parse_args()
 
