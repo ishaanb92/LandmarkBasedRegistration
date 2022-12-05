@@ -41,7 +41,7 @@ def test(args):
 
     checkpoint_dir = args.checkpoint_dir
 
-    save_dir  = os.path.join(checkpoint_dir, 'saved_outputs')
+    save_dir  = os.path.join(checkpoint_dir, args.out_dir)
     if os.path.exists(save_dir) is True:
         shutil.rmtree(save_dir)
     os.makedirs(save_dir)
@@ -222,6 +222,25 @@ def test(args):
                     dump_dir = os.path.join(save_dir, patient_id, scan_id)
                     os.makedirs(dump_dir)
 
+                    # Save the matrices/tensors for later analysis
+                    np.save(file=os.path.join(dump_dir, 'gt_matches'),
+                            arr=maybe_convert_tensor_to_numpy(batch_gt_matches))
+
+                    np.save(file=os.path.join(dump_dir, 'pred_matches'),
+                            arr=maybe_convert_tensor_to_numpy(batch_pred_matches))
+
+                    np.save(file=os.path.join(dump_dir, 'pred_matches_norm'),
+                            arr=maybe_convert_tensor_to_numpy(batch_pred_matches_norm))
+
+                    np.save(file=os.path.join(dump_dir, 'pred_matches_prob'),
+                            arr=maybe_convert_tensor_to_numpy(batch_pred_matches_prob))
+
+                    np.save(file=os.path.join(dump_dir, 'landmarks_original'),
+                            arr=maybe_convert_tensor_to_numpy(outputs['landmarks_1'][batch_id, ...]))
+
+                    np.save(file=os.path.join(dump_dir, 'landmarks_deformed'),
+                            arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
+
                     # Visualize keypoint matches
                     visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
                                            im2=images_hat[batch_id, ...].squeeze(dim=0),
@@ -281,6 +300,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
+    parser.add_argument('--out_dir', type=str, default='saved_outputs')
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--seed', type=int, default=1234)
