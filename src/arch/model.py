@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from unet3d import UNet
+import warnings
 
 class LesionMatchingModel(nn.Module):
 
@@ -307,13 +308,12 @@ class LesionMatchingModel(nn.Module):
                         print('Skip this batch. Too few keypoint candidates')
                         return None, None, None
                 else:
-                    print('The number of key-points requested ({}) is \
-                          less than the number of keypoints above threshold ({})'.format(num_pts,
+                    warnings.warn('The number of key-points requested ({}) is \
+                                   less than the number of keypoints above threshold ({})'.format(num_pts,
                                                                                          N))
                     kpts = torch.zeros(size=(b, N, 4),
                                        dtype=kpt_map.dtype).to(kpt_map.device)
                     num_pts = N
-                   #raise RuntimeError('Number of point above threshold ({}) are less thant K ({})'.format(N, num_pts))
 
 
             item_kpts = torch.zeros(size=(N, 4),
