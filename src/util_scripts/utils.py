@@ -546,3 +546,16 @@ def find_roi_coordinates(seg_mask=None):
 
     return min_y_coordinate, max_y_coordinate, min_x_coordinate, max_x_coordinate
 
+
+def maybe_convert_tensor_to_numpy(img):
+
+    if isinstance(img, torch.Tensor):
+        if img.device != torch.device('cpu'):
+            img = img.cpu()
+        img = img.numpy()
+    elif isinstance(img, np.ndarray):
+        pass
+    else:
+        raise RuntimeError('Input is neither a torch Tensor nor a numpy ndarray but {}. Unsupported'.format(type(img)))
+
+    return img
