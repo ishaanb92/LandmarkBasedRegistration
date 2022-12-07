@@ -248,7 +248,8 @@ def test(args):
                                            landmarks2=outputs['landmarks_2'][batch_id, ...],
                                            pred_matches=outputs['matches'][batch_id, ...],
                                            gt_matches=batch_gt_matches,
-                                           out_dir=os.path.join(dump_dir, 'matches'))
+                                           out_dir=os.path.join(dump_dir, 'matches'),
+                                           neighbourhood=3)
 
                     visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
                                            im2=images_hat[batch_id, ...].squeeze(dim=0),
@@ -256,7 +257,8 @@ def test(args):
                                            landmarks2=outputs['landmarks_2'][batch_id, ...],
                                            pred_matches=outputs['matches_norm'][batch_id, ...],
                                            gt_matches=batch_gt_matches,
-                                           out_dir=os.path.join(dump_dir, 'matches_l2_norm'))
+                                           out_dir=os.path.join(dump_dir, 'matches_l2_norm'),
+                                           neighbourhood=3)
 
                     visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
                                            im2=images_hat[batch_id, ...].squeeze(dim=0),
@@ -264,7 +266,8 @@ def test(args):
                                            landmarks2=outputs['landmarks_2'][batch_id, ...],
                                            pred_matches=outputs['matches_prob'][batch_id, ...],
                                            gt_matches=batch_gt_matches,
-                                           out_dir=os.path.join(dump_dir, 'matches_prob'))
+                                           out_dir=os.path.join(dump_dir, 'matches_prob'),
+                                           neighbourhood=3)
 
                     # Save images/KP heatmaps
                     write_image_to_file(image_array=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),

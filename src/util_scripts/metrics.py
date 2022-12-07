@@ -8,23 +8,24 @@ Script to compute performance metrics
 import os
 import torch
 import numpy as np
+from utils.utils import maybe_convert_tensor_to_numpy
 
 def get_match_statistics(gt, pred):
 
-    assert(isinstance(gt, torch.Tensor))
-    assert(isinstance(pred, torch.Tensor))
+    gt = maybe_convert_tensor_to_numpy(gt)
+    pred = maybe_convert_tensor_to_numpy(pred)
 
     assert(gt.ndim == 2)
     assert(pred.ndim == 2)
 
     # True positives
-    tps = torch.nonzero(gt*pred).shape[0]
+    tps = np.nonzero(gt*pred)[0].shape[0]
 
     # False positives
-    fps = torch.nonzero((1-gt)*pred).shape[0]
+    fps = np.nonzero((1-gt)*pred)[0].shape[0]
 
     # False negatives
-    fns = torch.nonzero(gt*(1-pred)).shape[0]
+    fns = np.nonzero(gt*(1-pred))[0].shape[0]
 
     stats = {}
     stats['True Positives'] = tps
