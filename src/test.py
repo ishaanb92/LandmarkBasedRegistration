@@ -182,10 +182,12 @@ def test(args):
                                           mask2=liver_mask_hat.to(device))
 
                 # Get ground truth matches based on projecting keypoints using the deformation grid
-                gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
-                                                                                           kpts2=outputs['kpt_sampling_grid_2'],
-                                                                                           deformation=batch_deformation_grid,
-                                                                                           pixel_thresh=(2, 4, 4))
+                gt1, gt2, gt_matches, num_gt_matches, projected_landmarks = \
+                                    create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
+                                                                        kpts2=outputs['kpt_sampling_grid_2'],
+                                                                        deformation=batch_deformation_grid,
+                                                                        pixel_thresh=(2, 4, 4),
+                                                                        train=False)
 
                 print('Number of ground truth matches (based on projecting keypoints) = {}'.format(num_gt_matches))
                 print('Number of matches based on feature descriptor distance '
@@ -240,6 +242,9 @@ def test(args):
 
                     np.save(file=os.path.join(dump_dir, 'landmarks_deformed'),
                             arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
+
+                    np.save(file=os.path.join(dump_dir, 'landmarks_projected'),
+                            arr=maybe_convert_tensor_to_numpy(projected_landmarks[batch_id, ...]))
 
                     # Visualize keypoint matches
                     visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),

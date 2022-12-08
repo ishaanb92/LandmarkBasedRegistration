@@ -14,8 +14,21 @@ import torch
 import torch.nn.functional as F
 
 
+def convert_grid_to_image_coords(pts, shape=(64, 128, 128)):
+    """
+    Convert grid points ([-1, 1] range) to image coords
 
-def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=(2, 4, 4)):
+    """
+
+    # Scale to [0, 1] range
+    pts = (pts + 1.)/2.
+
+    # Scale to image dimensions (DHW ordering)
+    pts = pts * torch.Tensor([(shape[0]-1, shape[1]-1, shape[2]-1)]).view(1, 1, 3).int().to(pts.device)
+
+    return pts
+
+def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=(2, 4, 4), train=True):
     """
 
     Using the (known) deformation grid create ground truth for keypoints
@@ -93,7 +106,16 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
     gt1[indices[:, 0], indices[:, 1]] = 1.
     gt2[indices[:, 0], indices[:, 2]] = 1.
 
-    return gt1, gt2, matches, num_matches
+    if train is True:
+        return gt1, gt2, matches, num_matches
+    else:
+        # Shape: [B, K, 3]
+        kpts1_projected = torch.squeeze(kpts1_projected, dim=1)
+        landmarks_projected = convert_grid_to_image_coords(kpts1_projected,
+                                                           shape=(k, j, i))
+
+        return gt1, gt2, matches, num_matches, landmarks_projected
+
 
 
 

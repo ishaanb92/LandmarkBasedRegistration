@@ -46,14 +46,6 @@ class LesionMatchingModel(nn.Module):
         kpts_1, features_1 = self.cnn(x1)
         kpts_2, features_2 = self.cnn(x2)
 
-        # Mask using liver mask
-        # Assign a large negative value to logit values corr. to voxels outside the liver
-        # => When the sigmoid scales the logits to range [0, 1], the values outside the liver
-        # have probability ~ 0 of being sampled
-#        if liver_mask is not None:
-#            mask_tensor = -1*1e5*torch.ones_like(kpts_1)
-#            kpts_1 = torch.where(liver_mask.to(kpts_1.device) == 1, kpts_1, mask_tensor)
-#            kpts_2 = torch.where(liver_mask.to(kpts_2.device) == 1, kpts_2, mask_tensor)
 
         # Sample keypoints and corr. descriptors
         kpt_sampling_grid_1, kpt_logits_1, descriptors_1 = self.sampling_block(kpt_map=kpts_1,

@@ -29,8 +29,6 @@ def get_correspondence_metric_dict(result_dir=None,
     metric_dict['False Positives'] = []
     metric_dict['False Negatives'] = []
 
-    index = []
-
     for p_dir in pat_dirs:
         scan_dirs  = [f.path for f in os.scandir(p_dir) if f.is_dir()]
         for s_dir in scan_dirs:
@@ -86,6 +84,200 @@ def plot_bar_graph(metric_dict, fname):
     plt.close()
 
 
+
+def match_landmarks(landmarks,
+                    projected_landmarks,
+                    matches):
+
+    indices_orginal, indices_projected = np.nonzero(matches)
+
+    # Shape: [K', 3] (K' <= K)
+    matched_landmarks_original = landmarks[indices_orginal, :]
+    matched_landmarks_projected = projected_landmarks[indices_projected, :]
+
+    landmark_pairs = np.concatenate([np.expand_dims(matched_landmarks_original, axis=0),
+                                     np.expand_dims(matched_landmarks_projected, axis=0)],
+                                    axis=0)
+
+    return landmark_pairs
+
+
+def compute_spatial_error(landmark_pairs,
+                          error_type='euclidean',
+                          voxel_spacing=(1.543, 1.543, 1.543)):
+
+    # Shape: [K', 3] (K' <= K)
+    landmarks_original = landmark_pairs[0, ...]
+    landmarks_projected = landmark_pairs[1, ...]
+
+    # See broadcasting rules: https://numpy.org/doc/stable/user/basics.broadcasting.html#general-broadcasting-rules
+    voxel_spacing = np.expand_dims(np.array(voxel_spacing),
+                                   axis=0)
+
+    if error_type == 'euclidean':
+        spatial_error = np.sqrt(np.sum(np.power(np.subtract(landmarks_original,
+                                                            landmarks_projected)*voxel_spacing, 2),
+                                       axis=1))
+    else:
+        if error_type == 'x':
+            dim = 2
+        elif error_type == 'y':
+            dim = 1
+        elif error_type == 'z':
+            dim = 0
+        else:
+            raise RuntimeError('Unknown spatial error type {}'.format(error_type))
+
+        spatial_error = np.abs(np.subtract(landmarks_projected[:, dim],
+                                           landmarks_original[:, dim])*voxel_spacing[:, dim])
+
+    return spatial_error
+
+
+
+def create_spatial_error_dict(result_dir=None,
+                              mode='both',
+                              voxel_spacing=(1.543, 1.543, 1.543)):
+
+    # Compute total true positives, false positives, and false negatives
+    pat_dirs  = [f.path for f in os.scandir(args.result_dir) if f.is_dir()]
+
+    tp_spatial_errors = {}
+    tp_spatial_errors['Euclidean'] = []
+    tp_spatial_errors['X-error'] = []
+    tp_spatial_errors['Y-error'] = []
+    tp_spatial_errors['Z-error'] = []
+
+    fp_spatial_errors = {}
+    fp_spatial_errors['Euclidean'] = []
+    fp_spatial_errors['X-error'] = []
+    fp_spatial_errors['Y-error'] = []
+    fp_spatial_errors['Z-error'] = []
+
+    for p_dir in pat_dirs:
+        scan_dirs  = [f.path for f in os.scandir(p_dir) if f.is_dir()]
+        for s_dir in scan_dirs:
+            # Get landmarks, shape : [K, 3]
+            landmarks = np.load(os.path.join(s_dir, 'landmarks_original.npy'))
+            projected_landmarks = np.load(os.path.join(s_dir, 'landmarks_projected.npy'))
+
+            # Get GT matches, shape: [K, K]
+            gt_matches = np.load(os.path.join(s_dir, 'gt_matches.npy'))
+
+            # Get pred matches
+            if mode == 'both':
+                pred_matches = np.load(os.path.join(s_dir, 'pred_matches.npy'))
+            elif mode == 'norm':
+                pred_matches = np.load(os.path.join(s_dir, 'pred_matches_norm.npy'))
+            elif mode == 'prob':
+                pred_matches = np.load(os.path.join(s_dir, 'pred_matches_prob.npy'))
+            else:
+                raise RuntimeError('Invalid mode {}'.format(mode))
+
+            # Element-wise multiplication to get TP, FP match matrices
+            tp_matches = gt_matches*pred_matches
+            fp_matches = (1-gt_matches)*pred_matches
+
+            # Based on matches and landmark, get TP and FP landmark pairs
+            tp_landmark_pairs = match_landmarks(landmarks=landmarks,
+                                                projected_landmarks=projected_landmarks,
+                                                matches=tp_matches)
+
+            fp_landmark_pairs = match_landmarks(landmarks=landmarks,
+                                                projected_landmarks=projected_landmarks,
+                                                matches=fp_matches)
+
+            # True positive spatial matching errors
+            tp_spatial_error_euc = compute_spatial_error(landmark_pairs=tp_landmark_pairs,
+                                                         error_type='euclidean',
+                                                         voxel_spacing=voxel_spacing)
+
+            tp_spatial_error_x = compute_spatial_error(landmark_pairs=tp_landmark_pairs,
+                                                       error_type='x',
+                                                       voxel_spacing=voxel_spacing)
+
+            tp_spatial_error_y = compute_spatial_error(landmark_pairs=tp_landmark_pairs,
+                                                       error_type='y',
+                                                       voxel_spacing=voxel_spacing)
+
+            tp_spatial_error_z = compute_spatial_error(landmark_pairs=tp_landmark_pairs,
+                                                       error_type='z',
+                                                       voxel_spacing=voxel_spacing)
+
+            tp_spatial_errors['Euclidean'].extend(list(tp_spatial_error_euc))
+            tp_spatial_errors['X-error'].extend(list(tp_spatial_error_x))
+            tp_spatial_errors['Y-error'].extend(list(tp_spatial_error_y))
+            tp_spatial_errors['Z-error'].extend(list(tp_spatial_error_z))
+
+            # False positive spatial matching errors
+            fp_spatial_error_euc = compute_spatial_error(landmark_pairs=fp_landmark_pairs,
+                                                         error_type='euclidean',
+                                                         voxel_spacing=voxel_spacing)
+
+            fp_spatial_error_x = compute_spatial_error(landmark_pairs=fp_landmark_pairs,
+                                                       error_type='x',
+                                                       voxel_spacing=voxel_spacing)
+
+            fp_spatial_error_y = compute_spatial_error(landmark_pairs=fp_landmark_pairs,
+                                                       error_type='y',
+                                                       voxel_spacing=voxel_spacing)
+
+            fp_spatial_error_z = compute_spatial_error(landmark_pairs=fp_landmark_pairs,
+                                                       error_type='z',
+                                                       voxel_spacing=voxel_spacing)
+
+            fp_spatial_errors['Euclidean'].extend(list(fp_spatial_error_euc))
+            fp_spatial_errors['X-error'].extend(list(fp_spatial_error_x))
+            fp_spatial_errors['Y-error'].extend(list(fp_spatial_error_y))
+            fp_spatial_errors['Z-error'].extend(list(fp_spatial_error_z))
+
+    return tp_spatial_errors, fp_spatial_errors
+
+
+def create_spatial_error_boxplot(tp_spatial_errors,
+                                 fp_spatial_errors,
+                                 fname=None):
+
+    assert(isinstance(tp_spatial_errors, dict))
+    assert(isinstance(fp_spatial_errors, dict))
+
+    tp_df = pd.DataFrame.from_dict(tp_spatial_errors)
+    fp_df = pd.DataFrame.from_dict(fp_spatial_errors)
+
+    max_error = np.amax(fp_df.to_numpy(),
+                        axis=None)
+
+    fig, ax = plt.subplots(nrows=1,
+                           ncols=2,
+                           figsize=(10, 5))
+
+    sns.boxplot(data=tp_df,
+                ax=ax[0])
+
+    sns.boxplot(data=fp_df,
+                ax=ax[1])
+
+    ax[0].set_title('True positive spatial errors')
+    ax[1].set_title('False positive spatial errors')
+
+    ax[0].set_ylabel('Error (mm)')
+    ax[1].set_ylabel('Error (mm)')
+
+    ax[0].tick_params(axis="x", rotation=45)
+    ax[1].tick_params(axis="x", rotation=45)
+
+    ax[0].set_ylim((0, max_error))
+    ax[1].set_ylim((0, max_error))
+
+
+    fig.savefig(fname+'.png',
+                bbox_inches='tight')
+
+    fig.savefig(fname+'.pdf',
+                bbox_inches='tight')
+
+
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -93,6 +285,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    # Get TP, FP, and FN counts
     metric_dict = get_correspondence_metric_dict(result_dir=args.result_dir,
                                                  mode='both')
 
@@ -105,6 +298,21 @@ if __name__ == '__main__':
     plot_bar_graph(metric_dict,
                    fname=os.path.join(args.result_dir, 'detection_stats_norm'))
 
+    # Compute spatial matching errors for true and false positives
+    tp_spatial_errors, fp_spatial_errors = create_spatial_error_dict(result_dir=args.result_dir,
+                                                                     mode='both',
+                                                                     voxel_spacing=(1.543, 1.543, 1.543))
+
+    create_spatial_error_boxplot(tp_spatial_errors=tp_spatial_errors,
+                                 fp_spatial_errors=fp_spatial_errors,
+                                 fname=os.path.join(args.result_dir, 'spatial_errors'))
 
 
+    # Compute spatial matching errors for true and false positives
+    tp_spatial_errors, fp_spatial_errors = create_spatial_error_dict(result_dir=args.result_dir,
+                                                                     mode='norm',
+                                                                     voxel_spacing=(1.543, 1.543, 1.543))
 
+    create_spatial_error_boxplot(tp_spatial_errors=tp_spatial_errors,
+                                 fp_spatial_errors=fp_spatial_errors,
+                                 fname=os.path.join(args.result_dir, 'spatial_errors_norm'))
