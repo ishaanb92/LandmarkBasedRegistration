@@ -188,7 +188,7 @@ if __name__ == '__main__':
                                                                 train=True,
                                                                 batch_size=1,
                                                                 data_aug=False,
-                                                                patch_size=(128, 128, 128))
+                                                                patch_size=(128, 128, 64))
 
     print('Length of dataloader = {}'.format(len(data_loader)))
 
@@ -201,10 +201,10 @@ if __name__ == '__main__':
         batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                coarse=True,
                                                                fine=True,
-                                                               coarse_displacements=(2, 4, 4),
-                                                               fine_displacements=(1, 2, 2),
-                                                               coarse_grid_resolution=(4, 4, 4),
-                                                               fine_grid_resolution=(8, 8, 8))
+                                                               coarse_displacements=(4, 8, 8),
+                                                               fine_displacements=(2, 4, 4),
+                                                               coarse_grid_resolution=(3, 3, 3),
+                                                               fine_grid_resolution=(6, 6, 6))
 
         if batch_deformation_grid is not None:
             deformed_images = F.grid_sample(input=images,

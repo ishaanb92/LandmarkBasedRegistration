@@ -132,11 +132,11 @@ def train(args):
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                    non_rigid=True,
                                                                    coarse=True,
-                                                                   fine=args.fine_deform,
-                                                                   coarse_displacements=(2, 4, 4),
-                                                                   fine_displacements=(1, 2, 2),
-                                                                   coarse_grid_resolution=(4, 4, 4),
-                                                                   fine_grid_resolution=(8, 8, 8))
+                                                                   fine=True,
+                                                                   coarse_displacements=(4, 8, 8),
+                                                                   fine_displacements=(2, 4, 4),
+                                                                   coarse_grid_resolution=(3, 3, 3),
+                                                                   fine_grid_resolution=(6, 6, 6))
             if batch_deformation_grid is not None:
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
@@ -256,11 +256,11 @@ def train(args):
                                                                        device=images.device,
                                                                        non_rigid=True,
                                                                        coarse=True,
-                                                                       fine=args.fine_deform,
-                                                                       coarse_displacements=(2, 4, 4),
-                                                                       fine_displacements=(1, 2, 2),
-                                                                       coarse_grid_resolution=(4, 4, 4),
-                                                                       fine_grid_resolution=(8, 8, 8))
+                                                                       fine=True,
+                                                                       coarse_displacements=(4, 8, 8),
+                                                                       fine_displacements=(2, 4, 4),
+                                                                       coarse_grid_resolution=(3, 3, 3),
+                                                                       fine_grid_resolution=(6, 6, 6))
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue

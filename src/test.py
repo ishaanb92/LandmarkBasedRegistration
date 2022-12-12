@@ -110,14 +110,14 @@ def test(args):
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=args.fine_deform,
-                                                                       coarse_displacements=(2, 4, 4),
-                                                                       fine_displacements=(1, 2, 2),
-                                                                       coarse_grid_resolution=(4*deform_grid_multiplier[2],
-                                                                                               4*deform_grid_multiplier[1],
-                                                                                               4*deform_grid_multiplier[0]),
-                                                                       fine_grid_resolution=(8*deform_grid_multiplier[2],
-                                                                                             8*deform_grid_multiplier[1],
-                                                                                             8*deform_grid_multiplier[0]))
+                                                                       coarse_displacements=(4, 8, 8),
+                                                                       fine_displacements=(2, 4, 4),
+                                                                       coarse_grid_resolution=(3*deform_grid_multiplier[2],
+                                                                                               3*deform_grid_multiplier[1],
+                                                                                               3*deform_grid_multiplier[0]),
+                                                                       fine_grid_resolution=(6*deform_grid_multiplier[2],
+                                                                                             6*deform_grid_multiplier[1],
+                                                                                             6*deform_grid_multiplier[0]))
 
                 if batch_deformation_grid is None:
                     continue
