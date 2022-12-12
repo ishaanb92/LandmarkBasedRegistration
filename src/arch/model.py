@@ -300,12 +300,15 @@ class LesionMatchingModel(nn.Module):
                         print('Skip this batch. Too few keypoint candidates')
                         return None, None, None
                 else:
-                    warnings.warn('The number of key-points requested ({}) is \
-                                   less than the number of keypoints above threshold ({})'.format(num_pts,
-                                                                                         N))
-                    kpts = torch.zeros(size=(b, N, 4),
-                                       dtype=kpt_map.dtype).to(kpt_map.device)
-                    num_pts = N
+                    if N > 0:
+                        warnings.warn('The number of key-points requested ({}) is \
+                                       less than the number of keypoints above threshold ({})'.format(num_pts,
+                                                                                             N))
+                        kpts = torch.zeros(size=(b, N, 4),
+                                           dtype=kpt_map.dtype).to(kpt_map.device)
+                        num_pts = N
+                    else:
+                        raise RuntimeError('No landmark candidates found in image')
 
 
             item_kpts = torch.zeros(size=(N, 4),
