@@ -9,19 +9,17 @@ in image pairs related via a synthetic (non-rigid) deformation
 """
 
 import os, sys
-sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 'util_scripts'))
 import numpy as np
-from metrics import *
-from argparse import ArgumentParser
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from utils.utils import maybe_convert_tensor_to_numpy
 
 def get_correspondence_metric_dict(result_dir=None,
                                    mode='both'):
 
     # Compute total true positives, false positives, and false negatives
-    pat_dirs  = [f.path for f in os.scandir(args.result_dir) if f.is_dir()]
+    pat_dirs  = [f.path for f in os.scandir(result_dir) if f.is_dir()]
 
     metric_dict = {}
     metric_dict['Patient'] = []
@@ -140,7 +138,7 @@ def create_spatial_error_dict(result_dir=None,
                               voxel_spacing=(1.543, 1.543, 1.543)):
 
     # Compute total true positives, false positives, and false negatives
-    pat_dirs  = [f.path for f in os.scandir(args.result_dir) if f.is_dir()]
+    pat_dirs  = [f.path for f in os.scandir(result_dir) if f.is_dir()]
 
     tp_spatial_errors = {}
     tp_spatial_errors['Euclidean'] = []
@@ -277,42 +275,26 @@ def create_spatial_error_boxplot(tp_spatial_errors,
                 bbox_inches='tight')
 
 
+def get_match_statistics(gt, pred):
 
-if __name__ == '__main__':
+    gt = maybe_convert_tensor_to_numpy(gt)
+    pred = maybe_convert_tensor_to_numpy(pred)
 
-    parser = ArgumentParser()
-    parser.add_argument('--result_dir', type=str, required=True)
+    assert(gt.ndim == 2)
+    assert(pred.ndim == 2)
 
-    args = parser.parse_args()
+    # True positives
+    tps = np.nonzero(gt*pred)[0].shape[0]
 
-    # Get TP, FP, and FN counts
-    metric_dict = get_correspondence_metric_dict(result_dir=args.result_dir,
-                                                 mode='both')
+    # False positives
+    fps = np.nonzero((1-gt)*pred)[0].shape[0]
 
-    plot_bar_graph(metric_dict,
-                   fname=os.path.join(args.result_dir, 'detection_stats_both'))
+    # False negatives
+    fns = np.nonzero(gt*(1-pred))[0].shape[0]
 
-    metric_dict = get_correspondence_metric_dict(result_dir=args.result_dir,
-                                                 mode='norm')
+    stats = {}
+    stats['True Positives'] = tps
+    stats['False Positives'] = fps
+    stats['False Negatives'] = fns
 
-    plot_bar_graph(metric_dict,
-                   fname=os.path.join(args.result_dir, 'detection_stats_norm'))
-
-    # Compute spatial matching errors for true and false positives
-    tp_spatial_errors, fp_spatial_errors = create_spatial_error_dict(result_dir=args.result_dir,
-                                                                     mode='both',
-                                                                     voxel_spacing=(1.543, 1.543, 1.543))
-
-    create_spatial_error_boxplot(tp_spatial_errors=tp_spatial_errors,
-                                 fp_spatial_errors=fp_spatial_errors,
-                                 fname=os.path.join(args.result_dir, 'spatial_errors'))
-
-
-    # Compute spatial matching errors for true and false positives
-    tp_spatial_errors, fp_spatial_errors = create_spatial_error_dict(result_dir=args.result_dir,
-                                                                     mode='norm',
-                                                                     voxel_spacing=(1.543, 1.543, 1.543))
-
-    create_spatial_error_boxplot(tp_spatial_errors=tp_spatial_errors,
-                                 fp_spatial_errors=fp_spatial_errors,
-                                 fname=os.path.join(args.result_dir, 'spatial_errors_norm'))
+    return stats

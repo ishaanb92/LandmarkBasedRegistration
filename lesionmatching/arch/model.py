@@ -15,7 +15,7 @@ Reference:
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-from unet3d import UNet
+from lesionmatching.arch.unet3d import UNet
 import warnings
 
 class LesionMatchingModel(nn.Module):

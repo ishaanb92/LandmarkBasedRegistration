@@ -26,9 +26,7 @@ def create_lung_mask(image_dir, imagename):
     img_np = sitk.GetArrayFromImage(img_itk)
 
     # Threshold the image
-
     lung_and_patient_ext = np.where(img_np < -250, 1, 0).astype(np.uint8)
-
     lung_and_surround = np.where(img_np < -900, 0, 1).astype(np.uint8)
 
     # Element-wise multiplication
@@ -50,6 +48,7 @@ def create_lung_mask(image_dir, imagename):
                                        (label_im == top_two_labels[1])), 1, 0).astype(np.uint8)
 
 
+    # Set the bottom of the mask (patient exterior) to 0
     lung_mask[:, 240:, :] = 0
 
 

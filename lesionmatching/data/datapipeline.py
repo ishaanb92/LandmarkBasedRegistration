@@ -15,6 +15,7 @@ import torch
 from monai.transforms import StdShiftIntensity
 import numpy as np
 import nibabel as nib
+from lesionmatching.data.dirlab import *
 
 def create_data_dicts_liver_seg(patient_dir_list=None, n_channels=6, channel_id=3):
 
@@ -90,6 +91,49 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
         data_dicts.append(data_dict)
 
     return data_dicts
+
+def create_data_dicts_dir_lab(patient_dir_list=None):
+
+    data_dicts = []
+
+    im_types = ['T00', 'T50']
+
+    for p_dir in patient_dir_list:
+        im_str = p_dir.split(os.sep)[-1]
+        for im_type in im_types:
+            data_dict = {}
+            data_dict['patient_id'] = im_str
+            data_dict['type'] = im_type # Inhale or exhale
+            data_dict['image'] = os.path.join(p_dir, '{}_{}.mha'.format(im_str, im_type))
+            data_dict['lung_mask'] = os.path.join(p_dir, 'lung_mask_{}.mha'.format(im_type))
+            data_dicts.append(data_dict)
+
+    return data_dicts
+
+
+def create_dataloader_dir_lab(data_dicts=None,
+                              test=False,
+                              batch_size=4,
+                              num_workers=4,
+                              data_aug=True,
+                              patch_size=(128, 128, 64),
+                              new_spacing=(1.0, 1.0, 1.0)):
+
+
+    ds = DIRLab(data_dicts=data_dicts,
+                test=test,
+                data_aug=data_aug,
+                patch_size=patch_size,
+                new_spacing=new_spacing)
+
+    loader = DataLoader(ds,
+                        batch_size=batch_size,
+                        shuffle=not(test),
+                        num_workers=num_workers)
+
+    return loader
+
+
 
 def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4, num_workers=4, data_aug=True, patch_size=(128, 128, 64)):
 

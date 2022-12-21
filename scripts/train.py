@@ -12,8 +12,6 @@ See:
 """
 
 import os, sys
-sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 'util_scripts'))
-sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 'arch'))
 from monai.utils import first, set_determinism
 from monai.metrics import DiceMetric
 from monai.transforms import ShiftIntensity
@@ -22,14 +20,14 @@ import torch
 import torch.nn as nn
 from argparse import ArgumentParser
 import shutil
-from utils import *
-from visualize import *
+from lesionmatching.util_scripts.utils import *
+from lesionmatching.analysis.visualize import *
 from torch.utils.tensorboard import SummaryWriter
 from torchearlystopping.pytorchtools import EarlyStopping
-from model import LesionMatchingModel
-from loss import *
-from deformations import *
-from datapipeline import *
+from lesionmatching.arch.model import LesionMatchingModel
+from lesionmatching.arch.loss import *
+from lesionmatching.data.deformations import *
+from lesionmatching.data.datapipeline import *
 from tqdm import tqdm
 import numpy as np
 import torch

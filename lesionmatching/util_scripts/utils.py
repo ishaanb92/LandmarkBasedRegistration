@@ -559,3 +559,31 @@ def maybe_convert_tensor_to_numpy(img):
         raise RuntimeError('Input is neither a torch Tensor nor a numpy ndarray but {}. Unsupported'.format(type(img)))
 
     return img
+
+def detensorize_metadata(metadata,
+                         batchsz=1):
+    """
+
+    When metadata is returned by the __getitem__() method of the Dataset class,
+    batching stitches up different metadata fields weirdly. We aim to de-tangle this
+    by returning a list of dictionaries instead of a dictionary of tensors
+
+    """
+
+    metadata_list_of_dicts = []
+    keys = metadata.keys()
+
+    for bid in range(batchsz):
+        mdict = {}
+        for key in keys:
+            mdata = []
+            # Loop over dims
+            for idx, value in enumerate(metadata[key]):
+                # For each dim, pick the right batch ID
+                mdata.append(value[bid].item())
+            mdict[key] = tuple(mdata)
+
+        metadata_list_of_dicts.append(mdict)
+
+    return metadata_list_of_dicts
+

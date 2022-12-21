@@ -21,16 +21,24 @@ if __name__ == '__main__':
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--train_val_split_seed', type=int, default=1234)
     parser.add_argument('--test_split_seed', type=int, default=5678)
-
+    parser.add_argument('--dataset', type=str, default='umc')
     args = parser.parse_args()
 
     pat_dirs = [f.path for f in os.scandir(args.data_dir) if f.is_dir()]
 
     n_patients = len(pat_dirs)
-    n_test = floor(0.2*n_patients + 0.5)
+
+    if args.dataset == 'dirlab':
+        n_test = 0
+    else:
+        n_test = floor(0.2*n_patients + 0.5)
 
     n_train_val = n_patients-n_test
-    n_val = 4
+    if args.dataset ==  'dirlab':
+        n_val = 2
+    else:
+        n_val = 4
+
     n_train = n_train_val-n_val
 
     random.Random(args.test_split_seed).shuffle(pat_dirs)
@@ -44,8 +52,10 @@ if __name__ == '__main__':
     train_patients = train_val_patients[:n_train]
     val_patients = train_val_patients[n_train:]
 
-    joblib.dump(train_patients, 'train_patients.pkl')
-    joblib.dump(val_patients, 'val_patients.pkl')
-    joblib.dump(test_patients, 'test_patients.pkl')
+    joblib.dump(train_patients, 'train_patients_{}.pkl'.format(args.dataset))
+    joblib.dump(val_patients, 'val_patients_{}.pkl'.format(args.dataset))
+
+    if args.dataset != 'dirlab':
+        joblib.dump(test_patients, 'test_patients_{}.pkl'.format(args.dataset))
 
 

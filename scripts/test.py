@@ -16,14 +16,12 @@ from argparse import ArgumentParser
 import shutil
 from utils.utils import *
 import os, sys
-sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 'util_scripts'))
-sys.path.append(os.path.join(os.path.expanduser('~'), 'lesion_matching', 'src', 'arch'))
-from visualize import *
-from model import LesionMatchingModel
-from deformations import *
-from datapipeline import *
-from loss import create_ground_truth_correspondences
-from metrics import get_match_statistics
+from lesionmatching.analysis.visualize import *
+from lesionmatching.arch.model import LesionMatchingModel
+from lesionmatching.data.deformations import *
+from lesionmatching.data.datapipeline import *
+from lesionmatching.arch.loss import create_ground_truth_correspondences
+from lesionmatching.analysis.metrics import get_match_statistics
 import shutil
 import numpy as np
 import random

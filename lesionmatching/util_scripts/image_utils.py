@@ -362,3 +362,25 @@ def denoise_mr_volume(image=None, verbose=False, fast_mode=False, patch_size=7, 
                                       sigma=noise_var)
     return denoised_image
 
+
+def save_ras_as_itk(img=None,
+                    metadata=None,
+                    fname=None):
+
+    if isinstance(img, torch.Tensor):
+        img = img.numpy()
+
+    if img.ndim == 4:
+        img = np.squeeze(img, axis=0)
+
+    # Get from RAS -> Std numpy axes ordering (ZYX)
+    img = np.transpose(img, (2, 1, 0))
+    img_itk = sitk.GetImageFromArray(img)
+    img_itk.SetOrigin(metadata['origin'])
+    img_itk.SetSpacing(metadata['spacing'])
+    img_itk.SetDirection(metadata['direction'])
+
+    sitk.WriteImage(img_itk,
+                    fname)
+
+
