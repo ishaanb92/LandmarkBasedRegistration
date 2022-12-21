@@ -75,29 +75,46 @@ def train(args):
     random.seed(args.seed)
 
     # Set up data pipeline
-    train_patients = joblib.load('train_patients.pkl')
-    val_patients = joblib.load('val_patients.pkl')
+    train_patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
+    val_patients = joblib.load('val_patients_{}.pkl'.format(args.dataset))
+
     print('Number of patients in training set: {}'.format(len(train_patients)))
     print('Number of patients in validation set: {}'.format(len(val_patients)))
 
+    if args.dataset == 'umc':
+        train_dicts = create_data_dicts_lesion_matching(train_patients)
+        val_dicts = create_data_dicts_lesion_matching(val_patients)
+        # Patch-based training
+        train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
+                                                            train=True,
+                                                            data_aug=args.data_aug,
+                                                            batch_size=args.batch_size,
+                                                            num_workers=4,
+                                                            patch_size=TRAINING_PATCH_SIZE)
 
-    train_dicts = create_data_dicts_lesion_matching(train_patients)
-    val_dicts = create_data_dicts_lesion_matching(val_patients)
+        val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
+                                                          train=True,
+                                                          data_aug=False,
+                                                          batch_size=args.batch_size,
+                                                          num_workers=4,
+                                                          patch_size=TRAINING_PATCH_SIZE)
+    elif args.dataset == 'dirlab':
+        train_dicts = create_data_dicts_dir_lab(train_patients)
+        val_dicts = create_data_dicts_dir_lab(val_patients)
 
-    # Patch-based training
-    train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
-                                                        train=True,
-                                                        data_aug=args.data_aug,
-                                                        batch_size=args.batch_size,
-                                                        num_workers=4,
-                                                        patch_size=TRAINING_PATCH_SIZE)
+        train_loader = create_dataloader_dir_lab(data_dicts=train_dicts,
+                                                 batch_size=args.batch_size,
+                                                 num_workers=4,
+                                                 data_aug=args.data_aug,
+                                                 patch_size=TRAINING_PATCH_SIZE,
+                                                 test=False)
 
-    val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
-                                                      train=True,
-                                                      data_aug=False,
-                                                      batch_size=args.batch_size,
-                                                      num_workers=4,
-                                                      patch_size=TRAINING_PATCH_SIZE)
+        val_loader = create_dataloader_dir_lab(data_dicts=val_dicts,
+                                               batch_size=args.batch_size,
+                                               num_workers=4,
+                                               data_aug=args.data_aug,
+                                               patch_size=TRAINING_PATCH_SIZE,
+                                               test=False)
 
 
     model = LesionMatchingModel(K=args.kpts_per_batch,
@@ -125,7 +142,10 @@ def train(args):
 
         for batch_idx, batch_data in pbar:
 
-            images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
+            if args.dataset == 'umc':
+                images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
+            elif args.dataset == 'dirlab':
+                images, mask = (batch_data['image'], batch_data['lung_mask'])
 
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                    non_rigid=True,
@@ -163,16 +183,16 @@ def train(args):
                 assert(torch.equal(images, images_hat))
 
             # Transform liver mask
-            liver_mask_hat = F.grid_sample(input=liver_mask,
-                                           grid=batch_deformation_grid,
-                                           align_corners=True,
-                                           mode="nearest",
-                                           padding_mode="border")
+            mask_hat = F.grid_sample(input=mask,
+                                     grid=batch_deformation_grid,
+                                     align_corners=True,
+                                     mode="nearest",
+                                     padding_mode="border")
 
             # Check for empty liver masks and other issues!
             skip_batch = False
-            for bid in range(liver_mask.shape[0]):
-                if torch.max(liver_mask[bid, ...]) == 0 or torch.max(liver_mask_hat[bid, ...]) == 0:
+            for bid in range(mask.shape[0]):
+                if torch.max(mask[bid, ...]) == 0 or torch.max(mask_hat[bid, ...]) == 0:
                     skip_batch = True
                     break
                 if torch.max(images[bid, ...]) == torch.min(images[bid, ...]):
@@ -197,8 +217,8 @@ def train(args):
 
                 outputs = model(x1=images.to(device),
                                 x2=images_hat.to(device),
-                                mask=liver_mask.to(device),
-                                mask2=liver_mask_hat.to(device),
+                                mask=mask.to(device),
+                                mask2=mask_hat.to(device),
                                 training=True)
 
                 if outputs is None: # Too few keypoints found
@@ -248,7 +268,10 @@ def train(args):
             nbatches = len(val_loader)
             pbar_val = tqdm(enumerate(val_loader), desc="validation", total=nbatches, unit="batches")
             for batch_val_idx, val_data in pbar_val:
-                images, liver_mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
+                if args.dataset == 'umc':
+                    images, mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
+                elif args.dataset == 'dirlab':
+                    images, mask = (val_data['image'], val_data['lung_mask'])
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        device=images.device,
@@ -271,7 +294,7 @@ def train(args):
 
 
                 # Transform liver mask
-                liver_mask_hat = F.grid_sample(input=liver_mask,
+                mask_hat = F.grid_sample(input=mask,
                                                grid=batch_deformation_grid,
                                                align_corners=True,
                                                mode="nearest",
@@ -280,8 +303,8 @@ def train(args):
                 assert(images.shape == images_hat.shape)
 
                 skip_batch = False
-                for bid in range(liver_mask.shape[0]):
-                    if torch.max(liver_mask[bid, ...]) == 0 or torch.max(liver_mask_hat[bid, ...]) == 0:
+                for bid in range(mask.shape[0]):
+                    if torch.max(mask[bid, ...]) == 0 or torch.max(mask_hat[bid, ...]) == 0:
                         skip_batch = True
                         break
                     if torch.max(images[bid, ...]) == torch.min(images[bid, ...]):
@@ -316,8 +339,8 @@ def train(args):
                                           features_2=features_2,
                                           conf_thresh=0.05,
                                           num_pts=args.kpts_per_batch,
-                                          mask=liver_mask.to(device),
-                                          mask2=liver_mask_hat.to(device),
+                                          mask=mask.to(device),
+                                          mask2=mask_hat.to(device),
                                           test=False)
 
                 if outputs is None: # Too few keypoints found
@@ -345,7 +368,10 @@ def train(args):
                     im1 = images[batch_id, ...].squeeze(dim=0)
                     im2 = images_hat[batch_id, ...].squeeze(dim=0)
                     patient_id = val_data['patient_id'][batch_id]
-                    scan_id = val_data['scan_id'][batch_id]
+                    if args.dataset == 'umc':
+                        scan_id = val_data['scan_id'][batch_id]
+                    elif args.dataset == 'dirlab':
+                        scan_id = val_data['type'][batch_id]
 
                     out_dir = os.path.join(viz_dir,
                                            patient_id,
@@ -398,6 +424,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
+    parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--window_size', type=int, default=4)
