@@ -17,6 +17,7 @@ from torch.utils.data import TensorDataset, DataLoader, Dataset
 from monai.transforms import *
 import SimpleITK as sitk
 import numpy as np
+import random
 
 class DIRLab(Dataset):
 
@@ -152,10 +153,12 @@ class DIRLab(Dataset):
             image_and_mask_t = RandCropByPosNegLabel(spatial_size=self.patch_size,
                                                      pos=1.0,
                                                      neg=0.0,
-                                                     num_samples=1).__call__(img=torch.cat([image_t, mask_t],
+                                                     num_samples=10).__call__(img=torch.cat([image_t, mask_t],
                                                                                            dim=0),
-                                                                             label=mask_t)
+                                                                             label=mask_t,
+                                                                             randomize=True)
 
+            random.shuffle(image_and_mask_t)
             # Add the fake channel axis again
             image_t = torch.unsqueeze(image_and_mask_t[0][0, ...],
                                       dim=0)
