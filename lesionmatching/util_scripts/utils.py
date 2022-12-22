@@ -587,3 +587,38 @@ def detensorize_metadata(metadata,
 
     return metadata_list_of_dicts
 
+def map_voxel_coordinates_to_new_spacing():
+    """
+    Args:
+        voxel_coords (tuple) : Voxel coordinates with (x, y, z) ordering
+        original_metadata (dict): Dictionary with original metadata (origin, spacing)
+        new_metadata (dict): Dictionary with new metadata (origin, spacing)
+    Return:
+        new_voxel_coords (tuple)
+
+    """
+
+    world_coords = map_voxel_to_world(voxel_coords=voxel_coords,
+                                      spacing=original_metadata['spacing'],
+                                      origin=original_metadata['origin'])
+
+    new_voxel_coords = map_world_to_voxel(world_coords=world_coords,
+                                          spacing=new_metadata['spacing'],
+                                          origin=new_metadata['origin'])
+
+    return new_voxel_coords
+
+
+def map_voxel_to_world(voxel_coords, spacing, origin):
+
+    world_coords = [v*axis_spacing + axis_origin for v, axis_spacing, axis_origin in zip(voxel_coords, spacing, origin)]
+    return world_coords
+
+def map_world_to_voxel(world_coords, spacing, origin):
+
+    voxel_coords = [floor((w-axis_origin)/axis_spacing) for w, axis_spacing, axis_origin in zip(world_coords, spacing, origin)]
+    return voxel_coords
+
+
+
+

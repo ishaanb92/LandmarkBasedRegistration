@@ -67,14 +67,14 @@ def resample_itk_image_to_new_spacing(image=None, new_spacing=None, interp_order
     assert (isinstance(new_spacing, tuple))
     assert (len(new_spacing) == 3)
 
-    fill_value = 0
+    fill_value = int(np.amin(sitk.GetArrayFromImage(image)).astype(np.float32))
 
-    resample_filter = sitk.ResampleImageFilter()
+    original_size = image.GetSize()
+    original_spacing = image.GetSpacing()
+    new_size = [int(round(original_size[0]*(original_spacing[0]/new_spacing[0]))),
+                int(round(original_size[1]*(original_spacing[1]/new_spacing[1]))),
+                int(round(original_size[2]*(original_spacing[2]/new_spacing[2])))]
 
-    # Get the new shape and effective spacing
-    new_shape, eff_spacing = calculate_new_size(image_shape=image.GetSize(),
-                                                old_spacing=image.GetSpacing(),
-                                                new_spacing=new_spacing)
     if interp_order == 0:
         sitk_interpolator = sitk.sitkNearestNeighbor
     elif interp_order == 1:
@@ -84,22 +84,17 @@ def resample_itk_image_to_new_spacing(image=None, new_spacing=None, interp_order
     else:
         raise RuntimeError('Interpolator order {} not supported'.format(interp_order))
 
-    # SimpleITK function works with these specific data-types only
-    new_shape_cast = [int(s) for s in new_shape]
-    new_spacing_cast = [float(s) for s in new_spacing]
-    old_origin = image.GetOrigin()
-    # New origin must reflect change in spacing in z-dir
-    new_origin = [float(old_origin[0]), float(old_origin[1]), new_spacing_cast[2]]
+    new_spacing = [float(s) for s in new_spacing]
 
-    resampled_image = resample_filter.Execute(image,
-                                              new_shape_cast,
-                                              sitk.Transform(),
-                                              sitk_interpolator,
-                                              new_origin,
-                                              new_spacing_cast,
-                                              image.GetDirection(),
-                                              fill_value,
-                                              image.GetPixelID())
+    resampled_image = sitk.Resample(image,
+                                    new_size,
+                                    sitk.Transform(),
+                                    sitk_interpolator,
+                                    image.GetOrigin(),
+                                    new_spacing,
+                                    image.GetDirection(),
+                                    fill_value,
+                                    image.GetPixelID())
 
     return resampled_image
 
