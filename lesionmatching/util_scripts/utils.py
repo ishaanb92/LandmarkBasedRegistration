@@ -620,5 +620,11 @@ def map_world_to_voxel(world_coords, spacing, origin):
     return voxel_coords
 
 
+# Update LD_LIBRARY_PATH so that the elastix binary can find the .so file
+def add_library_path(path):
+    old_path = os.environ.get('LD_LIBRARY_PATH')
 
-
+    if old_path is not None:
+        os.environ['LD_LIBRARY_PATH'] = old_path + ":" + path
+    else:
+        os.environ['LD_LIBRARY_PATH'] = path
