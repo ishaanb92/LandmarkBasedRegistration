@@ -40,13 +40,13 @@ if __name__ == '__main__':
 
         train_dict = create_data_dicts_dir_lab(train_patients[0:2])
 
+        for tdict in train_dict:
+            print(tdict['patient_id'])
 
         data_loader = create_dataloader_dir_lab(data_dicts=train_dict,
                                                 test=False,
                                                 batch_size=2,
-                                                data_aug=False,
-                                                patch_size=(128, 128, 64),
-                                                new_spacing=(1.0, 1.0, 1.0))
+                                                data_aug=False)
 
     print('Length of dataloader = {}'.format(len(data_loader)))
 
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
         images = batch_data['image']
 
-        metadata_list = detensorize_metadata(metadata=batch_data['new_metadata'],
+        metadata_list = detensorize_metadata(metadata=batch_data['metadata'],
                                              batchsz=images.shape[0])
 
         print('Images shape: {}'.format(images.shape))
@@ -66,10 +66,10 @@ if __name__ == '__main__':
         batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                coarse=True,
                                                                fine=True,
-                                                               coarse_displacements=(4, 8, 8),
-                                                               fine_displacements=(2, 4, 4),
-                                                               coarse_grid_resolution=(3, 3, 3),
-                                                               fine_grid_resolution=(6, 6, 6))
+                                                               coarse_displacements=(12.8, 6.4, 3.2),
+                                                               fine_displacements=(3.2, 3.2, 3.2),
+                                                               coarse_grid_resolution=(4, 4, 4),
+                                                               fine_grid_resolution=(8, 8, 8))
 
         if batch_deformation_grid is not None:
             deformed_images = F.grid_sample(input=images,

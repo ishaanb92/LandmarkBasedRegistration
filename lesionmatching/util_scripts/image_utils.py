@@ -53,27 +53,36 @@ def calculate_ssim(img1, img2):
     return ssim(img1.astype(np.float32), img2.astype(np.float32))
 
 
-def resample_itk_image_to_new_spacing(image=None, new_spacing=None, interp_order=3):
+def resample_itk_image_to_new_spacing(image=None, new_spacing=None, new_size=None, interp_order=3):
     """
     Function to resample image to have desired voxel spacing. Target use to obtain make anistropic spacings to isotropic
     Refer: https://github.com/jonasteuwen/SimpleITK-examples/blob/master/examples/resample_isotropically.py
 
     :param image: (sitk Image)
-    :param new_spacing:
+    :param new_spacing: (tuple)
+    :param new_size: (tuple)
     :param interp_order: (int) Order of interpolation
     :return: resampled_image: (sitk Image)
     """
     assert (isinstance(image, sitk.Image))
-    assert (isinstance(new_spacing, tuple))
-    assert (len(new_spacing) == 3)
+
+    if (new_spacing is not None) and (new_size is not None):
+        raise ValueError('The new spacing and size cannot be specified together because one is computed from the other!!!')
 
     fill_value = int(np.amin(sitk.GetArrayFromImage(image)).astype(np.float32))
 
     original_size = image.GetSize()
     original_spacing = image.GetSpacing()
-    new_size = [int(round(original_size[0]*(original_spacing[0]/new_spacing[0]))),
-                int(round(original_size[1]*(original_spacing[1]/new_spacing[1]))),
-                int(round(original_size[2]*(original_spacing[2]/new_spacing[2])))]
+    original_direction = image.GetDirection()
+
+    if new_size is None:
+        new_size = [int(round(original_size[0]*(original_spacing[0]/new_spacing[0]))),
+                    int(round(original_size[1]*(original_spacing[1]/new_spacing[1]))),
+                    int(round(original_size[2]*(original_spacing[2]/new_spacing[2])))]
+    else:
+        new_spacing = [float(original_spacing[0]*(original_size[0]/new_size[0])),
+                       float(original_spacing[1]*(original_size[1]/new_size[1])),
+                       float(original_spacing[2]*(original_size[2]/new_size[2]))]
 
     if interp_order == 0:
         sitk_interpolator = sitk.sitkNearestNeighbor
