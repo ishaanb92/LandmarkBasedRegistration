@@ -43,8 +43,8 @@ if __name__ == '__main__':
         reg_out_dir = os.path.join(args.out_dir, image_prefix)
         os.makedirs(reg_out_dir)
 
-        fixed_image_path = os.path.join(pdir, '{}_T00_iso.mha'.format(image_prefix))
-        moving_image_path = os.path.join(pdir, '{}_T50_iso.mha'.format(image_prefix))
+        fixed_image_path = os.path.join(pdir, '{}_T00_smaller.mha'.format(image_prefix))
+        moving_image_path = os.path.join(pdir, '{}_T50_smaller.mha'.format(image_prefix))
 
         # Copy files to the output directory for convinient copying+viz
 
