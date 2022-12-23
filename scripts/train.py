@@ -106,14 +106,12 @@ def train(args):
                                                  batch_size=args.batch_size,
                                                  num_workers=4,
                                                  data_aug=args.data_aug,
-                                                 patch_size=TRAINING_PATCH_SIZE,
                                                  test=False)
 
         val_loader = create_dataloader_dir_lab(data_dicts=val_dicts,
                                                batch_size=args.batch_size,
                                                num_workers=4,
                                                data_aug=args.data_aug,
-                                               patch_size=TRAINING_PATCH_SIZE,
                                                test=False)
 
 
@@ -133,6 +131,18 @@ def train(args):
     n_iter = 0
     n_iter_val = 0
 
+
+    if args.dataset == 'umc':
+        coarse_displacements = (4, 8, 8)
+        coarse_grid_resolution = (3, 3, 3)
+        fine_displacements = (2, 4, 4)
+        fine_grid_resolution = (6, 6, 6)
+    elif args.dataset == 'dirlab':
+        coarse_displacements = (12.8, 6.4, 3.2)
+        coarse_grid_resolution = (4, 4, 4)
+        fine_displacements = (3.2, 3.2, 3.2)
+        fine_grid_resolution = (8, 8, 8)
+
     print('Start training')
     for epoch in range(10000):
 
@@ -143,18 +153,43 @@ def train(args):
         for batch_idx, batch_data in pbar:
 
             if args.dataset == 'umc':
+                if isinstance(batch_data, list): # Weird tqdm/MONAI quirk caused due to a package update somewhere
+                    assert(len(batch_data) == 1)
+                    batch_data = batch_data[0]
+
                 images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
             elif args.dataset == 'dirlab':
                 images, mask = (batch_data['image'], batch_data['lung_mask'])
+
+                # Additional non-rigid deformatio -- See Eppenhof and Pluim (2019), TMI
+                augmentation_deformation_grid = create_batch_deformation_grid(shape=images.shape,
+                                                                              non_rigid=True,
+                                                                              coarse=True,
+                                                                              fine=False,
+                                                                              coarse_displacements=(12.8, 6.4, 3.2),
+                                                                              coarse_grid_resolution=(2, 2, 2))
+                if augmentation_deformation_grid is not None:
+                    images = F.grid_sample(input=images,
+                                           grid=augmentation_deformation_grid,
+                                           align_corners=True,
+                                           mode="bilinear",
+                                           padding_mode="border")
+
+                    mask = F.grid_sample(input=images,
+                                         grid=augmentation_deformation_grid,
+                                         align_corners=True,
+                                         mode="nearest",
+                                         padding_mode="border")
+
 
             batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                    non_rigid=True,
                                                                    coarse=True,
                                                                    fine=True,
-                                                                   coarse_displacements=(4, 8, 8),
-                                                                   fine_displacements=(2, 4, 4),
-                                                                   coarse_grid_resolution=(3, 3, 3),
-                                                                   fine_grid_resolution=(6, 6, 6))
+                                                                   coarse_displacements=coarse_displacements,
+                                                                   fine_displacements=fine_displacements,
+                                                                   coarse_grid_resolution=coarse_grid_resolution,
+                                                                   fine_grid_resolution=fine_grid_resolution)
             if batch_deformation_grid is not None:
                 images_hat = F.grid_sample(input=images,
                                            grid=batch_deformation_grid,
@@ -278,10 +313,10 @@ def train(args):
                                                                        non_rigid=True,
                                                                        coarse=True,
                                                                        fine=True,
-                                                                       coarse_displacements=(4, 8, 8),
-                                                                       fine_displacements=(2, 4, 4),
-                                                                       coarse_grid_resolution=(3, 3, 3),
-                                                                       fine_grid_resolution=(6, 6, 6))
+                                                                       coarse_displacements=coarse_displacements,
+                                                                       fine_displacements=fine_displacements,
+                                                                       coarse_grid_resolution=coarse_grid_resolution,
+                                                                       fine_grid_resolution=fine_grid_resolution)
                 # Folding may have occured
                 if batch_deformation_grid is None:
                     continue
@@ -434,7 +469,6 @@ if __name__ == '__main__':
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--data_aug', action='store_true')
     parser.add_argument('--dummy', action='store_true')
-    parser.add_argument('--fine_deform', action='store_true')
 
     args = parser.parse_args()
 
