@@ -36,8 +36,6 @@ if __name__ == '__main__':
     el = ElastixInterface(elastix_path=ELASTIX_BIN)
 
     # Collect all the patient directories
-    # FIXME : Register only 1 image to visualize and test different blocks
-    # in the registration + evaluation pipeline
     pat_dirs = [f.path for f in os.scandir(args.data_dir) if f.is_dir()]
 
     for pdir in pat_dirs:
@@ -45,8 +43,8 @@ if __name__ == '__main__':
         reg_out_dir = os.path.join(args.out_dir, image_prefix)
         os.makedirs(reg_out_dir)
 
-        fixed_image_path = os.path.join(pdir, '{}_T00.mha'.format(image_prefix))
-        moving_image_path = os.path.join(pdir, '{}_T50.mha'.format(image_prefix))
+        fixed_image_path = os.path.join(pdir, '{}_T00_iso.mha'.format(image_prefix))
+        moving_image_path = os.path.join(pdir, '{}_T50_iso.mha'.format(image_prefix))
 
         # Copy files to the output directory for convinient copying+viz
 
