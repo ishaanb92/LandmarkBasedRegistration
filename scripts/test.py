@@ -51,24 +51,37 @@ def test(args):
 
     # Set up data pipeline
     if args.mode == 'val':
-        patients = joblib.load('val_patients.pkl')
+        patients = joblib.load('val_patients_{}.pkl'.format(args.dataset))
     elif args.mode == 'test':
-        patients = joblib.load('test_patients.pkl')
+        patients = joblib.load('test_patients_{}.pkl'.format(args.dataset))
     elif args.mode == 'train':
-        patient = joblib.load('train_patients.pkl')
+        patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
 
     if args.synthetic is True:
-        data_dicts = create_data_dicts_lesion_matching(patients)
-        data_loader, _ = create_dataloader_lesion_matching(data_dicts=data_dicts,
-                                                          train=False,
-                                                          batch_size=args.batch_size,
-                                                          num_workers=4,
-                                                          data_aug=False)
+        if args.dataset == 'umc':
+            data_dicts = create_data_dicts_lesion_matching(patients)
+            data_loader, _ = create_dataloader_lesion_matching(data_dicts=data_dicts,
+                                                              train=False,
+                                                              batch_size=args.batch_size,
+                                                              num_workers=4,
+                                                              data_aug=False)
+        elif args.dataset == 'dirlab':
+            data_dicts = create_data_dicts_dir_lab(patients)
+            data_loader = create_dataloader_dir_lab(data_dicts=data_dicts,
+                                                    batch_size=args.batch_size,
+                                                    num_workers=4,
+                                                    data_aug=False,
+                                                    test=True)
+
+
     else: # "Real" data
-        data_dicts = create_data_dicts_lesion_matching_inference(patients)
-        data_loader, _ = create_dataloader_lesion_matching_inference(data_dicts=data_dicts,
-                                                                     batch_size=args.batch_size,
-                                                                     num_workers=4)
+        if args.dataset == 'umc':
+            data_dicts = create_data_dicts_lesion_matching_inference(patients)
+            data_loader, _ = create_dataloader_lesion_matching_inference(data_dicts=data_dicts,
+                                                                         batch_size=args.batch_size,
+                                                                         num_workers=4)
+        elif args.dataset == 'dirlab':
+            pass
 
 
     # Define the model
@@ -90,16 +103,53 @@ def test(args):
         for batch_idx, batch_data in enumerate(data_loader):
             if args.synthetic is True:
 
-                images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
-
+                if args.dataset == 'umc':
+                    images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
+                elif args.dataset == 'dirlab':
+                    images, mask = (batch_data['image'], batch_data['lung_mask'])
+                    metadata_list = detensorize_metadata(metadata=batch_data['new_metadata'],
+                                                         batchsz=images.shape[0])
 
                 # Pad image in the k-direction to make the shape [256, 256, 256]
                 # Makes it easier to scale deformation grid size to ensure the same
                 # control point spacing for patches and full images
                 b, c, i, j, k = images.shape
-                pad = 256 - k
-                images = F.pad(images, (0, pad), "constant", 0)
-                liver_mask = F.pad(liver_mask, (0, pad), "constant", 0)
+                if args.dataset == 'umc':
+                    pad = 256 - k
+                    images = F.pad(images, (0, pad), "constant", 0)
+                    mask = F.pad(mask, (0, pad), "constant", 0)
+                elif args.dataset == 'dirlab':
+                    if i < 256 and j < 256:
+                        excess_pixels = 256 - i # (i == j)
+                    else: # axis shape > 256
+                        excess_pixels = 512 - i
+
+                    left_pad_inplane = excess_pixels//2
+                    right_pad_inplane = excess_pixels - left_pad_inplane
+
+                    if k < 256:
+                        ap_pad = 256 - k # One-sided padding in z-direction
+                    else:
+                        ap_pad = 512 - k
+
+                    images = F.pad(images,
+                                   pad=(0, ap_pad,
+                                       left_pad_inplane, right_pad_inplane,
+                                       left_pad_inplane, right_pad_inplane),
+                                   mode='constant')
+
+                    mask = F.pad(mask,
+                                 pad=(0, ap_pad,
+                                      left_pad_inplane, right_pad_inplane,
+                                      left_pad_inplane, right_pad_inplane),
+                                mode='constant')
+
+
+
+                b, c, i, j, k = images.shape
+
+                print('Image shape after padding = {}'.format(images.shape))
+                print('Mask shape after padding = {}'.format(mask.shape))
 
                 deform_grid_multiplier = [i//ROI_SIZE[0], j//ROI_SIZE[1], k//ROI_SIZE[2]]
 
@@ -107,7 +157,7 @@ def test(args):
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        non_rigid=True,
                                                                        coarse=True,
-                                                                       fine=args.fine_deform,
+                                                                       fine=True,
                                                                        coarse_displacements=(4, 8, 8),
                                                                        fine_displacements=(2, 4, 4),
                                                                        coarse_grid_resolution=(3*deform_grid_multiplier[2],
@@ -133,10 +183,10 @@ def test(args):
                                                align_corners=True,
                                                mode="bilinear")
 
-                liver_mask_hat = F.grid_sample(input=liver_mask,
-                                               grid=batch_deformation_grid,
-                                               align_corners=True,
-                                               mode="nearest")
+                mask_hat = F.grid_sample(input=mask,
+                                         grid=batch_deformation_grid,
+                                         align_corners=True,
+                                         mode="nearest")
 
 
                 # Concatenate along channel axis so that sliding_window_inference can
@@ -152,7 +202,8 @@ def test(args):
                                                                         device='cpu',
                                                                         sw_batch_size=4,
                                                                         predictor=model.get_patch_keypoint_scores,
-                                                                        overlap=0.5)
+                                                                        overlap=0.5,
+                                                                        progress=True)
 
                 # Feature maps
                 features_1_low, features_1_high, features_2_low, features_2_high =\
@@ -162,7 +213,8 @@ def test(args):
                                                                                  sw_device=device,
                                                                                  device='cpu',
                                                                                  predictor=model.get_patch_feature_descriptors,
-                                                                                 overlap=0.5)
+                                                                                 overlap=0.5,
+                                                                                 progress=True)
 
                 features_1 = (features_1_low.to(device), features_1_high.to(device))
                 features_2 = (features_2_low.to(device), features_1_high.to(device))
@@ -176,8 +228,8 @@ def test(args):
                                           features_2=features_2,
                                           conf_thresh=0.5,
                                           num_pts=args.kpts_per_batch,
-                                          mask=liver_mask.to(device),
-                                          mask2=liver_mask_hat.to(device))
+                                          mask=mask.to(device),
+                                          mask2=mask_hat.to(device))
 
                 # Get ground truth matches based on projecting keypoints using the deformation grid
                 gt1, gt2, gt_matches, num_gt_matches, projected_landmarks = \
@@ -273,28 +325,51 @@ def test(args):
                                            neighbourhood=3)
 
                     # Save images/KP heatmaps
-                    write_image_to_file(image_array=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),
-                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
-                                        metadata_dict=batch_data['image_meta_dict'],
-                                        filename=os.path.join(dump_dir, 'kpts_prob.nii.gz'))
+                    if args.dataset == 'umc':
+                        write_image_to_file(image_array=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),
+                                            affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                            metadata_dict=batch_data['image_meta_dict'],
+                                            filename=os.path.join(dump_dir, 'kpts_prob.nii.gz'))
 
-                    write_image_to_file(image_array=torch.sigmoid(kpts_logits_2[batch_id, ...].squeeze(dim=0)),
-                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
-                                        metadata_dict=batch_data['image_meta_dict'],
-                                        filename=os.path.join(dump_dir, 'kpts_prob_deformed.nii.gz'))
-
-
-                    write_image_to_file(image_array=batch_data['image'][batch_id].squeeze(dim=0),
-                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
-                                        metadata_dict=batch_data['image_meta_dict'],
-                                        filename=os.path.join(dump_dir, 'image.nii.gz'))
-
-                    write_image_to_file(image_array=images_hat[batch_id, ...].squeeze(dim=0),
-                                        affine=batch_data['image_meta_dict']['affine'][batch_id],
-                                        metadata_dict=batch_data['image_meta_dict'],
-                                        filename=os.path.join(dump_dir, 'd_image.nii.gz'))
+                        write_image_to_file(image_array=torch.sigmoid(kpts_logits_2[batch_id, ...].squeeze(dim=0)),
+                                            affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                            metadata_dict=batch_data['image_meta_dict'],
+                                            filename=os.path.join(dump_dir, 'kpts_prob_deformed.nii.gz'))
 
 
+                        write_image_to_file(image_array=batch_data['image'][batch_id].squeeze(dim=0),
+                                            affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                            metadata_dict=batch_data['image_meta_dict'],
+                                            filename=os.path.join(dump_dir, 'image.nii.gz'))
+
+                        write_image_to_file(image_array=images_hat[batch_id, ...].squeeze(dim=0),
+                                            affine=batch_data['image_meta_dict']['affine'][batch_id],
+                                            metadata_dict=batch_data['image_meta_dict'],
+                                            filename=os.path.join(dump_dir, 'd_image.nii.gz'))
+                    elif args.dataset == 'dirlab':
+                        save_ras_as_itk(img=images[batch_idx, ...],
+                                        metadata=metadata_list[batch_idx],
+                                        fname=os.path.join(dump, 'image.mha'.format(b_id, batch_idx)))
+
+                        save_ras_as_itk(img=images_hat[batch_idx, ...],
+                                        metadata=metadata_list[batch_idx],
+                                        fname=os.path.join(dump, 'd_image.mha'.format(b_id, batch_idx)))
+
+                        save_ras_as_itk(img=mask[batch_idx, ...],
+                                        metadata=metadata_list[batch_idx],
+                                        fname=os.path.join(dump, 'mask.mha'.format(b_id, batch_idx)))
+
+                        save_ras_as_itk(img=mask_hat[batch_idx, ...],
+                                        metadata=metadata_list[batch_idx],
+                                        fname=os.path.join(dump, 'd_mask.mha'.format(b_id, batch_idx)))
+
+                        save_ras_as_itk(image_array=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),
+                                        metadata=metadata_list[batch_idx],
+                                        fname=os.path.join(dump_dir, 'kpts_prob.mha'))
+
+                        save_ras_as_itk(image_array=torch.sigmoid(kpts_logits_2[batch_id, ...].squeeze(dim=0)),
+                                        metadata=metadata_list[batch_idx],
+                                        fname=os.path.join(dump_dir, 'kpts_prob_deformed.mha'))
 
 
             else: #TODO
@@ -306,6 +381,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
+    parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
@@ -314,7 +390,6 @@ if __name__ == '__main__':
     parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--synthetic', action='store_true')
     parser.add_argument('--dummy', action='store_true')
-    parser.add_argument('--fine_deform', action='store_true')
     parser.add_argument('--window_size', type=int, default=4)
 
     args = parser.parse_args()

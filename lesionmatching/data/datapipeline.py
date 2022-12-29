@@ -13,6 +13,7 @@ from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 import joblib
 import torch
 from monai.transforms import StdShiftIntensity
+from monai.data.utils import no_collation
 import numpy as np
 import nibabel as nib
 from lesionmatching.data.dirlab import *
@@ -145,14 +146,21 @@ def create_dataloader_dir_lab(data_dicts=None,
 
 
 
-def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4, num_workers=4, data_aug=True, patch_size=(128, 128, 64)):
+def create_dataloader_lesion_matching(data_dicts=None,
+                                      train=True,
+                                      batch_size=4,
+                                      num_workers=4,
+                                      data_aug=True,
+                                      patch_size=(128, 128, 64),
+                                      seed=1234,
+                                      num_samples=1):
 
     if train is True:
         if data_aug is True:
             transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
 
                                   # Add fake channel to the liver_mask
-                                  AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
+                                  EnsureChannelFirstd(keys=["image", "liver_mask", "vessel_mask"]),
 
                                   Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
 
@@ -166,7 +174,8 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
                                                          label_key="liver_mask",
                                                          spatial_size=patch_size,
                                                          pos=1.0,
-                                                         neg=0.0),
+                                                         neg=0.0,
+                                                         num_samples=num_samples),
 
                                   RandRotated(keys=["image", "liver_mask", "vessel_mask"],
                                               range_x=(np.pi/180)*30,
@@ -194,7 +203,7 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
             transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
 
                                   # Add fake channel to the liver_mask
-                                  AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
+                                  EnsureChannelFirstd(keys=["image", "liver_mask", "vessel_mask"]),
 
                                   Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
 
@@ -208,7 +217,8 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
                                                          label_key="liver_mask",
                                                          spatial_size=patch_size,
                                                          pos=1.0,
-                                                         neg=0.0),
+                                                         neg=0.0,
+                                                         num_samples=num_samples),
 
                                   NormalizeIntensityd(keys=["image"],
                                                       nonzero=True,
@@ -222,7 +232,7 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
         transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
 
                               # Add fake channel to the liver_mask
-                              AddChanneld(keys=["image", "liver_mask", "vessel_mask"]),
+                              EnsureChannelFirstd(keys=["image", "liver_mask", "vessel_mask"]),
 
                               Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
 
@@ -236,6 +246,9 @@ def create_dataloader_lesion_matching(data_dicts=None, train=True, batch_size=4,
 
                               EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
                               ])
+
+    # Set (local) random state to ensure reproducibility
+    transforms = transforms.set_random_state(seed=seed)
 
     ds = CacheDataset(data=data_dicts,
                       transform=transforms,
@@ -257,7 +270,7 @@ def create_dataloader_lesion_matching_inference(data_dicts=None, batch_size=4, n
                                            "image_2",  "liver_mask_2", "vessel_mask_2"]),
 
                           # Add fake channel to the liver_mask
-                          AddChanneld(keys=["image_1", "liver_mask_1", "vessel_mask_1",
+                          EnsureChannelFirstd(keys=["image_1", "liver_mask_1", "vessel_mask_1",
                                             "image_2",  "liver_mask_2", "vessel_mask_2"]),
 
                           Orientationd(keys=["image_1", "liver_mask_1", "vessel_mask_1",

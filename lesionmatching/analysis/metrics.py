@@ -298,3 +298,21 @@ def get_match_statistics(gt, pred):
     stats['False Negatives'] = fns
 
     return stats
+
+
+def compute_euclidean_distance_between_points(x1, x2):
+
+    if isinstance(x1, np.ndarray) is False:
+        x1 = np.ndarray(x1)
+
+    if isinstance(x2, np.ndarray) is False:
+        x2 = np.ndarray(x2)
+
+    assert(x1.shape == x2.shape)
+
+    euc_distances = np.sqrt(np.add(np.pow(np.subtract(x1, x2), 2), axis=1))
+
+    assert(euc_distances.shape == x1.shape)
+
+    return euc_distances
+
