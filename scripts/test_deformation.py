@@ -18,12 +18,21 @@ import os
 import shutil
 from argparse import ArgumentParser
 import monai
+from monai.utils.misc import set_determinism
+import random
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--dataset', type=str, default='umc')
+    parser.add_argument('--seed', type=int, default=1234)
     args = parser.parse_args()
+
+    # Set the (global) seeds
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+    set_determinism(seed=args.seed)
 
     # Load all patient paths
     if args.dataset == 'umc':
@@ -34,7 +43,8 @@ if __name__ == '__main__':
                                                                     train=True,
                                                                     batch_size=1,
                                                                     data_aug=False,
-                                                                    patch_size=(128, 128, 64))
+                                                                    patch_size=(128, 128, 64),
+                                                                    seed=args.seed)
 
         coarse_displacements = (4, 8, 8)
         fine_displacements = (2, 4, 4)
