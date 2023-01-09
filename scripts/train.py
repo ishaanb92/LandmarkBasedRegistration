@@ -74,9 +74,6 @@ def train(args):
     random.seed(args.seed)
     set_determinism(seed=args.seed)
 
-#    torch.use_deterministic_algorithms(mode=True,
-#                                       warn_only=True)
-
     # Set up data pipeline
     train_patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
     val_patients = joblib.load('val_patients_{}.pkl'.format(args.dataset))
@@ -124,6 +121,9 @@ def train(args):
 
     model = LesionMatchingModel(K=args.kpts_per_batch,
                                 W=args.window_size)
+
+    # Ensure all layers are initialized correctly
+    model.apply(resetModelWeights)
 
     optimizer = torch.optim.Adam(model.parameters(),
                                  1e-4)

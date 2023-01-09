@@ -628,3 +628,9 @@ def add_library_path(path):
         os.environ['LD_LIBRARY_PATH'] = old_path + ":" + path
     else:
         os.environ['LD_LIBRARY_PATH'] = path
+
+# Function to reset all model weights!
+def resetModelWeights(m):
+    for layer in m.children():
+        if hasattr(layer, 'reset_parameters'):
+            layer.reset_parameters()
