@@ -151,7 +151,7 @@ def train(args):
         fine_grid_resolution = (8, 8, 8)
 
     print('Start training')
-    for epoch in range(10000):
+    for epoch in range(args.epochs):
 
         model.train()
         nbatches = len(train_loader)
@@ -447,17 +447,26 @@ def train(args):
 
             mean_val_loss = np.mean(np.array(val_loss))
 
-            early_stop_condition, best_epoch = early_stopper(val_loss=mean_val_loss,
-                                                             curr_epoch=epoch,
-                                                             model=model,
-                                                             optimizer=optimizer,
-                                                             scheduler=None,
-                                                             scaler=scaler,
-                                                             n_iter=n_iter,
-                                                             n_iter_val=n_iter_val)
-            if early_stop_condition is True:
-                print('Best epoch = {}, stopping training'.format(best_epoch))
-                return
+            if args.earlystop is True:
+                early_stop_condition, best_epoch = early_stopper(val_loss=mean_val_loss,
+                                                                 curr_epoch=epoch,
+                                                                 model=model,
+                                                                 optimizer=optimizer,
+                                                                 scheduler=None,
+                                                                 scaler=scaler,
+                                                                 n_iter=n_iter,
+                                                                 n_iter_val=n_iter_val)
+                if early_stop_condition is True:
+                    print('Best epoch = {}, stopping training'.format(best_epoch))
+                    return
+            else: # Save the model every epoch
+                save_model(model=model,
+                           optimizer=optimizer,
+                           scheduler=None,
+                           scaler=scaler,
+                           n_iter=n_iter,
+                           n_iter_val=n_iter_val,
+                           checkpoint_dir=args.checkpoint_dir)
 
 
 if __name__ == '__main__':
@@ -475,6 +484,8 @@ if __name__ == '__main__':
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--data_aug', action='store_true')
     parser.add_argument('--dummy', action='store_true')
+    parser.add_argument('--epochs', type=int, default=250)
+    parser.add_argument('--earlystop', action='store_true')
 
     args = parser.parse_args()
 
