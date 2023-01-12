@@ -47,26 +47,27 @@ def train(args):
     else:
         device = torch.device('cpu')
 
-    if os.path.exists(args.checkpoint_dir) is False:
-        os.makedirs(args.checkpoint_dir)
-
-    checkpoint_dir = args.checkpoint_dir
-
     log_dir = os.path.join(args.checkpoint_dir, 'logs')
-
-    if os.path.exists(log_dir) is True:
-        shutil.rmtree(log_dir)
-
-    os.makedirs(log_dir)
-
     viz_dir = os.path.join(args.checkpoint_dir, 'viz')
 
-    if os.path.exists(viz_dir) is True:
-        shutil.rmtree(viz_dir)
+    new_training = True
 
-    os.makedirs(viz_dir)
+    # Case 1 : Checkpoint directory does not exist => New training
+    if os.path.exists(args.checkpoint_dir) is False:
+        os.makedirs(args.checkpoint_dir)
+        os.makedirs(args.log_dir)
+        os.makedirs(args.viz_dir)
+    else: # Case 2 : Checkpoint directory exists
+        if args.renew is True: # Case 2a : Delete existing checkpoint directory and create a new one
+            shutil.rmtree(args.checkpoint_dir)
+            os.makedirs(args.checkpoint_dir)
+            os.makedirs(log_dir)
+            os.makedirs(viz_dir)
+        else: # Case 2b : Do nothing
+            new_training = False
 
     writer = SummaryWriter(log_dir=log_dir)
+    checkpoint_dir = args.checkpoint_dir
 
     # Set the (global) seeds
     torch.manual_seed(args.seed)
@@ -122,8 +123,8 @@ def train(args):
     model = LesionMatchingModel(K=args.kpts_per_batch,
                                 W=args.window_size)
 
-    # Ensure all layers are initialized correctly
-    model.apply(resetModelWeights)
+
+    model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(),
                                  1e-4)
@@ -134,9 +135,28 @@ def train(args):
 
     scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
 
-    model.to(device)
-    n_iter = 0
-    n_iter_val = 0
+    if new_training is False: # Load model
+        load_dict = load_model(model=model,
+                               optimizer=optimizer,
+                               scaler=scaler,
+                               checkpoint_dir=args.checkpoint_dir,
+                               training=True,
+                               device=device)
+
+        n_iter = load_dict['n_iter']
+        n_iter_val = load_dict['n_iter_val']
+        optimizer = load_dict['optimizer']
+        model = load_dict['model']
+        epoch_saved = load_dict['epoch']
+        if epoch_saved is None:
+            epoch_saved = n_iter//(len(train_loader)*args.num_samples)
+        print('Resuming training from epoch {}'.format(epoch_saved+1))
+
+    else: # Reset parameters and initialize all counters
+        model.apply(resetModelWeights)
+        n_iter = 0
+        n_iter_val = 0
+        epoch_saved = -1
 
 
     if args.dataset == 'umc':
@@ -151,7 +171,7 @@ def train(args):
         fine_grid_resolution = (8, 8, 8)
 
     print('Start training')
-    for epoch in range(args.epochs):
+    for epoch in range(epoch_saved+1, args.epochs):
 
         model.train()
         nbatches = len(train_loader)
@@ -465,6 +485,7 @@ def train(args):
                            scheduler=None,
                            scaler=scaler,
                            n_iter=n_iter,
+                           epoch=epoch,
                            n_iter_val=n_iter_val,
                            checkpoint_dir=args.checkpoint_dir)
 
@@ -486,6 +507,7 @@ if __name__ == '__main__':
     parser.add_argument('--dummy', action='store_true')
     parser.add_argument('--epochs', type=int, default=250)
     parser.add_argument('--earlystop', action='store_true')
+    parser.add_argument('--renew', action='store_true')
 
     args = parser.parse_args()
 

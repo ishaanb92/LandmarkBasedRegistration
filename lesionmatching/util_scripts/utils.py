@@ -288,7 +288,8 @@ def load_model(model=None, optimizer=None, scheduler=None, scaler=None, checkpoi
     # Since the directory contains only the last checkpoint, there will only be a single .pt file
     #checkpoint_file_path, last_iter = select_checkpoint(checkpoint_file_paths, to_load=to_load)
 
-    checkpoint = torch.load(checkpoint_file_path, map_location=device)
+    checkpoint = torch.load(checkpoint_file_path,
+                            map_location=device)
 
     model.load_state_dict(checkpoint['model_state_dict'])
 
