@@ -72,7 +72,7 @@ def plot_bar_graph(metric_dict, fname):
                 ax=ax)
 
     ax.tick_params(axis="x", rotation=90)
-    ax.set_ylim((0, 1024))
+    ax.set_ylim((0, 512))
 
     fig.savefig(fname+'.png',
                 bbox_inches='tight')
