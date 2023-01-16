@@ -48,6 +48,7 @@ def test(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
+    set_determinism(seed=args.seed)
 
     # Set up data pipeline
     if args.mode == 'val':
