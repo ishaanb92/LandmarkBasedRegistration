@@ -55,8 +55,8 @@ def train(args):
     # Case 1 : Checkpoint directory does not exist => New training
     if os.path.exists(args.checkpoint_dir) is False:
         os.makedirs(args.checkpoint_dir)
-        os.makedirs(args.log_dir)
-        os.makedirs(args.viz_dir)
+        os.makedirs(log_dir)
+        os.makedirs(viz_dir)
     else: # Case 2 : Checkpoint directory exists
         if args.renew is True: # Case 2a : Delete existing checkpoint directory and create a new one
             shutil.rmtree(args.checkpoint_dir)

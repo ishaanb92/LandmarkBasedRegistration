@@ -60,7 +60,7 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
     # kpts2[:, :, :, :, 2] : z (H)
     kpts1_projected = F.grid_sample(deformation.to(device).type(kpts2.dtype),
                                     kpts2,
-                                    align_corners=True,
+                                    align_corners=False,
                                     mode='bilinear')
 
     kpts1_projected = kpts1_projected.permute(0, 4, 2, 3, 1)

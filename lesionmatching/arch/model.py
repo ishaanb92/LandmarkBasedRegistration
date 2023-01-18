@@ -347,7 +347,7 @@ class LesionMatchingModel(nn.Module):
         # See: https://discuss.pytorch.org/t/runtimeerror-binary-cross-entropy-and-bceloss-are-unsafe-to-autocast/118538
         kpts_scores = F.grid_sample(kpt_map,
                                     kpts_sampling_grid,
-                                    align_corners=True)
+                                    align_corners=False)
 
         # Get rid of fake channels axes
         kpts_scores = kpts_scores.squeeze(dim=1).squeeze(dim=1).squeeze(dim=1)
@@ -357,7 +357,7 @@ class LesionMatchingModel(nn.Module):
         for fmap in features:
             fmap_resampled = F.grid_sample(fmap,
                                            kpts_sampling_grid,
-                                           align_corners=True)
+                                           align_corners=False)
 
             descriptors.append(fmap_resampled)
 
