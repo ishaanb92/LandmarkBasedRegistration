@@ -62,17 +62,30 @@ if __name__ == '__main__':
         data_loader = create_dataloader_dir_lab(data_dicts=train_dict,
                                                 test=False,
                                                 batch_size=2,
-                                                data_aug=False)
+                                                data_aug=False,
+                                                patch_size=(128, 128, 96))
 
-        coarse_displacements = (12.8, 6.4, 3.2)
-        fine_displacements = (3.2, 3.2, 3.2)
-        coarse_grid_resolution = (4, 4, 4)
-        fine_grid_resolution = (8, 8, 8)
+        coarse_displacements = (29, 19.84, 9.92)
+        fine_displacements = (7.25, 9.92, 9.92)
+        coarse_grid_resolution = (2, 2, 2)
+        fine_grid_resolution = (3, 3, 3)
 
     print('Length of dataloader = {}'.format(len(data_loader)))
 
+    if args.dataset == 'dirlab':
+        save_dir = 'dirlab_viz'
+
+        if os.path.exists(save_dir) is True:
+            shutil.rmtree(save_dir)
+
+        os.makedirs(save_dir)
+
     for b_id, batch_data_list in enumerate(data_loader):
         print('Processing batch {}'.format(b_id+1))
+
+        if isinstance(batch_data_list, dict):
+            batch_data_list = [batch_data_list]
+
         for sid, batch_data in enumerate(batch_data_list):
             images = batch_data['image']
 
@@ -100,14 +113,6 @@ if __name__ == '__main__':
                                                 align_corners=True,
                                                 mode="bilinear",
                                                 padding_mode="border")
-
-            if args.dataset == 'dirlab':
-                save_dir = 'dirlab_viz'
-
-                if os.path.exists(save_dir) is True:
-                    shutil.rmtree(save_dir)
-
-                os.makedirs(save_dir)
 
             for batch_idx in range(images.shape[0]):
                 # Sanity checks

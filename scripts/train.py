@@ -38,6 +38,7 @@ rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 TRAINING_PATCH_SIZE = (128, 128, 64)
+TRAINING_PATCH_SIZE_DIRLAB = (128, 128, 96)
 
 def train(args):
 
@@ -111,13 +112,15 @@ def train(args):
                                                  batch_size=args.batch_size,
                                                  num_workers=4,
                                                  data_aug=args.data_aug,
-                                                 test=False)
+                                                 test=False,
+                                                 patch_size=TRAINING_PATCH_SIZE_DIRLAB)
 
         val_loader = create_dataloader_dir_lab(data_dicts=val_dicts,
                                                batch_size=args.batch_size,
                                                num_workers=4,
                                                data_aug=args.data_aug,
-                                               test=False)
+                                               test=False,
+                                               patch_size=TRAINING_PATCH_SIZE_DIRLAB)
 
 
     model = LesionMatchingModel(K=args.kpts_per_batch,
@@ -165,10 +168,10 @@ def train(args):
         fine_displacements = (2, 4, 4)
         fine_grid_resolution = (6, 6, 6)
     elif args.dataset == 'dirlab':
-        coarse_displacements = (12.8, 6.4, 3.2)
-        coarse_grid_resolution = (4, 4, 4)
-        fine_displacements = (3.2, 3.2, 3.2)
-        fine_grid_resolution = (8, 8, 8)
+        coarse_displacements = (29, 19.84, 9.92)
+        fine_displacements = (7.25, 9.92, 9.92)
+        coarse_grid_resolution = (2, 2, 2)
+        fine_grid_resolution = (3, 3, 3)
 
     print('Start training')
     for epoch in range(epoch_saved+1, args.epochs):
@@ -178,6 +181,10 @@ def train(args):
         pbar = tqdm(enumerate(train_loader), desc="training", total=nbatches, unit="batches")
 
         for batch_idx, batch_data_list in pbar:
+
+            if isinstance(batch_data_list, dict):
+                batch_data_list = [batch_data_list]
+
             for sample_idx, batch_data in enumerate(batch_data_list):
                 if args.dataset == 'umc':
                     images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
@@ -189,7 +196,7 @@ def train(args):
                                                                                   non_rigid=True,
                                                                                   coarse=True,
                                                                                   fine=False,
-                                                                                  coarse_displacements=(12.8, 6.4, 3.2),
+                                                                                  coarse_displacements=coarse_displacements,
                                                                                   coarse_grid_resolution=(2, 2, 2))
                     if augmentation_deformation_grid is not None:
                         images = F.grid_sample(input=images,
@@ -326,6 +333,8 @@ def train(args):
             nbatches = len(val_loader)
             pbar_val = tqdm(enumerate(val_loader), desc="validation", total=nbatches, unit="batches")
             for batch_val_idx, val_data_list in pbar_val:
+                if isinstance(val_data_list, dict):
+                    val_data_list = [val_data_list]
                 for sample_val_idx, val_data in enumerate(val_data_list):
                     if args.dataset == 'umc':
                         images, mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
@@ -497,7 +506,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
-    parser.add_argument('--window_size', type=int, default=4)
+    parser.add_argument('--window_size', type=int, default=8)
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--num_samples', type=int, default=1)
     parser.add_argument('--patience', type=int, default=20)

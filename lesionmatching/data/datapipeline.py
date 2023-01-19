@@ -105,8 +105,8 @@ def create_data_dicts_dir_lab(patient_dir_list=None):
             data_dict = {}
             data_dict['patient_id'] = im_str
             data_dict['type'] = im_type # Inhale or exhale
-            data_dict['image'] = os.path.join(p_dir, '{}_{}_smaller.mha'.format(im_str, im_type))
-            data_dict['lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_smaller.mha'.format(im_type))
+            data_dict['image'] = os.path.join(p_dir, '{}_{}_iso.mha'.format(im_str, im_type))
+            data_dict['lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_iso.mha'.format(im_type))
             data_dicts.append(data_dict)
 
     return data_dicts
@@ -131,11 +131,13 @@ def create_dataloader_dir_lab(data_dicts=None,
                               test=False,
                               batch_size=4,
                               num_workers=4,
-                              data_aug=False):
+                              data_aug=False,
+                              patch_size=(128, 128, 128)):
 
     ds = DIRLab(data_dicts=data_dicts,
                 test=test,
-                data_aug=data_aug)
+                data_aug=data_aug,
+                patch_size=patch_size)
 
     loader = DataLoader(ds,
                         batch_size=batch_size,

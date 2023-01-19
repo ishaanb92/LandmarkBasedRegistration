@@ -15,7 +15,7 @@ from scipy.ndimage import generate_binary_structure
 from scipy.ndimage import label
 from skimage.transform import resize
 from math import sqrt
-
+import pandas as pd
 
 def get_sub_dirs(base_dir):
     """
@@ -635,3 +635,37 @@ def resetModelWeights(m):
     for layer in m.children():
         if hasattr(layer, 'reset_parameters'):
             layer.reset_parameters()
+
+def convert_voxel_to_mm(voxel_units, spacing):
+
+    if isinstance(voxel_units, list) or isinstance(voxel_units, tuple):
+        assert(len(voxel_units) == 3)
+    elif isinstance(voxel_units, np.ndarray):
+        assert(voxel_units.ndim == 1)
+        assert(voxel_units.shape[0] == 3)
+    else:
+        raise RuntimeError('Voxel units have incorrect type {}'.format(type(voxel_units)))
+
+    if isinstance(spacing, list) or isinstance(spacing, tuple):
+        assert(len(spacing) == 3)
+    elif isinstance(spacing, np.ndarray):
+        assert(spacing.ndim == 1)
+        assert(spacing.shape[0] == 3)
+    else:
+        raise RuntimeError('Voxel units have incorrect type {}'.format(type(spacing)))
+
+    mm_units = [voxel_units[0]*spacing[0],
+                voxel_units[1]*spacing[1],
+                voxel_units[2]*spacing[2]]
+
+    return mm_units
+
+def convert_2d_datastructure_to_pandas(ds, columns=None):
+
+    if isinstance(ds, list):
+        ds = np.array(ds)
+
+    assert(ds.ndim == 2)
+    df = pd.DataFrame(data=ds,
+                      columns=columns)
+    return df

@@ -24,7 +24,8 @@ class DIRLab(Dataset):
     def __init__(self,
                  data_dicts:dict,
                  test:bool=False,
-                 data_aug:bool=False):
+                 data_aug:bool=False,
+                 patch_size=(128, 128, 64)):
         """
         Args:
             data_dicts(list) : List of dictionaries. Each dictionary contains is two keys 'image' and 'lung mask'
@@ -35,49 +36,7 @@ class DIRLab(Dataset):
         self.data_dicts = data_dicts
         self.test = test
         self.data_aug = data_aug
-
-
-    def resample(self, image, mask):
-        """
-        Reference: https://github.com/InsightSoftwareConsortium/SimpleITK-Notebooks/blob/master/Python/popi_utilities_setup.py
-
-        """
-        assert(isinstance(image, sitk.Image))
-        assert(isinstance(mask, sitk.Image))
-
-        # Get default pixel value
-        default_pixel_value = int(np.amin(sitk.GetArrayFromImage(image)).astype(np.float32))
-
-        original_size = image.GetSize()
-        original_spacing = image.GetSpacing()
-        new_size = [int(round(original_size[0]*(original_spacing[0]/self.new_spacing[0]))),
-                    int(round(original_size[1]*(original_spacing[1]/self.new_spacing[1]))),
-                    int(round(original_size[2]*(original_spacing[2]/self.new_spacing[2])))]
-
-        resampled_image = sitk.Resample(image,
-                                        new_size,
-                                        sitk.Transform(),
-                                        sitk.sitkLinear,
-                                        image.GetOrigin(),
-                                        self.new_spacing,
-                                        image.GetDirection(),
-                                        default_pixel_value,
-                                        image.GetPixelID()
-                                        )
-
-        resampled_mask = sitk.Resample(mask,
-                                       new_size,
-                                       sitk.Transform(),
-                                       sitk.sitkNearestNeighbor,
-                                       mask.GetOrigin(),
-                                       self.new_spacing,
-                                       mask.GetDirection(),
-                                       0,
-                                       mask.GetPixelID()
-                                    )
-
-        return resampled_image, resampled_mask
-
+        self.patch_size = patch_size
 
     def __len__(self):
         return len(self.data_dicts)
@@ -130,6 +89,21 @@ class DIRLab(Dataset):
         # Step 5. Min-max normalization (over full image)
         image_t = ScaleIntensity(minv=0.0,
                                  maxv=1.0)(image_t)
+
+        # Step 6. Sample patch from image
+        if self.test is False:
+            image_and_mask_cat_t = torch.cat([image_t, mask_t], dim=0)
+            image_and_mask_patch_list = RandCropByPosNegLabel(spatial_size=self.patch_size,
+                                                              label=mask_t,
+                                                              pos=1.0,
+                                                              neg=0.0,
+                                                              num_samples=1).__call__(img=image_and_mask_cat_t)
+
+            image_t = torch.unsqueeze(image_and_mask_patch_list[0][0, ...],
+                                      dim=0)
+
+            mask_t = torch.unsqueeze(image_and_mask_patch_list[0][1, ...],
+                                     dim=0)
 
         batch_dict['image'] = image_t
         batch_dict['lung_mask'] = mask_t.float()
