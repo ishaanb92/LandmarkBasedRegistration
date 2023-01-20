@@ -192,25 +192,25 @@ def train(args):
                     images, mask = (batch_data['image'], batch_data['lung_mask'])
 
                     # Additional non-rigid deformatio -- See Eppenhof and Pluim (2019), TMI
-                    augmentation_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                                  non_rigid=True,
-                                                                                  coarse=True,
-                                                                                  fine=False,
-                                                                                  coarse_displacements=coarse_displacements,
-                                                                                  coarse_grid_resolution=(2, 2, 2))
-                    if augmentation_deformation_grid is not None:
-                        images = F.grid_sample(input=images,
-                                               grid=augmentation_deformation_grid,
-                                               align_corners=True,
-                                               mode="bilinear",
-                                               padding_mode="border")
-
-                        mask = F.grid_sample(input=images,
-                                             grid=augmentation_deformation_grid,
-                                             align_corners=True,
-                                             mode="nearest",
-                                             padding_mode="border")
-
+#                    augmentation_deformation_grid = create_batch_deformation_grid(shape=images.shape,
+#                                                                                  non_rigid=True,
+#                                                                                  coarse=True,
+#                                                                                  fine=False,
+#                                                                                  coarse_displacements=coarse_displacements,
+#                                                                                  coarse_grid_resolution=(2, 2, 2))
+#                    if augmentation_deformation_grid is not None:
+#                        images = F.grid_sample(input=images,
+#                                               grid=augmentation_deformation_grid,
+#                                               align_corners=True,
+#                                               mode="bilinear",
+#                                               padding_mode="border")
+#
+#                        mask = F.grid_sample(input=images,
+#                                             grid=augmentation_deformation_grid,
+#                                             align_corners=True,
+#                                             mode="nearest",
+#                                             padding_mode="border")
+#
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        non_rigid=True,

@@ -97,7 +97,10 @@ class DIRLab(Dataset):
                                                               label=mask_t,
                                                               pos=1.0,
                                                               neg=0.0,
-                                                              num_samples=1).__call__(img=image_and_mask_cat_t)
+                                                              num_samples=10).__call__(img=image_and_mask_cat_t)
+
+            # Shuffle list to ensure different patches are selected!
+            random.shuffle(image_and_mask_patch_list)
 
             image_t = torch.unsqueeze(image_and_mask_patch_list[0][0, ...],
                                       dim=0)
