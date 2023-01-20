@@ -20,7 +20,7 @@ def create_lung_mask(image_dir, imagename):
                               imagename)
 
     suffix = imagename.split('_')[-1].split('.')[0]
-
+    print(imagefname)
     img_itk = sitk.ReadImage(imagefname)
 
     img_np = sitk.GetArrayFromImage(img_itk)
@@ -49,7 +49,7 @@ def create_lung_mask(image_dir, imagename):
 
 
     # Set the bottom of the mask (patient exterior) to 0
-    lung_mask[:, 240:, :] = 0
+    #lung_mask[:, 240:, :] = 0
 
 
     # Close the holes
@@ -71,9 +71,11 @@ if __name__ == '__main__':
 
     case_dirs = [f.path for f in os.scandir(DATA_DIR) if f.is_dir()]
 
+    im_types = ['T00', 'T50']
     for cdir in case_dirs:
-        img_files = [f.name for f in os.scandir(cdir) if 'case' in f.name]
-        for img_file in img_files:
+        cid = cdir.split(os.sep)[-1]
+        for itype in im_types:
+            img_file = '{}_{}.mha'.format(cid, itype)
             print('Creating mask for {}'.format(img_file))
             create_lung_mask(image_dir=cdir,
                              imagename=img_file)

@@ -43,18 +43,24 @@ if __name__ == '__main__':
         reg_out_dir = os.path.join(args.out_dir, image_prefix)
         os.makedirs(reg_out_dir)
 
-        fixed_image_path = os.path.join(pdir, '{}_T00_smaller.mha'.format(image_prefix))
-        moving_image_path = os.path.join(pdir, '{}_T50_smaller.mha'.format(image_prefix))
+        fixed_image_path = os.path.join(pdir, '{}_T00_iso.mha'.format(image_prefix))
+        moving_image_path = os.path.join(pdir, '{}_T50_iso.mha'.format(image_prefix))
+
+        # Use masks
+        fixed_mask_path = os.path.join(pdir, 'lung_mask_T00_dl_iso.mha')
+        moving_mask_path = os.path.join(pdir, 'lung_mask_T50_dl_iso.mha')
 
         # Copy files to the output directory for convinient copying+viz
-
         shutil.copyfile(fixed_image_path, os.path.join(reg_out_dir, 'fixed_image.mha'))
         shutil.copyfile(moving_image_path, os.path.join(reg_out_dir, 'moving_image.mha'))
 
+        shutil.copyfile(fixed_mask_path, os.path.join(reg_out_dir, 'fixed_mask.mha'))
+        shutil.copyfile(moving_mask_path, os.path.join(reg_out_dir, 'moving_mask.mha'))
+
         el.register(fixed_image=fixed_image_path,
                     moving_image=moving_image_path,
-                    fixed_mask=None,
-                    moving_mask=None,
+                    fixed_mask=fixed_mask_path,
+                    moving_mask=moving_mask_path,
                     parameters=args.params,
                     initial_transform=None,
                     output_dir=reg_out_dir)

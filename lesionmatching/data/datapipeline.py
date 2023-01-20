@@ -106,7 +106,7 @@ def create_data_dicts_dir_lab(patient_dir_list=None):
             data_dict['patient_id'] = im_str
             data_dict['type'] = im_type # Inhale or exhale
             data_dict['image'] = os.path.join(p_dir, '{}_{}_iso.mha'.format(im_str, im_type))
-            data_dict['lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_iso.mha'.format(im_type))
+            data_dict['lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_dl_iso.mha'.format(im_type))
             data_dicts.append(data_dict)
 
     return data_dicts
