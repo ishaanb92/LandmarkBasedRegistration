@@ -111,14 +111,12 @@ def train(args):
         train_loader = create_dataloader_dir_lab(data_dicts=train_dicts,
                                                  batch_size=args.batch_size,
                                                  num_workers=4,
-                                                 data_aug=args.data_aug,
                                                  test=False,
                                                  patch_size=TRAINING_PATCH_SIZE_DIRLAB)
 
         val_loader = create_dataloader_dir_lab(data_dicts=val_dicts,
                                                batch_size=args.batch_size,
                                                num_workers=4,
-                                               data_aug=args.data_aug,
                                                test=False,
                                                patch_size=TRAINING_PATCH_SIZE_DIRLAB)
 
@@ -192,25 +190,26 @@ def train(args):
                     images, mask = (batch_data['image'], batch_data['lung_mask'])
 
                     # Additional non-rigid deformatio -- See Eppenhof and Pluim (2019), TMI
-#                    augmentation_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-#                                                                                  non_rigid=True,
-#                                                                                  coarse=True,
-#                                                                                  fine=False,
-#                                                                                  coarse_displacements=coarse_displacements,
-#                                                                                  coarse_grid_resolution=(2, 2, 2))
-#                    if augmentation_deformation_grid is not None:
-#                        images = F.grid_sample(input=images,
-#                                               grid=augmentation_deformation_grid,
-#                                               align_corners=True,
-#                                               mode="bilinear",
-#                                               padding_mode="border")
-#
-#                        mask = F.grid_sample(input=images,
-#                                             grid=augmentation_deformation_grid,
-#                                             align_corners=True,
-#                                             mode="nearest",
-#                                             padding_mode="border")
-#
+                    if args.data_aug is True:
+                        augmentation_deformation_grid = create_batch_deformation_grid(shape=images.shape,
+                                                                                      non_rigid=True,
+                                                                                      coarse=True,
+                                                                                      fine=False,
+                                                                                      coarse_displacements=coarse_displacements,
+                                                                                      coarse_grid_resolution=(2, 2, 2))
+                        if augmentation_deformation_grid is not None:
+                            images = F.grid_sample(input=images,
+                                                   grid=augmentation_deformation_grid,
+                                                   align_corners=True,
+                                                   mode="bilinear",
+                                                   padding_mode="border")
+
+                            mask = F.grid_sample(input=images,
+                                                 grid=augmentation_deformation_grid,
+                                                 align_corners=True,
+                                                 mode="nearest",
+                                                 padding_mode="border")
+
 
                 batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
                                                                        non_rigid=True,
@@ -393,10 +392,14 @@ def train(args):
                     images_cat = torch.cat([images, images_hat],
                                            dim=1)
 
-                    kpts_logits_1, kpts_logits_2 = model.get_patch_keypoint_scores(images_cat.to(device))
+                    unet_outputs = model.get_unet_outputs(images_cat.to(device))
 
-                    features_1_low, features_1_high, features_2_low, features_2_high =\
-                                                            model.get_patch_feature_descriptors(images_cat.to(device))
+                    kpts_logits_1 = unet_outputs['kpts_logits_1']
+                    kpts_logits_2 = unet_outputs['kpts_logits_2']
+                    features_1_low = unet_outputs['features_1_low']
+                    features_1_high = unet_outputs['features_1_high']
+                    features_2_low = unet_outputs['features_2_low']
+                    features_2_high = unet_outputs['features_2_high']
 
                     features_1 = (features_1_low.to(device), features_1_high.to(device))
                     features_2 = (features_2_low.to(device), features_1_high.to(device))
