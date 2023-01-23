@@ -14,7 +14,6 @@ import torch
 import torch.nn as nn
 from argparse import ArgumentParser
 import shutil
-from utils.utils import *
 import os, sys
 from lesionmatching.analysis.visualize import *
 from lesionmatching.arch.model import LesionMatchingModel
@@ -22,12 +21,13 @@ from lesionmatching.data.deformations import *
 from lesionmatching.data.datapipeline import *
 from lesionmatching.arch.loss import create_ground_truth_correspondences
 from lesionmatching.analysis.metrics import get_match_statistics
+from lesionmatching.util_scripts.utils import *
+from lesionmatching.util_scripts.image_utils import save_ras_as_itk
 import shutil
 import numpy as np
 import random
-
-ROI_SIZE = (128, 128, 64)
-
+from math import ceil
+from math import floor
 
 def test(args):
 
@@ -100,6 +100,21 @@ def test(args):
 
     model.eval()
 
+    if args.dataset == 'umc':
+        coarse_displacements = (4, 8, 8)
+        coarse_grid_resolution = (3, 3, 3)
+        fine_displacements = (2, 4, 4)
+        fine_grid_resolution = (6, 6, 6)
+        roi_size = (128, 128, 64)
+        neighbourhood = 3
+    elif args.dataset == 'dirlab':
+        coarse_displacements = (29, 19.84, 9.92)
+        fine_displacements = (7.25, 9.92, 9.92)
+        coarse_grid_resolution = (2, 2, 2)
+        fine_grid_resolution = (3, 3, 3)
+        roi_size = (128, 128, 96)
+        neighbourhood = 10
+
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(data_loader):
             if args.synthetic is True:
@@ -108,65 +123,32 @@ def test(args):
                     images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
                 elif args.dataset == 'dirlab':
                     images, mask = (batch_data['image'], batch_data['lung_mask'])
-                    metadata_list = detensorize_metadata(metadata=batch_data['new_metadata'],
+                    metadata_list = detensorize_metadata(metadata=batch_data['metadata'],
                                                          batchsz=images.shape[0])
 
-                # Pad image in the k-direction to make the shape [256, 256, 256]
-                # Makes it easier to scale deformation grid size to ensure the same
-                # control point spacing for patches and full images
-                b, c, i, j, k = images.shape
-                if args.dataset == 'umc':
-                    pad = 256 - k
-                    images = F.pad(images, (0, pad), "constant", 0)
-                    mask = F.pad(mask, (0, pad), "constant", 0)
-                elif args.dataset == 'dirlab':
-                    if i < 256 and j < 256:
-                        excess_pixels = 256 - i # (i == j)
-                    else: # axis shape > 256
-                        excess_pixels = 512 - i
-
-                    left_pad_inplane = excess_pixels//2
-                    right_pad_inplane = excess_pixels - left_pad_inplane
-
-                    if k < 256:
-                        ap_pad = 256 - k # One-sided padding in z-direction
-                    else:
-                        ap_pad = 512 - k
-
-                    images = F.pad(images,
-                                   pad=(0, ap_pad,
-                                       left_pad_inplane, right_pad_inplane,
-                                       left_pad_inplane, right_pad_inplane),
-                                   mode='constant')
-
-                    mask = F.pad(mask,
-                                 pad=(0, ap_pad,
-                                      left_pad_inplane, right_pad_inplane,
-                                      left_pad_inplane, right_pad_inplane),
-                                mode='constant')
-
-
-
                 b, c, i, j, k = images.shape
 
-                print('Image shape after padding = {}'.format(images.shape))
-                print('Mask shape after padding = {}'.format(mask.shape))
+                # NOTE: This multiplier is used to ensure equivalent deformations for patches and full images.
+                # This is done by fixing min and max displacements and ensuring the spacing between control points is the
+                # same regardless of the dimensions of the patch. When working with full images, therefore, the control point grid
+                # is made "denser" to account for the increase in image size
+                deform_grid_multiplier = [floor(i/roi_size[0]+0.5),
+                                          floor(j/roi_size[1]+0.5),
+                                          floor(k/roi_size[2]+0.5)]
 
-                deform_grid_multiplier = [i//ROI_SIZE[0], j//ROI_SIZE[1], k//ROI_SIZE[2]]
-
-
-                batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                       non_rigid=True,
-                                                                       coarse=True,
-                                                                       fine=True,
-                                                                       coarse_displacements=(4, 8, 8),
-                                                                       fine_displacements=(2, 4, 4),
-                                                                       coarse_grid_resolution=(3*deform_grid_multiplier[2],
-                                                                                               3*deform_grid_multiplier[1],
-                                                                                               3*deform_grid_multiplier[0]),
-                                                                       fine_grid_resolution=(6*deform_grid_multiplier[2],
-                                                                                             6*deform_grid_multiplier[1],
-                                                                                             6*deform_grid_multiplier[0]))
+                batch_deformation_grid = \
+                    create_batch_deformation_grid(shape=images.shape,
+                                                  non_rigid=True,
+                                                  coarse=True,
+                                                  fine=True,
+                                                  coarse_displacements=coarse_displacements,
+                                                  fine_displacements=fine_displacements,
+                                                  coarse_grid_resolution=(coarse_grid_resolution[2]*deform_grid_multiplier[2],
+                                                                          coarse_grid_resolution[1]*deform_grid_multiplier[1],
+                                                                          coarse_grid_resolution[0]*deform_grid_multiplier[0]),
+                                                 fine_grid_resolution=(fine_grid_resolution[2]*deform_grid_multiplier[2],
+                                                                       fine_grid_resolution[1]*deform_grid_multiplier[1],
+                                                                       fine_grid_resolution[0]*deform_grid_multiplier[0]))
 
                 if batch_deformation_grid is None:
                     continue
@@ -189,6 +171,46 @@ def test(args):
                                          align_corners=True,
                                          mode="nearest")
 
+                # Pad images and masks to make dims divisible by 8
+                # See: https://docs.monai.io/en/stable/inferers.html#monai.inferers.sliding_window_inference
+                if args.dataset == 'umc':
+                    excess_pixels_xy = 0
+                    excess_pixels_z = 8 - (k%8)
+                elif args.dataset == 'dirlab':
+                    if i%8 != 0 and j%8 !=0:
+                        excess_pixels_xy = 8 - (i%8)
+                    else:
+                        excess_pixels_xy = 0
+
+                    if k%8 != 0:
+                        excess_pixels_z = 8 - (k%8)
+                    else:
+                        excess_pixels_z = 0
+
+                images = F.pad(images,
+                               pad=(0, excess_pixels_z,
+                                    0, excess_pixels_xy,
+                                    0, excess_pixels_xy),
+                               mode='constant')
+
+                images_hat = F.pad(images_hat,
+                               pad=(0, excess_pixels_z,
+                                    0, excess_pixels_xy,
+                                    0, excess_pixels_xy),
+                               mode='constant')
+
+                mask = F.pad(mask,
+                             pad=(0, excess_pixels_z,
+                                  0, excess_pixels_xy,
+                                  0, excess_pixels_xy),
+                            mode='constant')
+
+                mask_hat = F.pad(mask_hat,
+                             pad=(0, excess_pixels_z,
+                                  0, excess_pixels_xy,
+                                  0, excess_pixels_xy),
+                            mode='constant')
+
 
                 # Concatenate along channel axis so that sliding_window_inference can
                 # be used
@@ -196,29 +218,31 @@ def test(args):
                 images_cat = torch.cat([images, images_hat], dim=1)
 
 
-                # Keypoint logits
-                kpts_logits_1, kpts_logits_2 = sliding_window_inference(inputs=images_cat.to(device),
-                                                                        roi_size=ROI_SIZE,
-                                                                        sw_device=device,
-                                                                        device='cpu',
-                                                                        sw_batch_size=4,
-                                                                        predictor=model.get_patch_keypoint_scores,
-                                                                        overlap=0.5,
-                                                                        progress=True)
+                print('Image shape after padding = {}'.format(images.shape))
+                print('Mask shape after padding = {}'.format(mask.shape))
 
-                # Feature maps
-                features_1_low, features_1_high, features_2_low, features_2_high =\
-                                                        sliding_window_inference(inputs=images_cat.to(device),
-                                                                                 roi_size=ROI_SIZE,
-                                                                                 sw_batch_size=4,
-                                                                                 sw_device=device,
-                                                                                 device='cpu',
-                                                                                 predictor=model.get_patch_feature_descriptors,
-                                                                                 overlap=0.5,
-                                                                                 progress=True)
+                # U-Net outputs via patch-based inference
+                unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
+                                                        roi_size=roi_size,
+                                                        sw_device=device,
+                                                        device='cpu',
+                                                        sw_batch_size=2,
+                                                        predictor=model.get_unet_outputs,
+                                                        overlap=0.25,
+                                                        progress=True)
+
+                kpts_logits_1 = unet_outputs['kpts_logits_1']
+                kpts_logits_2 = unet_outputs['kpts_logits_2']
+                features_1_low = unet_outputs['features_1_low']
+                features_1_high = unet_outputs['features_1_high']
+                features_2_low = unet_outputs['features_2_low']
+                features_2_high = unet_outputs['features_2_high']
+
+
 
                 features_1 = (features_1_low.to(device), features_1_high.to(device))
                 features_2 = (features_2_low.to(device), features_1_high.to(device))
+
 
                 # Get (predicted) landmarks and matches on the full image
                 # These landmarks are predicted based on L2-norm between feature descriptors
@@ -243,6 +267,13 @@ def test(args):
                 print('Number of ground truth matches (based on projecting keypoints) = {}'.format(num_gt_matches))
                 print('Number of matches based on feature descriptor distance '
                       '& matching probability = {}'.format(torch.nonzero(outputs['matches']).shape[0]))
+
+                # Get rid of image and mask padding
+                if args.dataset == 'dirlab':
+                    images = images[:, :, :i, :j, :k]
+                    images_hat = images_hat[:, :, :i, :j, :k]
+                    mask = mask[:, :, :i, :j, :k]
+                    mask_hat = mask_hat[:, :, :i, :j, :k]
 
                 # Get TP, FP, FN matches
                 for batch_id in range(gt_matches.shape[0]):
@@ -271,8 +302,13 @@ def test(args):
                                                                                                      stats['False Negatives']))
 
                     patient_id = batch_data['patient_id'][batch_id]
-                    scan_id = batch_data['scan_id'][batch_id]
-                    dump_dir = os.path.join(save_dir, patient_id, scan_id)
+                    if args.dataset == 'umc':
+                        i_type = batch_data['scan_id'][batch_id]
+                    elif args.dataset == 'dirlab':
+                        i_type = batch_data['type'][batch_id]
+
+                    dump_dir = os.path.join(save_dir, patient_id, i_type)
+
                     os.makedirs(dump_dir)
 
                     # Save the matrices/tensors for later analysis
@@ -298,32 +334,32 @@ def test(args):
                             arr=maybe_convert_tensor_to_numpy(projected_landmarks[batch_id, ...]))
 
                     # Visualize keypoint matches
-                    visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
+                    visualize_keypoints_3d(im1=images[batch_id, ...].squeeze(dim=0),
                                            im2=images_hat[batch_id, ...].squeeze(dim=0),
                                            landmarks1=outputs['landmarks_1'][batch_id, ...],
                                            landmarks2=outputs['landmarks_2'][batch_id, ...],
                                            pred_matches=outputs['matches'][batch_id, ...],
                                            gt_matches=batch_gt_matches,
                                            out_dir=os.path.join(dump_dir, 'matches'),
-                                           neighbourhood=3)
+                                           neighbourhood=neighbourhood)
 
-                    visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
+                    visualize_keypoints_3d(im1=images[batch_id, ...].squeeze(dim=0),
                                            im2=images_hat[batch_id, ...].squeeze(dim=0),
                                            landmarks1=outputs['landmarks_1'][batch_id, ...],
                                            landmarks2=outputs['landmarks_2'][batch_id, ...],
                                            pred_matches=outputs['matches_norm'][batch_id, ...],
                                            gt_matches=batch_gt_matches,
                                            out_dir=os.path.join(dump_dir, 'matches_l2_norm'),
-                                           neighbourhood=3)
+                                           neighbourhood=neighbourhood)
 
-                    visualize_keypoints_3d(im1=batch_data['image'][batch_id, ...].squeeze(dim=0),
+                    visualize_keypoints_3d(im1=images[batch_id, ...].squeeze(dim=0),
                                            im2=images_hat[batch_id, ...].squeeze(dim=0),
                                            landmarks1=outputs['landmarks_1'][batch_id, ...],
                                            landmarks2=outputs['landmarks_2'][batch_id, ...],
                                            pred_matches=outputs['matches_prob'][batch_id, ...],
                                            gt_matches=batch_gt_matches,
                                            out_dir=os.path.join(dump_dir, 'matches_prob'),
-                                           neighbourhood=3)
+                                           neighbourhood=neighbourhood)
 
                     # Save images/KP heatmaps
                     if args.dataset == 'umc':
@@ -348,28 +384,28 @@ def test(args):
                                             metadata_dict=batch_data['image_meta_dict'],
                                             filename=os.path.join(dump_dir, 'd_image.nii.gz'))
                     elif args.dataset == 'dirlab':
-                        save_ras_as_itk(img=images[batch_idx, ...],
-                                        metadata=metadata_list[batch_idx],
-                                        fname=os.path.join(dump, 'image.mha'.format(b_id, batch_idx)))
+                        save_ras_as_itk(img=images[batch_id, ...],
+                                        metadata=metadata_list[batch_id],
+                                        fname=os.path.join(dump_dir, 'image.mha'))
 
-                        save_ras_as_itk(img=images_hat[batch_idx, ...],
-                                        metadata=metadata_list[batch_idx],
-                                        fname=os.path.join(dump, 'd_image.mha'.format(b_id, batch_idx)))
+                        save_ras_as_itk(img=images_hat[batch_id, ...],
+                                        metadata=metadata_list[batch_id],
+                                        fname=os.path.join(dump_dir, 'd_image.mha'))
 
-                        save_ras_as_itk(img=mask[batch_idx, ...],
-                                        metadata=metadata_list[batch_idx],
-                                        fname=os.path.join(dump, 'mask.mha'.format(b_id, batch_idx)))
+                        save_ras_as_itk(img=mask[batch_id, ...],
+                                        metadata=metadata_list[batch_id],
+                                        fname=os.path.join(dump_dir, 'mask.mha'))
 
-                        save_ras_as_itk(img=mask_hat[batch_idx, ...],
-                                        metadata=metadata_list[batch_idx],
-                                        fname=os.path.join(dump, 'd_mask.mha'.format(b_id, batch_idx)))
+                        save_ras_as_itk(img=mask_hat[batch_id, ...],
+                                        metadata=metadata_list[batch_id],
+                                        fname=os.path.join(dump_dir, 'd_mask.mha'))
 
-                        save_ras_as_itk(image_array=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),
-                                        metadata=metadata_list[batch_idx],
+                        save_ras_as_itk(img=torch.sigmoid(kpts_logits_1[batch_id, ...].squeeze(dim=0)),
+                                        metadata=metadata_list[batch_id],
                                         fname=os.path.join(dump_dir, 'kpts_prob.mha'))
 
-                        save_ras_as_itk(image_array=torch.sigmoid(kpts_logits_2[batch_id, ...].squeeze(dim=0)),
-                                        metadata=metadata_list[batch_idx],
+                        save_ras_as_itk(img=torch.sigmoid(kpts_logits_2[batch_id, ...].squeeze(dim=0)),
+                                        metadata=metadata_list[batch_id],
                                         fname=os.path.join(dump_dir, 'kpts_prob_deformed.mha'))
 
 
@@ -385,13 +421,13 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
     parser.add_argument('--gpu_id', type=int, default=2)
-    parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--synthetic', action='store_true')
     parser.add_argument('--dummy', action='store_true')
-    parser.add_argument('--window_size', type=int, default=4)
+    parser.add_argument('--window_size', type=int, default=8)
 
     args = parser.parse_args()
 

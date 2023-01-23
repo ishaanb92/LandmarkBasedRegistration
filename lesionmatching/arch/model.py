@@ -84,29 +84,48 @@ class LesionMatchingModel(nn.Module):
     # We need to run the model twice because sliding_window_inference
     # expects all outputs to be of the same size
     # THESE FUNCTIONS ARE USED ONLY DURING INFERENCE!!!!
-    def get_patch_keypoint_scores(self, x):
+    def get_unet_outputs(self, x):
 
         x1 = x[:, 0, ...].unsqueeze(dim=1)
         x2 = x[:, 1, ...].unsqueeze(dim=1)
 
         # 1. Landmark (candidate) detections (logits)
-        kpts_1, _ = self.cnn(x1)
-        kpts_2, _ = self.cnn(x2)
+        kpts_logits_1, features_1 = self.cnn(x1)
+        kpts_logits_2, features_2 = self.cnn(x2)
 
-        return kpts_1, kpts_2
+        outputs = {}
+        outputs['kpts_logits_1'] = kpts_logits_1
+        outputs['kpts_logits_2'] = kpts_logits_2
+        outputs['features_1_low'] = features_1[0]
+        outputs['features_1_high'] = features_1[1]
+        outputs['features_2_low'] = features_2[0]
+        outputs['features_2_high'] = features_2[1]
 
-    def get_patch_feature_descriptors(self, x):
+        return outputs
 
-        x1 = x[:, 0, ...].unsqueeze(dim=1)
-        x2 = x[:, 1, ...].unsqueeze(dim=1)
-
-        # 1. Landmark (candidate) detections
-        _, features_1 = self.cnn(x1)
-        _, features_2 = self.cnn(x2)
-
-        # "features" is a tuple of feature maps from different U-Net resolutions
-        # We return separate tensors so 'sliding_window_inference' works
-        return features_1[0], features_1[1], features_2[0], features_2[1]
+#    def get_patch_keypoint_scores(self, x):
+#
+#        x1 = x[:, 0, ...].unsqueeze(dim=1)
+#        x2 = x[:, 1, ...].unsqueeze(dim=1)
+#
+#        # 1. Landmark (candidate) detections (logits)
+#        kpts_1, _ = self.cnn(x1)
+#        kpts_2, _ = self.cnn(x2)
+#
+#        return kpts_1, kpts_2
+#
+#    def get_patch_feature_descriptors(self, x):
+#
+#        x1 = x[:, 0, ...].unsqueeze(dim=1)
+#        x2 = x[:, 1, ...].unsqueeze(dim=1)
+#
+#        # 1. Landmark (candidate) detections
+#        _, features_1 = self.cnn(x1)
+#        _, features_2 = self.cnn(x2)
+#
+#        # "features" is a tuple of feature maps from different U-Net resolutions
+#        # We return separate tensors so 'sliding_window_inference' works
+#        return features_1[0], features_1[1], features_2[0], features_2[1]
 
 
     def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None, test=True):
