@@ -113,7 +113,8 @@ def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_ma
     pred_matches = maybe_convert_tensor_to_numpy(pred_matches)
 
     # Shape: (K, K)
-    gt_matches = maybe_convert_tensor_to_numpy(gt_matches)
+    if gt_matches is not None:
+        gt_matches = maybe_convert_tensor_to_numpy(gt_matches)
 
     # Rescale images to 0, 1 range for display
     im1 = min_max_scaling(im1)
@@ -159,8 +160,11 @@ def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_ma
         slice_pred_matches = np.zeros((n_landmarks1, n_landmarks2),
                                        dtype=np.uint8)
 
-        slice_gt_matches = np.zeros((n_landmarks1, n_landmarks2),
-                                     dtype=np.uint8)
+        if gt_matches is not None:
+            slice_gt_matches = np.zeros((n_landmarks1, n_landmarks2),
+                                         dtype=np.uint8)
+        else:
+            slice_gt_matches = None
 
 
         # Create per-slice "match" matrices for prediction and GT
@@ -169,11 +173,16 @@ def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_ma
                 if pred_matches[slice_landmarks1_rows[i], patch_landmarks2_rows[j]] == 1:
                     slice_pred_matches[i, j] = 1
 
-                if gt_matches[slice_landmarks1_rows[i], patch_landmarks2_rows[j]] == 1:
-                    slice_gt_matches[i, j] = 1
+                if gt_matches is not None:
+                    if gt_matches[slice_landmarks1_rows[i], patch_landmarks2_rows[j]] == 1:
+                        slice_gt_matches[i, j] = 1
 
         n_matches = np.where(slice_pred_matches==1)[0].shape[0]
-        n_gt_matches = np.where(slice_gt_matches==1)[0].shape[0]
+
+        if gt_matches is not None:
+            n_gt_matches = np.where(slice_gt_matches==1)[0].shape[0]
+        else:
+            n_gt_matches = -1
 
         if verbose is True:
             print('For slice {}, keypoints found in original = {}, deformed image = {},\
@@ -253,14 +262,18 @@ def visualize_keypoints_2d_neighbourhood(im1,
             cv2.circle(im, (jj2+j, ((middle_block+slice_diff)*i + ii2)), 2, color, -1)
 
             if pred_mask[k1, k2] == 1:
-                if gt_mask[k1, k2] == 1: # True positive
+                if gt_mask is not None:
+                    if gt_mask[k1, k2] == 1: # True positive
+                        cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 0), 1) # Green
+                    else: # False positive
+                        cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 1), 1) # Yellow
+                else: # No GT mask (i.e. paired data, true deformation is unknown)
                     cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 0), 1) # Green
-                else: # False positive
-                    cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 1), 1) # Yellow
 
-            if gt_mask[k1, k2] == 1:
-                if pred_mask[k1, k2] == 0: # False negative
-                    cv2.line(im, (jj1, middle_block*i + ii1), ((jj2+j, (middle_block+slice_diff)*i + ii2)), (0, 0, 1), 1) # Red
+            if gt_mask is not None:
+                if gt_mask[k1, k2] == 1:
+                    if pred_mask[k1, k2] == 0: # False negative
+                        cv2.line(im, (jj1, middle_block*i + ii1), ((jj2+j, (middle_block+slice_diff)*i + ii2)), (0, 0, 1), 1) # Red
 
     cv2.imwrite(os.path.join(out_dir, '{}.jpg'.format(basename)),
                 (im*255).astype(np.uint8))

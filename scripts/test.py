@@ -110,18 +110,18 @@ def test(args):
             coarse_grid_resolution = (3, 3, 3)
             fine_displacements = (2, 4, 4)
             fine_grid_resolution = (6, 6, 6)
-            neighbourhood = 3
         elif args.dataset == 'dirlab':
             coarse_displacements = (29, 19.84, 9.92)
             fine_displacements = (7.25, 9.92, 9.92)
             coarse_grid_resolution = (2, 2, 2)
             fine_grid_resolution = (3, 3, 3)
-            neighbourhood = 10
 
     if args.dataset == 'umc':
         roi_size = (128, 128, 64)
+        neighbourhood = 3
     elif args.dataset == 'dirlab':
         roi_size = (128, 128, 96)
+        neighbourhood = 10
 
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(data_loader):
@@ -524,7 +524,14 @@ def test(args):
                     np.save(file=os.path.join(dump_dir, 'landmarks_moving'),
                             arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
 
-                    # TODO : Visualize matches
+                    visualize_keypoints_3d(im1=images[batch_id, ...].squeeze(dim=0),
+                                           im2=images_hat[batch_id, ...].squeeze(dim=0),
+                                           landmarks1=outputs['landmarks_1'][batch_id, ...],
+                                           landmarks2=outputs['landmarks_2'][batch_id, ...],
+                                           pred_matches=outputs['matches'][batch_id, ...],
+                                           gt_matches=None,
+                                           out_dir=os.path.join(dump_dir, 'matches'),
+                                           neighbourhood=neighbourhood)
 
 if __name__ == '__main__':
 
