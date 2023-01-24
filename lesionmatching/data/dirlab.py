@@ -24,7 +24,6 @@ class DIRLab(Dataset):
     def __init__(self,
                  data_dicts:dict,
                  test:bool=False,
-                 data_aug:bool=False,
                  patch_size=(128, 128, 64)):
         """
         Args:
@@ -35,7 +34,6 @@ class DIRLab(Dataset):
         super().__init__()
         self.data_dicts = data_dicts
         self.test = test
-        self.data_aug = data_aug
         self.patch_size = patch_size
 
     def __len__(self):
@@ -77,7 +75,6 @@ class DIRLab(Dataset):
         batch_dict['metadata']['direction'] = mask_itk.GetDirection()
         batch_dict['metadata']['origin'] = mask_itk.GetOrigin()
 
-
         # Step 3. Convert ITK image to numpy array (in RAS axis ordering)
         image_np = self.convert_itk_to_ras_numpy(image_itk)
         mask_np = self.convert_itk_to_ras_numpy(mask_itk)
@@ -110,5 +107,89 @@ class DIRLab(Dataset):
 
         batch_dict['image'] = image_t
         batch_dict['lung_mask'] = mask_t.float()
+
+        return batch_dict
+
+
+
+class DIRLabPaired(Dataset):
+
+    def __init__(self,
+                 data_dicts:dict):
+
+        super().__init__()
+        self.data_dicts = data_dicts
+
+    def __len__(self):
+        return len(self.data_dicts)
+
+    @staticmethod
+    def convert_itk_to_ras_numpy(image):
+
+        assert(isinstance(image, sitk.Image))
+
+        im_np = sitk.GetArrayFromImage(image)
+
+        # Convert to RAS axis ordering : [z, y, x] -> [x, y, z]
+        im_np = np.transpose(im_np, (2, 1, 0))
+
+        # Add 'fake' channel axis
+        im_np = np.expand_dims(im_np, axis=0)
+
+        return im_np
+
+    def preprocess_image_and_mask(self,
+                                  data_dict:dict,
+                                  image_type:str='fixed'):
+
+
+        impath = data_dict['{}_image'.format(image_type)]
+        maskpath = data_dict['{}_lung_mask'.format(image_type)]
+
+        batch_dict = {}
+
+        # Step 1. Load the images (ITK)
+        image_itk = sitk.ReadImage(impath)
+        mask_itk  = sitk.ReadImage(maskpath)
+
+        # Step 2. Store the original metadata
+        batch_dict['{}_metadata'.format(image_type)] = {}
+        batch_dict['{}_metadata'.format(image_type)]['spacing'] = mask_itk.GetSpacing()
+        batch_dict['{}_metadata'.format(image_type)]['direction'] = mask_itk.GetDirection()
+        batch_dict['{}_metadata'.format(image_type)]['origin'] = mask_itk.GetOrigin()
+
+        # Step 3. Convert ITK image to numpy array (in RAS axis ordering)
+        image_np = self.convert_itk_to_ras_numpy(image_itk)
+        mask_np = self.convert_itk_to_ras_numpy(mask_itk)
+
+        # Step 4. Convert numpy ndarrays to torch Tensors
+        image_t = torch.from_numpy(image_np)
+        mask_t = torch.from_numpy(mask_np)
+
+        # Step 5. Min-max normalization (over full image)
+        image_t = ScaleIntensity(minv=0.0,
+                                 maxv=1.0)(image_t)
+
+        batch_dict['{}_image'.format(image_type)] = image_t
+        batch_dict['{}_lung_mask'.format(image_type)] = mask_t.float()
+
+        return batch_dict
+
+
+
+
+    def __getitem__(self, idx):
+
+        data_dict = self.data_dicts[idx]
+
+        fixed_image_dict = self.preprocess_image_and_mask(data_dict=data_dict,
+                                                          image_type='fixed')
+
+        moving_image_dict = self.preprocess_image_and_mask(data_dict=data_dict,
+                                                           image_type='moving')
+
+        # Merge the two dictionaries
+        batch_dict = {**fixed_image_dict, **moving_image_dict}
+        batch_dict['patient_id'] = data_dict['patient_id']
 
         return batch_dict

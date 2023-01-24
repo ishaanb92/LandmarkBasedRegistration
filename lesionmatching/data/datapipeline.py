@@ -117,26 +117,24 @@ def create_data_dicts_dir_lab_paired(patient_dir_list=None):
     for p_dir in patient_dir_list:
         im_str = p_dir.split(os.sep)[-1]
         data_dict = {}
-        data_dict['fixed_image'] = os.path.join(p_dir, 'fixed_image.mha')
-        data_dict['fixed_image_mask'] = None #TODO
-        data_dict['moving_image'] = os.path.join(p_dir, 'result.0.mhd') # Affine pre-registration
-        data_dict['moving_image_mask'] = None #TODO
+        data_dict['fixed_image'] = os.path.join(p_dir, '{}_T00_iso.mha'.format(im_str))
+        data_dict['fixed_lung_mask'] = os.path.join(p_dir, 'lung_mask_T00_dl_iso.mha')
+        data_dict['moving_image'] = os.path.join(p_dir, '{}_T50_iso_affine.mha'.format(im_str)) # Affine pre-registration
+        data_dict['moving_lung_mask'] = os.path.join(p_dir, 'lung_mask_T50_dl_iso_affine.mha') # Affine transformed (moving) lung mask
         data_dict['patient_id'] = im_str
         data_dicts.append(data_dict)
 
-    return data_dict
+    return data_dicts
 
 
 def create_dataloader_dir_lab(data_dicts=None,
                               test=False,
                               batch_size=4,
                               num_workers=4,
-                              data_aug=False,
                               patch_size=(128, 128, 128)):
 
     ds = DIRLab(data_dicts=data_dicts,
                 test=test,
-                data_aug=data_aug,
                 patch_size=patch_size)
 
     loader = DataLoader(ds,
@@ -144,6 +142,20 @@ def create_dataloader_dir_lab(data_dicts=None,
                         shuffle=not(test),
                         num_workers=num_workers)
 
+    return loader
+
+
+def create_dataloader_dir_lab_paired(data_dicts=None,
+                                     batch_size=1,
+                                     num_workers=4):
+
+
+    ds = DIRLabPaired(data_dicts=data_dicts)
+
+    loader = DataLoader(ds,
+                        batch_size=batch_size,
+                        shuffle=False,
+                        num_workers=num_workers)
     return loader
 
 

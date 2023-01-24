@@ -82,7 +82,10 @@ def test(args):
                                                                          batch_size=args.batch_size,
                                                                          num_workers=4)
         elif args.dataset == 'dirlab':
-            pass
+            data_dicts = create_data_dicts_dir_lab_paired(patients)
+            data_loader = create_dataloader_dir_lab_paired(data_dicts=data_dicts,
+                                                           batch_size=args.batch_size,
+                                                           num_workers=4)
 
 
     # Define the model
@@ -100,20 +103,25 @@ def test(args):
 
     model.eval()
 
+
+    if args.synthetic is True:
+        if args.dataset == 'umc':
+            coarse_displacements = (4, 8, 8)
+            coarse_grid_resolution = (3, 3, 3)
+            fine_displacements = (2, 4, 4)
+            fine_grid_resolution = (6, 6, 6)
+            neighbourhood = 3
+        elif args.dataset == 'dirlab':
+            coarse_displacements = (29, 19.84, 9.92)
+            fine_displacements = (7.25, 9.92, 9.92)
+            coarse_grid_resolution = (2, 2, 2)
+            fine_grid_resolution = (3, 3, 3)
+            neighbourhood = 10
+
     if args.dataset == 'umc':
-        coarse_displacements = (4, 8, 8)
-        coarse_grid_resolution = (3, 3, 3)
-        fine_displacements = (2, 4, 4)
-        fine_grid_resolution = (6, 6, 6)
         roi_size = (128, 128, 64)
-        neighbourhood = 3
     elif args.dataset == 'dirlab':
-        coarse_displacements = (29, 19.84, 9.92)
-        fine_displacements = (7.25, 9.92, 9.92)
-        coarse_grid_resolution = (2, 2, 2)
-        fine_grid_resolution = (3, 3, 3)
         roi_size = (128, 128, 96)
-        neighbourhood = 10
 
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(data_loader):
@@ -409,10 +417,114 @@ def test(args):
                                         fname=os.path.join(dump_dir, 'kpts_prob_deformed.mha'))
 
 
-            else: #TODO
-                pass
+            else:
+
+                if args.dataset == 'umc':
+                    raise NotImplementedError('Paired landmark matching not yet implemented for UMC dataset')
+
+                elif args.dataset == 'dirlab':
+                    images, images_hat, mask, mask_hat = (batch_data['fixed_image'], batch_data['moving_image'],\
+                                                          batch_data['fixed_lung_mask'], batch_data['moving_lung_mask'])
+
+                    assert(images.shape == images_hat.shape)
+
+                    b, c, i, j, k = images.shape
+
+                    # Pad images and masks to make dims divisible by 8
+                    # See: https://docs.monai.io/en/stable/inferers.html#monai.inferers.sliding_window_inference
+                    if i%8 != 0 and j%8 !=0:
+                        excess_pixels_xy = 8 - (i%8)
+                    else:
+                        excess_pixels_xy = 0
+
+                    if k%8 != 0:
+                        excess_pixels_z = 8 - (k%8)
+                    else:
+                        excess_pixels_z = 0
+
+                    images = F.pad(images,
+                                   pad=(0, excess_pixels_z,
+                                        0, excess_pixels_xy,
+                                        0, excess_pixels_xy),
+                                   mode='constant')
+
+                    images_hat = F.pad(images_hat,
+                                   pad=(0, excess_pixels_z,
+                                        0, excess_pixels_xy,
+                                        0, excess_pixels_xy),
+                                   mode='constant')
+
+                    mask = F.pad(mask,
+                                 pad=(0, excess_pixels_z,
+                                      0, excess_pixels_xy,
+                                      0, excess_pixels_xy),
+                                mode='constant')
+
+                    mask_hat = F.pad(mask_hat,
+                                 pad=(0, excess_pixels_z,
+                                      0, excess_pixels_xy,
+                                      0, excess_pixels_xy),
+                                mode='constant')
 
 
+                images_cat = torch.cat([images, images_hat], dim=1)
+
+                b, c, i, j, k = images.shape
+
+                print('Image shape after padding = {}'.format(images.shape))
+                print('Mask shape after padding = {}'.format(mask.shape))
+
+                # U-Net outputs via patch-based inference
+                unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
+                                                        roi_size=roi_size,
+                                                        sw_device=device,
+                                                        device='cpu',
+                                                        sw_batch_size=2,
+                                                        predictor=model.get_unet_outputs,
+                                                        overlap=0.25,
+                                                        progress=True)
+
+                kpts_logits_1 = unet_outputs['kpts_logits_1']
+                kpts_logits_2 = unet_outputs['kpts_logits_2']
+                features_1_low = unet_outputs['features_1_low']
+                features_1_high = unet_outputs['features_1_high']
+                features_2_low = unet_outputs['features_2_low']
+                features_2_high = unet_outputs['features_2_high']
+
+
+
+                features_1 = (features_1_low.to(device), features_1_high.to(device))
+                features_2 = (features_2_low.to(device), features_1_high.to(device))
+
+                outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                          kpts_2=kpts_logits_2.to(device),
+                                          features_1=features_1,
+                                          features_2=features_2,
+                                          conf_thresh=0.5,
+                                          num_pts=args.kpts_per_batch,
+                                          mask=mask.to(device),
+                                          mask2=mask_hat.to(device))
+
+                # How many matches predicted between paired (affinely registered) images?
+                for batch_id in range(b):
+                    matches = maybe_convert_tensor_to_numpy(outputs['matches'][batch_id, ...])
+                    print('Patient {} :: Number of predicted corresponding landmarks = {}'.format(batch_data['patient_id'][batch_id],
+                                                                                                  np.nonzero(matches)[0].shape[0]))
+
+                    patient_id = batch_data['patient_id'][batch_id]
+                    dump_dir = os.path.join(save_dir, patient_id)
+                    os.makedirs(dump_dir)
+
+                    np.save(file=os.path.join(dump_dir, 'predicted_matches'),
+                            arr=matches)
+
+                    np.save(file=os.path.join(dump_dir, 'landmarks_fixed'),
+                            arr=maybe_convert_tensor_to_numpy(outputs['landmarks_1'][batch_id, ...]))
+
+                    np.save(file=os.path.join(dump_dir, 'landmarks_moving'),
+                            arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
+
+                    # TODO : Visualize matches
 
 if __name__ == '__main__':
 
