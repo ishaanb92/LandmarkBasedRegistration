@@ -31,7 +31,7 @@ if __name__ == '__main__':
         affine_transform_file = os.path.join(pdir, 'TransformParameters.0.txt')
 
         # Copy affinely registered image to data directory
-        shutil.copy(os.path.join(pdir, 'result.0.mhd'),
+        shutil.copy(os.path.join(pdir, 'result.0.mha'),
                     os.path.join(args.data_dir, p_id, '{}_T50_iso_affine.mha'.format(p_id)))
 
         # Modify transform file to resample lung mask

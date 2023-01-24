@@ -310,9 +310,9 @@ def compute_euclidean_distance_between_points(x1, x2):
 
     assert(x1.shape == x2.shape)
 
-    euc_distances = np.sqrt(np.add(np.pow(np.subtract(x1, x2), 2), axis=1))
+    euc_distances = np.sqrt(np.sum(np.power(np.subtract(x1, x2), 2), axis=1))
 
-    assert(euc_distances.shape == x1.shape)
+    assert(euc_distances.shape[0] == x1.shape[0])
 
     return euc_distances
 

@@ -669,3 +669,62 @@ def convert_2d_datastructure_to_pandas(ds, columns=None):
     df = pd.DataFrame(data=ds,
                       columns=columns)
     return df
+
+
+def convert_string_to_list(pd_row):
+
+    pd_row_list_of_str = pd_row.split('=')[-1].split('\t')[0].split(' ')[2:-1]
+
+    pd_row_list = []
+
+    for elem in pd_row_list_of_str:
+        pd_row_list.append(float(elem))
+
+    return pd_row_list
+
+
+def parse_transformix_points_output(fpath=None):
+    """
+    Function that parses the outputs of transformix points transform to create a numpy array of size N x 3, where N
+    is the number of transformed points
+
+    """
+
+    csv_df = pd.read_csv(fpath,
+                         sep=";",
+                         header=None,
+                         names=['Point', 'InputIndex', 'InputPoint', 'OutputIndexFixed ', 'OutputPoint', 'Deformation '])
+
+    # We are only interested in the OutputPoint field
+    points_col = csv_df['OutputPoint'].apply(convert_string_to_list)
+
+    return np.array(points_col.values.tolist())
+
+def parse_points_file(fpath=None):
+    """
+
+    Expects the file to be in an elastix compliant format
+
+    """
+
+    f = open(fpath, 'r')
+    lines = f.readlines()
+    points_arr = []
+    if len(lines[2:]) != int(lines[1]):
+        print('Formatting error! New lines are not properly defined. Needs fixing')
+        return None
+
+    for l in lines[2:]:
+        split_line = ' '.join(l.split()).split(' ')
+        try:
+            points_arr.append([float(split_line[0]),
+                               float(split_line[1]),
+                               float(split_line[2])])
+        except ValueError:
+            print(split_line)
+            print('File incorrectly formatted, needs fixing')
+            return None
+
+    f.close()
+
+    return np.array(points_arr)
