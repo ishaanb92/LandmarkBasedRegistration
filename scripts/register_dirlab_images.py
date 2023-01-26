@@ -11,6 +11,7 @@ import os
 import shutil
 from elastix.elastix_interface import *
 from lesionmatching.util_scripts.utils import add_library_path
+import joblib
 
 image_types = ['T00', 'T50']
 
@@ -21,10 +22,10 @@ ELASTIX_LIB = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/lib'
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--params', type=str, help='Parameter file path(s)', nargs='+')
     parser.add_argument('--out_dir', type=str, help='Output directory')
-
+    parser.add_argument('--landmarks_dir', type=str, default=None)
+    parser.add_argument('--mode', type=str, default='all')
     args = parser.parse_args()
 
     if os.path.exists(args.out_dir) is True:
@@ -36,7 +37,13 @@ if __name__ == '__main__':
     el = ElastixInterface(elastix_path=ELASTIX_BIN)
 
     # Collect all the patient directories
-    pat_dirs = [f.path for f in os.scandir(args.data_dir) if f.is_dir()]
+    if args.mode == 'all':
+        pat_dirs = joblib.load('train_patients_dirlab.pkl')
+        pat_dirs.extend(joblib.load('val_patients_dirlab.pkl'))
+    elif args.mode == 'val':
+        pat_dirs = joblib.load('val_patients_dirlab.pkl')
+    elif args.mode == 'test':
+        raise NotImplementedError('DIRLAB-COPD dataset not yet supported')
 
     for pdir in pat_dirs:
         image_prefix = pdir.split(os.sep)[-1]
@@ -57,10 +64,24 @@ if __name__ == '__main__':
         shutil.copyfile(fixed_mask_path, os.path.join(reg_out_dir, 'fixed_mask.mha'))
         shutil.copyfile(moving_mask_path, os.path.join(reg_out_dir, 'moving_mask.mha'))
 
+        if args.landmarks_dir is not None:
+            fixed_landmarks = os.path.join(args.landmarks_dir,
+                                           image_prefix,
+                                           'fixed_landmarks_elx.txt')
+
+            moving_landmarks = os.path.join(args.landmarks_dir,
+                                            image_prefix,
+                                            'moving_landmarks_elx.txt')
+        else:
+            fixed_landmarks = None
+            moving_landmarks = None
+
         el.register(fixed_image=fixed_image_path,
                     moving_image=moving_image_path,
                     fixed_mask=fixed_mask_path,
                     moving_mask=moving_mask_path,
+                    fixed_points=fixed_landmarks,
+                    moving_points=moving_landmarks,
                     parameters=args.params,
                     initial_transform=None,
                     output_dir=reg_out_dir)
