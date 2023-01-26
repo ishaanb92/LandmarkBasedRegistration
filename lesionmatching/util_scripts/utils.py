@@ -588,37 +588,18 @@ def detensorize_metadata(metadata,
 
     return metadata_list_of_dicts
 
-def map_voxel_coordinates_to_new_spacing():
-    """
-    Args:
-        voxel_coords (tuple) : Voxel coordinates with (x, y, z) ordering
-        original_metadata (dict): Dictionary with original metadata (origin, spacing)
-        new_metadata (dict): Dictionary with new metadata (origin, spacing)
-    Return:
-        new_voxel_coords (tuple)
 
-    """
+def map_voxel_index_to_world_coord(voxels, spacing, origin):
 
-    world_coords = map_voxel_to_world(voxel_coords=voxel_coords,
-                                      spacing=original_metadata['spacing'],
-                                      origin=original_metadata['origin'])
+    assert(isinstance(voxels, np.ndarray))
+    spacing = np.array(spacing) # tuple -> np.ndarray
+    origin = np.array(origin) # tuple -> np.ndarray
 
-    new_voxel_coords = map_world_to_voxel(world_coords=world_coords,
-                                          spacing=new_metadata['spacing'],
-                                          origin=new_metadata['origin'])
+    # world_coord = voxel_coord*spacing + origin
+    world_coords = np.add(np.multiply(voxels, np.expand_dims(spacing, axis=0)),
+                          np.expand_dims(origin, axis=0))
 
-    return new_voxel_coords
-
-
-def map_voxel_to_world(voxel_coords, spacing, origin):
-
-    world_coords = [v*axis_spacing + axis_origin for v, axis_spacing, axis_origin in zip(voxel_coords, spacing, origin)]
     return world_coords
-
-def map_world_to_voxel(world_coords, spacing, origin):
-
-    voxel_coords = [floor((w-axis_origin)/axis_spacing) for w, axis_spacing, axis_origin in zip(world_coords, spacing, origin)]
-    return voxel_coords
 
 
 # Update LD_LIBRARY_PATH so that the elastix binary can find the .so file
@@ -728,3 +709,67 @@ def parse_points_file(fpath=None):
     f.close()
 
     return np.array(points_arr)
+
+def create_landmarks_file(landmarks, world=True, fname=None):
+
+    assert(isinstance(landmarks, np.ndarray))
+    assert(fname is not None)
+
+    if os.path.exists(fname) is True:
+        os.remove(fname)
+
+    # Create a list of strings to write to file
+    lines = []
+    if world is True:
+        lines.append("point\n")
+    else:
+        lines.append("index\n")
+
+    lines.append("{}\n".format(landmarks.shape[0])) # Second line is number of points
+
+    for idx in range(landmarks.shape[0]):
+        lines.append("{:.2f} {:.2f} {:.2f}\n".format(landmarks[idx, 0],
+                                                     landmarks[idx, 1],
+                                                     landmarks[idx, 2]))
+
+    # Write the array now!
+    f = open(fname, 'w')
+    f.writelines(lines)
+    f.close()
+
+
+def save_landmark_predictions_in_elastix_format(landmarks_fixed,
+                                                landmarks_moving,
+                                                matches,
+                                                metadata_fixed,
+                                                metadata_moving,
+                                                save_dir):
+
+    # Step 1. Using ITK metadata, convert voxel coordinates to world coordinates
+    landmarks_1 = maybe_convert_tensor_to_numpy(landmarks_fixed)
+    landmarks_2 = maybe_convert_tensor_to_numpy(landmarks_moving)
+    matches = maybe_convert_tensor_to_numpy(matches)
+
+    landmarks_1_world = map_voxel_index_to_world_coord(landmarks_1,
+                                                       spacing=metadata_fixed['spacing'],
+                                                       origin=metadata_fixed['origin'])
+
+    landmarks_2_world = map_voxel_index_to_world_coord(landmarks_2,
+                                                       spacing=metadata_moving['spacing'],
+                                                       origin=metadata_moving['origin'])
+
+
+    # Step 2. Create two "aligned" arrays s.t. index i of each of the arrays
+    # contain landmarks corresponding to the ith pair
+    match_indices = np.nonzero(matches)
+    landmarks_1_valid_matches = landmarks_1_world[match_indices[0], :]
+    landmarks_2_valid_matches = landmarks_2_world[match_indices[1], :]
+
+    # Step 3. Create .txt file that conforms to elastix convention (see manual)
+    create_landmarks_file(landmarks_1_valid_matches,
+                          world=True,
+                          fname=os.path.join(save_dir, 'fixed_landmarks_elx.txt'))
+
+    create_landmarks_file(landmarks_2_valid_matches,
+                          world=True,
+                          fname=os.path.join(save_dir, 'moving_landmarks_elx.txt'))

@@ -426,6 +426,12 @@ def test(args):
                     images, images_hat, mask, mask_hat = (batch_data['fixed_image'], batch_data['moving_image'],\
                                                           batch_data['fixed_lung_mask'], batch_data['moving_lung_mask'])
 
+                    fixed_metadata_list = detensorize_metadata(metadata=batch_data['fixed_metadata'],
+                                                               batchsz=images.shape[0])
+
+                    moving_metadata_list = detensorize_metadata(metadata=batch_data['moving_metadata'],
+                                                                batchsz=images.shape[0])
+
                     assert(images.shape == images_hat.shape)
 
                     b, c, i, j, k = images.shape
@@ -523,6 +529,15 @@ def test(args):
 
                     np.save(file=os.path.join(dump_dir, 'landmarks_moving'),
                             arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
+
+                    # Save corr. landmarks as elastix-compatible .txt files
+                    save_landmark_predictions_in_elastix_format(landmarks_fixed=outputs['landmarks_1'][batch_id, ...],
+                                                                landmarks_moving=outputs['landmarks_2'][batch_id, ...],
+                                                                metadata_fixed=fixed_metadata_list[batch_id],
+                                                                metadata_moving=moving_metadata_list[batch_id],
+                                                                matches=matches,
+                                                                save_dir=dump_dir)
+
 
                     visualize_keypoints_3d(im1=images[batch_id, ...].squeeze(dim=0),
                                            im2=images_hat[batch_id, ...].squeeze(dim=0),
