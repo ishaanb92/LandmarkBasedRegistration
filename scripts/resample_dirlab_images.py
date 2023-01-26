@@ -15,13 +15,18 @@ from lesionmatching.util_scripts.image_utils import resample_itk_image_to_new_sp
 import SimpleITK as sitk
 from elastix.elastix_interface import *
 
-image_types = ['T00', 'T50']
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--data_dir', type=str, required=True)
+    parser.add_argument('--dataset', type=str, required=True)
     args = parser.parse_args()
+
+    if args.dataset == 'dirlab':
+        image_types = ['T00', 'T50']
+    elif args.dataset == 'copd':
+        image_types = ['iBHCT', 'eBHCT']
 
     # Collect all the patient directories
     pat_dirs = [f.path for f in os.scandir(args.data_dir) if f.is_dir()]
@@ -34,18 +39,9 @@ if __name__ == '__main__':
                                                                            imtype)))
 
             resampled_img_itk = resample_itk_image_to_new_spacing(image=img_itk,
-                                                                  new_size=(128, 128, 128),
+                                                                  new_spacing=(1.0, 1.0, 1.0),
                                                                   interp_order=3)
 
             sitk.WriteImage(resampled_img_itk,
-                            os.path.join(pdir, '{}_{}_smaller.mha'.format(image_prefix,
+                            os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
                                                                       imtype)))
-
-            mask_itk = sitk.ReadImage(os.path.join(pdir, 'lung_mask_{}.mha'.format(imtype)))
-
-            resampled_mask_itk = resample_itk_image_to_new_spacing(image=mask_itk,
-                                                                   new_size=(128, 128, 128),
-                                                                   interp_order=0)
-            sitk.WriteImage(resampled_mask_itk,
-                            os.path.join(pdir, 'lung_mask_{}_smaller.mha'.format(imtype)))
-

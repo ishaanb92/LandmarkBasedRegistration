@@ -13,17 +13,18 @@ from elastix.elastix_interface import *
 from lesionmatching.util_scripts.utils import add_library_path
 import joblib
 
-image_types = ['T00', 'T50']
 
 ELASTIX_BIN = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/bin/elastix'
 ELASTIX_LIB = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/lib'
 
+COPD_DIR = '/home/ishaan/COPDGene/mha'
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--params', type=str, help='Parameter file path(s)', nargs='+')
     parser.add_argument('--out_dir', type=str, help='Output directory')
+    parser.add_argument('--dataset', type=str, help='dirlab or copd')
     parser.add_argument('--landmarks_dir', type=str, default=None)
     parser.add_argument('--mode', type=str, default='all')
     args = parser.parse_args()
@@ -37,25 +38,35 @@ if __name__ == '__main__':
     el = ElastixInterface(elastix_path=ELASTIX_BIN)
 
     # Collect all the patient directories
+    # Dataset == 'dirlab'
     if args.mode == 'all':
         pat_dirs = joblib.load('train_patients_dirlab.pkl')
         pat_dirs.extend(joblib.load('val_patients_dirlab.pkl'))
     elif args.mode == 'val':
         pat_dirs = joblib.load('val_patients_dirlab.pkl')
+    # Dataset == 'copd'
     elif args.mode == 'test':
-        raise NotImplementedError('DIRLAB-COPD dataset not yet supported')
+        pat_dirs = [f.path for f in os.scandir(COPD_DIR) if f.is_dir()]
+
+    if args.dataset == 'dirlab':
+        im_types = ['T00', 'T50']
+    elif args.dataset == 'copd':
+        im_types = ['iBHCT', 'eBHCT']
 
     for pdir in pat_dirs:
         image_prefix = pdir.split(os.sep)[-1]
         reg_out_dir = os.path.join(args.out_dir, image_prefix)
         os.makedirs(reg_out_dir)
 
-        fixed_image_path = os.path.join(pdir, '{}_T00_iso.mha'.format(image_prefix))
-        moving_image_path = os.path.join(pdir, '{}_T50_iso.mha'.format(image_prefix))
+        fixed_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
+                                                                     im_types[0]))
+
+        moving_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
+                                                                      im_types[1]))
 
         # Use masks
-        fixed_mask_path = os.path.join(pdir, 'lung_mask_T00_dl_iso.mha')
-        moving_mask_path = os.path.join(pdir, 'lung_mask_T50_dl_iso.mha')
+        fixed_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[0]))
+        moving_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
 
         # Copy files to the output directory for convinient copying+viz
         shutil.copyfile(fixed_image_path, os.path.join(reg_out_dir, 'fixed_image.mha'))
