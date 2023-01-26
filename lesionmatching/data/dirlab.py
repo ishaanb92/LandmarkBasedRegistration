@@ -79,6 +79,8 @@ class DIRLab(Dataset):
         image_np = self.convert_itk_to_ras_numpy(image_itk)
         mask_np = self.convert_itk_to_ras_numpy(mask_itk)
 
+        assert(np.amax(mask_np) == 1)
+
         # Step 4. Convert numpy ndarrays to torch Tensors
         image_t = torch.from_numpy(image_np)
         mask_t = torch.from_numpy(mask_np)

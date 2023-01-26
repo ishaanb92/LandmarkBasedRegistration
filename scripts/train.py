@@ -80,6 +80,12 @@ def train(args):
     train_patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
     val_patients = joblib.load('val_patients_{}.pkl'.format(args.dataset))
 
+    # For DIR-Lab, the validation set is only used to visually monitor training
+    # in terms predicted landmarks and their correspondences!
+    # During test-time, we use the COPDGene dataset
+    if args.dataset == 'dirlab':
+        train_patients.extend(val_patients)
+
     print('Number of patients in training set: {}'.format(len(train_patients)))
     print('Number of patients in validation set: {}'.format(len(val_patients)))
 
@@ -480,6 +486,7 @@ def train(args):
             mean_val_loss = np.mean(np.array(val_loss))
 
             if args.earlystop is True:
+                assert(args.dataset != 'dirlab')
                 early_stop_condition, best_epoch = early_stopper(val_loss=mean_val_loss,
                                                                  curr_epoch=epoch,
                                                                  model=model,
