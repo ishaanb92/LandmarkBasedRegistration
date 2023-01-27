@@ -32,7 +32,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--reg_dir', type=str, required=True)
     parser.add_argument('--points_dir', type=str, required=True)
-
+    parser.add_argument('--dataset', type=str, help='dirlab or copd')
 
     args = parser.parse_args()
 
@@ -51,11 +51,19 @@ if __name__ == '__main__':
 
         # To avoid issues that may arise from making images isotropic,
         # we use world coordinates to evaluate registration accuracy
-        fixed_image_landmarks_path = os.path.join(pat_point_dir,
-                                                  '{}_4D-75_T00_world_elx.txt'.format(pid))
+        if args.dataset == 'dirlab':
+            fixed_image_landmarks_path = os.path.join(pat_point_dir,
+                                                      '{}_4D-75_T00_world_elx.txt'.format(pid))
 
-        moving_image_landmarks_path = os.path.join(pat_point_dir,
-                                                   '{}_4D-75_T50_world_elx.txt'.format(pid))
+            moving_image_landmarks_path = os.path.join(pat_point_dir,
+                                                       '{}_4D-75_T50_world_elx.txt'.format(pid))
+        elif args.dataset == 'copd':
+            fixed_image_landmarks_path = os.path.join(pat_point_dir,
+                                                      '{}_300_iBH_world_r1_elx.txt'.format(pid))
+
+            moving_image_landmarks_path = os.path.join(pat_point_dir,
+                                                       '{}_300_eBH_world_r1_elx.txt'.format(pid))
+
 
         transform_param_file = os.path.join(pdir, 'TransformParameters.2.txt')
 
