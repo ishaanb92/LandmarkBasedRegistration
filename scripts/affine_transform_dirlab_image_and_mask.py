@@ -20,10 +20,16 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--registration_dir', type=str, required=True)
     parser.add_argument('--data_dir', type=str, required=True)
+    parser.add_argument('--dataset', type=str, help='dirlab or copd', default='dirlab')
     args = parser.parse_args()
 
     pat_dirs = [f.path for f in os.scandir(args.registration_dir) if f.is_dir()]
     add_library_path(ELASTIX_LIB)
+
+    if args.dataset == 'dirlab':
+        im_types = ['T00', 'T50']
+    elif args.dataset == 'copd':
+        im_types = ['iBHCT', 'eBHCT']
 
     for pdir in pat_dirs:
 
@@ -32,7 +38,7 @@ if __name__ == '__main__':
 
         # Copy affinely registered image to data directory
         shutil.copy(os.path.join(pdir, 'result.0.mha'),
-                    os.path.join(args.data_dir, p_id, '{}_T50_iso_affine.mha'.format(p_id)))
+                    os.path.join(args.data_dir, p_id, '{}_{}_iso_affine.mha'.format(p_id, im_types[1])))
 
         # Modify transform file to resample lung mask
         tr_editor = TransformParameterFileEditor(transform_parameter_file_path=affine_transform_file,
@@ -53,7 +59,7 @@ if __name__ == '__main__':
                                                      output_dir=affine_resampled_mask_dir)
 
         shutil.copy(resampled_mask_path,
-                    os.path.join(args.data_dir, p_id, 'lung_mask_T50_dl_iso_affine.mha'))
+                    os.path.join(args.data_dir, p_id, 'lung_mask_{}_dl_iso_affine.mha'.format(im_types[1])))
 
 
 

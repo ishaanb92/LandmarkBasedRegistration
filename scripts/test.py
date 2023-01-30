@@ -29,6 +29,8 @@ import random
 from math import ceil
 from math import floor
 
+COPD_DIR = '/home/ishaan/COPDGene/mha'
+
 def test(args):
 
     # Intialize torch GPU
@@ -53,10 +55,15 @@ def test(args):
     # Set up data pipeline
     if args.mode == 'val':
         patients = joblib.load('val_patients_{}.pkl'.format(args.dataset))
-    elif args.mode == 'test':
-        patients = joblib.load('test_patients_{}.pkl'.format(args.dataset))
     elif args.mode == 'train':
         patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
+    elif args.mode == 'test':
+        if args.dataset == 'umc':
+            patients = joblib.load('test_patients_{}.pkl'.format(args.dataset))
+        elif args.dataset == 'dirlab':
+            raise ValueError('DIR-Lab does not have a test set')
+        elif args.dataset == 'copd':
+            patients = [f.path for f in os.scandir(COPD_DIR) if f.is_dir()]
 
     if args.synthetic is True:
         if args.dataset == 'umc':
@@ -66,8 +73,10 @@ def test(args):
                                                               batch_size=args.batch_size,
                                                               num_workers=4,
                                                               data_aug=False)
-        elif args.dataset == 'dirlab':
-            data_dicts = create_data_dicts_dir_lab(patients)
+        elif args.dataset == 'dirlab' or args.dataset =='copd':
+            data_dicts = create_data_dicts_dir_lab(patients,
+                                                   dataset=args.dataset)
+
             data_loader = create_dataloader_dir_lab(data_dicts=data_dicts,
                                                     batch_size=args.batch_size,
                                                     num_workers=4,
@@ -81,8 +90,11 @@ def test(args):
             data_loader, _ = create_dataloader_lesion_matching_inference(data_dicts=data_dicts,
                                                                          batch_size=args.batch_size,
                                                                          num_workers=4)
-        elif args.dataset == 'dirlab':
-            data_dicts = create_data_dicts_dir_lab_paired(patients)
+        elif args.dataset == 'dirlab' or args.dataset == 'copd':
+
+            data_dicts = create_data_dicts_dir_lab_paired(patients,
+                                                          dataset=args.dataset)
+
             data_loader = create_dataloader_dir_lab_paired(data_dicts=data_dicts,
                                                            batch_size=args.batch_size,
                                                            num_workers=4)
@@ -110,7 +122,7 @@ def test(args):
             coarse_grid_resolution = (3, 3, 3)
             fine_displacements = (2, 4, 4)
             fine_grid_resolution = (6, 6, 6)
-        elif args.dataset == 'dirlab':
+        elif args.dataset == 'dirlab' or args.dataset == 'copd':
             coarse_displacements = (29, 19.84, 9.92)
             fine_displacements = (7.25, 9.92, 9.92)
             coarse_grid_resolution = (2, 2, 2)
@@ -119,7 +131,7 @@ def test(args):
     if args.dataset == 'umc':
         roi_size = (128, 128, 64)
         neighbourhood = 3
-    elif args.dataset == 'dirlab':
+    elif args.dataset == 'dirlab' or args.dataset == 'copd':
         roi_size = (128, 128, 96)
         neighbourhood = 10
 
@@ -129,7 +141,7 @@ def test(args):
 
                 if args.dataset == 'umc':
                     images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
-                elif args.dataset == 'dirlab':
+                elif args.dataset == 'dirlab' or args.dataset == 'copd':
                     images, mask = (batch_data['image'], batch_data['lung_mask'])
                     metadata_list = detensorize_metadata(metadata=batch_data['metadata'],
                                                          batchsz=images.shape[0])
@@ -184,7 +196,7 @@ def test(args):
                 if args.dataset == 'umc':
                     excess_pixels_xy = 0
                     excess_pixels_z = 8 - (k%8)
-                elif args.dataset == 'dirlab':
+                elif args.dataset == 'dirlab' or args.dataset == 'copd':
                     if i%8 != 0 and j%8 !=0:
                         excess_pixels_xy = 8 - (i%8)
                     else:
@@ -422,7 +434,7 @@ def test(args):
                 if args.dataset == 'umc':
                     raise NotImplementedError('Paired landmark matching not yet implemented for UMC dataset')
 
-                elif args.dataset == 'dirlab':
+                elif args.dataset == 'dirlab' or args.dataset == 'copd':
                     images, images_hat, mask, mask_hat = (batch_data['fixed_image'], batch_data['moving_image'],\
                                                           batch_data['fixed_lung_mask'], batch_data['moving_lung_mask'])
 
@@ -477,9 +489,6 @@ def test(args):
 
                 b, c, i, j, k = images.shape
 
-                print('Image shape after padding = {}'.format(images.shape))
-                print('Mask shape after padding = {}'.format(mask.shape))
-
                 # U-Net outputs via patch-based inference
                 unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
                                                         roi_size=roi_size,
@@ -501,6 +510,9 @@ def test(args):
 
                 features_1 = (features_1_low.to(device), features_1_high.to(device))
                 features_2 = (features_2_low.to(device), features_1_high.to(device))
+
+                print(torch.max(torch.max(kpts_logits_1)))
+                print(torch.max(torch.max(kpts_logits_2)))
 
                 outputs = model.inference(kpts_1=kpts_logits_1.to(device),
                                           kpts_2=kpts_logits_2.to(device),

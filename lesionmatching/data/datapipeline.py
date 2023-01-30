@@ -93,11 +93,14 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
 
     return data_dicts
 
-def create_data_dicts_dir_lab(patient_dir_list=None):
+def create_data_dicts_dir_lab(patient_dir_list=None, dataset='dirlab'):
 
     data_dicts = []
 
-    im_types = ['T00', 'T50']
+    if dataset == 'dirlab':
+        im_types = ['T00', 'T50']
+    elif dataset == 'copd':
+        im_types = ['iBHCT', 'eBHCT']
 
     for p_dir in patient_dir_list:
         im_str = p_dir.split(os.sep)[-1]
@@ -111,16 +114,21 @@ def create_data_dicts_dir_lab(patient_dir_list=None):
 
     return data_dicts
 
-def create_data_dicts_dir_lab_paired(patient_dir_list=None):
+def create_data_dicts_dir_lab_paired(patient_dir_list=None,dataset='dirlab'):
     data_dicts = []
+
+    if dataset == 'dirlab':
+        im_types = ['T00', 'T50']
+    elif dataset == 'copd':
+        im_types = ['iBHCT', 'eBHCT']
 
     for p_dir in patient_dir_list:
         im_str = p_dir.split(os.sep)[-1]
         data_dict = {}
-        data_dict['fixed_image'] = os.path.join(p_dir, '{}_T00_iso.mha'.format(im_str))
-        data_dict['fixed_lung_mask'] = os.path.join(p_dir, 'lung_mask_T00_dl_iso.mha')
-        data_dict['moving_image'] = os.path.join(p_dir, '{}_T50_iso_affine.mha'.format(im_str)) # Affine pre-registration
-        data_dict['moving_lung_mask'] = os.path.join(p_dir, 'lung_mask_T50_dl_iso_affine.mha') # Affine transformed (moving) lung mask
+        data_dict['fixed_image'] = os.path.join(p_dir, '{}_{}_iso.mha'.format(im_str, im_types[0]))
+        data_dict['fixed_lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_dl_iso.mha'.format(im_types[0]))
+        data_dict['moving_image'] = os.path.join(p_dir, '{}_{}_iso_affine.mha'.format(im_str, im_types[1])) # Affine pre-registration
+        data_dict['moving_lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_dl_iso_affine.mha'.format(im_types[1])) # Affine transformed (moving) lung mask
         data_dict['patient_id'] = im_str
         data_dicts.append(data_dict)
 
