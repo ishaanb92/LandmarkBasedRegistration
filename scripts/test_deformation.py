@@ -99,7 +99,7 @@ if __name__ == '__main__':
 
             deformed_images = torch.zeros_like(images)
 
-            batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
+            batch_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
                                                                    coarse=True,
                                                                    fine=True,
                                                                    coarse_displacements=coarse_displacements,

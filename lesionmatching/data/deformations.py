@@ -103,14 +103,14 @@ def create_deformation_grid(grid=None,
     # Check for folding
     if np.amin(jac_det) < 0:
         print('Folding has occured!. Skip this batch')
-        return None
+        return None, None
 
     dgrid = deformed_grid.grid
 
     # Rescale to [-1, 1] so that this is compliant with torch.nn.functional.grid_sample()
     dgrid = 2*dgrid - 1
 
-    return dgrid
+    return dgrid, jac_det
 
 
 def create_batch_deformation_grid(shape,
@@ -132,6 +132,9 @@ def create_batch_deformation_grid(shape,
     # grid[:, i, j, k, 2] = new_z (i')
     batch_deformation_grid = np.zeros((b, i, j, k, 3),
                                       dtype=np.float32)
+
+    jac_det = np.zeros((b, i, j, k, 3),
+                      dtype=np.float32)
 
     # Loop over batch and generated a unique deformation grid for each image in the batch
     for batch_idx in range(b):
@@ -155,8 +158,8 @@ def create_batch_deformation_grid(shape,
                 transforms.append(translation_transform)
 
         # Create deformation grid by composing transforms
-        deformed_grid = create_deformation_grid(shape=[k, j, i],
-                                                transforms=transforms)
+        deformed_grid, jac_det = create_deformation_grid(shape=[k, j, i],
+                                                         transforms=transforms)
 
         if deformed_grid is None:
             return None
@@ -168,10 +171,12 @@ def create_batch_deformation_grid(shape,
 
         # Re-order axes to HWD (ijk) for grid_sample
         deformed_grid = np.transpose(deformed_grid, (2, 1, 0, 3))
+        jac_det = np.transpose(jac_det, (2, 1, 0))
 
         batch_deformation_grid[batch_idx, ...] = deformed_grid
 
     #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
     batch_deformation_grid = torch.Tensor(batch_deformation_grid).to(device)
-    return batch_deformation_grid
+    jac_det = torch.Tensor(jac_det).to(device)
+    return batch_deformation_grid, jac_det
 

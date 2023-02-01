@@ -64,8 +64,11 @@ def train(args):
             os.makedirs(args.checkpoint_dir)
             os.makedirs(log_dir)
             os.makedirs(viz_dir)
-        else: # Case 2b : Do nothing
-            new_training = False
+        else: # Case 2b
+            if os.path.exists(os.path.join(args.checkpoint_dir, 'checkpoint.pt')) is True:
+                new_training = False
+            else:
+                new_training = True
 
     writer = SummaryWriter(log_dir=log_dir)
     checkpoint_dir = args.checkpoint_dir
@@ -197,12 +200,12 @@ def train(args):
 
                     # Additional non-rigid deformatio -- See Eppenhof and Pluim (2019), TMI
                     if args.data_aug is True:
-                        augmentation_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                                      non_rigid=True,
-                                                                                      coarse=True,
-                                                                                      fine=False,
-                                                                                      coarse_displacements=coarse_displacements,
-                                                                                      coarse_grid_resolution=(2, 2, 2))
+                        augmentation_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
+                                                                                         non_rigid=True,
+                                                                                         coarse=True,
+                                                                                         fine=False,
+                                                                                         coarse_displacements=coarse_displacements,
+                                                                                         coarse_grid_resolution=(2, 2, 2))
                         if augmentation_deformation_grid is not None:
                             images = F.grid_sample(input=images,
                                                    grid=augmentation_deformation_grid,
@@ -217,14 +220,14 @@ def train(args):
                                                  padding_mode="border")
 
 
-                batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                       non_rigid=True,
-                                                                       coarse=True,
-                                                                       fine=True,
-                                                                       coarse_displacements=coarse_displacements,
-                                                                       fine_displacements=fine_displacements,
-                                                                       coarse_grid_resolution=coarse_grid_resolution,
-                                                                       fine_grid_resolution=fine_grid_resolution)
+                batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
+                                                                                non_rigid=True,
+                                                                                coarse=True,
+                                                                                fine=True,
+                                                                                coarse_displacements=coarse_displacements,
+                                                                                fine_displacements=fine_displacements,
+                                                                                coarse_grid_resolution=coarse_grid_resolution,
+                                                                                fine_grid_resolution=fine_grid_resolution)
                 if batch_deformation_grid is not None:
                     images_hat = F.grid_sample(input=images,
                                                grid=batch_deformation_grid,
@@ -241,8 +244,14 @@ def train(args):
                                                mode="bilinear",
                                                padding_mode="border")
 
-                    # Image intensity augmentation
-                    images_hat = shift_intensity(images_hat)
+                    if args.dataset == 'umc':
+                        images_hat = shift_intensity(images_hat)
+                    elif args.dataset == 'copd':
+                        # See : H. Sokooti et al., 3D Convolutional Neural Networks Image Registration
+                        # Based on Efficient Supervised Learning from Artificial Deformations
+                        images_hat = dry_sponge_augmentation(images_hat,
+                                                             jac_det)
+
                 else:
                     images_hat = F.grid_sample(input=images,
                                                grid=batch_deformation_grid,
@@ -346,15 +355,15 @@ def train(args):
                     elif args.dataset == 'dirlab':
                         images, mask = (val_data['image'], val_data['lung_mask'])
 
-                    batch_deformation_grid = create_batch_deformation_grid(shape=images.shape,
-                                                                           device=images.device,
-                                                                           non_rigid=True,
-                                                                           coarse=True,
-                                                                           fine=True,
-                                                                           coarse_displacements=coarse_displacements,
-                                                                           fine_displacements=fine_displacements,
-                                                                           coarse_grid_resolution=coarse_grid_resolution,
-                                                                           fine_grid_resolution=fine_grid_resolution)
+                    batch_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
+                                                                              device=images.device,
+                                                                              non_rigid=True,
+                                                                              coarse=True,
+                                                                              fine=True,
+                                                                              coarse_displacements=coarse_displacements,
+                                                                              fine_displacements=fine_displacements,
+                                                                              coarse_grid_resolution=coarse_grid_resolution,
+                                                                              fine_grid_resolution=fine_grid_resolution)
                     # Folding may have occured
                     if batch_deformation_grid is None:
                         continue

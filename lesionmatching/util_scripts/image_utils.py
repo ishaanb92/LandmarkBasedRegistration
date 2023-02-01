@@ -387,4 +387,26 @@ def save_ras_as_itk(img=None,
     sitk.WriteImage(img_itk,
                     fname)
 
+def dry_sponge_augmentation(image, jac_det):
+    """
+
+    This is a model that models lung progression between inhale and exhale
+    assuming mass preservation (Staring et al., 2014). This is used in Sokooti et al. (2019) as
+    an intensity augmentation technique.
+
+        I(x) = I(x)[J(x)^(-1)]
+
+    See: https://github.com/hsokooti/RegNet/blob/master/functions/artificial_generation/intensity_augmentation.py
+
+    """
+
+    # Bound the changes in volume
+    jac_det[jac_det < 0.7] = 0.7
+    jac_det[jac_det > 1.3] = 1.3
+
+    random_perturb = np.random.uniform(0.9, 1.1)
+    image_sponge = torch.div(image, jac_det*random_perturb)
+
+    return image_sponge
+
 
