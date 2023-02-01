@@ -138,7 +138,9 @@ def test(args):
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(data_loader):
             if args.synthetic is True:
-
+                # Based on how torch.nn.grid_sample is defined =>
+                # Moving image: images
+                # Fixed image: images_hat
                 if args.dataset == 'umc':
                     images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
                 elif args.dataset == 'dirlab' or args.dataset == 'copd':
@@ -434,8 +436,8 @@ def test(args):
                     raise NotImplementedError('Paired landmark matching not yet implemented for UMC dataset')
 
                 elif args.dataset == 'dirlab' or args.dataset == 'copd':
-                    images, images_hat, mask, mask_hat = (batch_data['fixed_image'], batch_data['moving_image'],\
-                                                          batch_data['fixed_lung_mask'], batch_data['moving_lung_mask'])
+                    images, images_hat, mask, mask_hat = (batch_data['moving_image'], batch_data['fixed_image'],\
+                                                          batch_data['moving_lung_mask'], batch_data['fixed_lung_mask'])
 
                     fixed_metadata_list = detensorize_metadata(metadata=batch_data['fixed_metadata'],
                                                                batchsz=images.shape[0])
@@ -539,14 +541,14 @@ def test(args):
                             arr=matches)
 
                     np.save(file=os.path.join(dump_dir, 'landmarks_fixed'),
-                            arr=maybe_convert_tensor_to_numpy(outputs['landmarks_1'][batch_id, ...]))
-
-                    np.save(file=os.path.join(dump_dir, 'landmarks_moving'),
                             arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
 
+                    np.save(file=os.path.join(dump_dir, 'landmarks_moving'),
+                            arr=maybe_convert_tensor_to_numpy(outputs['landmarks_1'][batch_id, ...]))
+
                     # Save corr. landmarks as elastix-compatible .txt files
-                    save_landmark_predictions_in_elastix_format(landmarks_fixed=outputs['landmarks_1'][batch_id, ...],
-                                                                landmarks_moving=outputs['landmarks_2'][batch_id, ...],
+                    save_landmark_predictions_in_elastix_format(landmarks_fixed=outputs['landmarks_2'][batch_id, ...],
+                                                                landmarks_moving=outputs['landmarks_1'][batch_id, ...],
                                                                 metadata_fixed=fixed_metadata_list[batch_id],
                                                                 metadata_moving=moving_metadata_list[batch_id],
                                                                 matches=matches,
