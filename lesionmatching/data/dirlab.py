@@ -89,7 +89,12 @@ class DIRLab(Dataset):
         image_t = ScaleIntensity(minv=0.0,
                                  maxv=1.0)(image_t)
 
-        # Step 6. Sample patch from image
+
+        # Step 6. Use the Gamma correction (Eppenhof and Pluim, TMI, (2019))
+        gamma_factor = np.random.uniform(low=0.5, high=1.5)
+        image_t = torch.pow(image_t, gamma_factor)
+
+        # Step 7. Sample patch from image
         if self.test is False:
             image_and_mask_cat_t = torch.cat([image_t, mask_t], dim=0)
             image_and_mask_patch_list = RandCropByPosNegLabel(spatial_size=self.patch_size,
