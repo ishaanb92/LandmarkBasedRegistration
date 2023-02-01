@@ -429,8 +429,7 @@ def test(args):
                                         fname=os.path.join(dump_dir, 'kpts_prob_deformed.mha'))
 
 
-            else:
-
+            else: # Paired data
                 if args.dataset == 'umc':
                     raise NotImplementedError('Paired landmark matching not yet implemented for UMC dataset')
 
@@ -514,14 +513,17 @@ def test(args):
                 print(torch.max(torch.max(kpts_logits_1)))
                 print(torch.max(torch.max(kpts_logits_2)))
 
-                outputs = model.inference(kpts_1=kpts_logits_1.to(device),
-                                          kpts_2=kpts_logits_2.to(device),
-                                          features_1=features_1,
-                                          features_2=features_2,
-                                          conf_thresh=0.5,
-                                          num_pts=args.kpts_per_batch,
-                                          mask=mask.to(device),
-                                          mask2=mask_hat.to(device))
+                try:
+                    outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                              kpts_2=kpts_logits_2.to(device),
+                                              features_1=features_1,
+                                              features_2=features_2,
+                                              conf_thresh=0.5,
+                                              num_pts=args.kpts_per_batch,
+                                              mask=mask.to(device),
+                                              mask2=mask_hat.to(device))
+                except RuntimeError:
+                    continue
 
                 # How many matches predicted between paired (affinely registered) images?
                 for batch_id in range(b):
