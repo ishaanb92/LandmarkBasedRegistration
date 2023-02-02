@@ -24,7 +24,8 @@ class DIRLab(Dataset):
     def __init__(self,
                  data_dicts:dict,
                  test:bool=False,
-                 patch_size=(128, 128, 64)):
+                 patch_size=(128, 128, 64),
+                 seed=1234):
         """
         Args:
             data_dicts(list) : List of dictionaries. Each dictionary contains is two keys 'image' and 'lung mask'
@@ -35,6 +36,11 @@ class DIRLab(Dataset):
         self.data_dicts = data_dicts
         self.test = test
         self.patch_size = patch_size
+        self.crop_transform = RandCropByPosNegLabel(spatial_size=self.patch_size,
+                                                    pos=1.0,
+                                                    neg=0.0,
+                                                    num_samples=10)
+        self.crop_transform.set_random_state(seed)
 
     def __len__(self):
         return len(self.data_dicts)
@@ -54,6 +60,15 @@ class DIRLab(Dataset):
 
         return im_np
 
+    @staticmethod
+    def scale_image_intensities(image, mask):
+
+        lung_max = np.amax(image[np.where(mask==1)])
+        lung_min = np.amin(image[np.where(mask==1)])
+
+        image = (image - lung_min)/(lung_max-lung_min)
+
+        return image.astype(np.float32)
 
     def __getitem__(self, idx):
 
@@ -81,13 +96,13 @@ class DIRLab(Dataset):
 
         assert(np.amax(mask_np) == 1)
 
-        # Step 4. Convert numpy ndarrays to torch Tensors
+        # Step 4. Min-max normalization (only over the lung)
+        image_np = self.scale_image_intensities(image=image_np,
+                                                mask=mask_np)
+
+        # Step 5. Convert numpy ndarrays to torch Tensors
         image_t = torch.from_numpy(image_np)
         mask_t = torch.from_numpy(mask_np)
-
-        # Step 5. Min-max normalization (over full image)
-        image_t = ScaleIntensity(minv=0.0,
-                                 maxv=1.0)(image_t)
 
 
         # Step 6. Use the Gamma correction (Eppenhof and Pluim, TMI, (2019))
@@ -97,11 +112,9 @@ class DIRLab(Dataset):
         # Step 7. Sample patch from image
         if self.test is False:
             image_and_mask_cat_t = torch.cat([image_t, mask_t], dim=0)
-            image_and_mask_patch_list = RandCropByPosNegLabel(spatial_size=self.patch_size,
-                                                              label=mask_t,
-                                                              pos=1.0,
-                                                              neg=0.0,
-                                                              num_samples=10).__call__(img=image_and_mask_cat_t)
+
+            image_and_mask_patch_list = self.crop_transform(img=image_and_mask_cat_t,
+                                                            label=mask_t)
 
             # Shuffle list to ensure different patches are selected!
             random.shuffle(image_and_mask_patch_list)
@@ -145,6 +158,16 @@ class DIRLabPaired(Dataset):
 
         return im_np
 
+    @staticmethod
+    def scale_image_intensities(image, mask):
+
+        lung_max = np.amax(image[np.where(mask==1)])
+        lung_min = np.amin(image[np.where(mask==1)])
+
+        image = (image - lung_min)/(lung_max-lung_min)
+
+        return image.astype(np.float32)
+
     def preprocess_image_and_mask(self,
                                   data_dict:dict,
                                   image_type:str='fixed'):
@@ -170,20 +193,18 @@ class DIRLabPaired(Dataset):
         mask_np = self.convert_itk_to_ras_numpy(mask_itk)
         assert(np.amax(mask_np) == 1)
 
-        # Step 4. Convert numpy ndarrays to torch Tensors
+        # Step 4. Min-max normalization (only over the lung)
+        image_np = self.scale_image_intensities(image=image_np,
+                                                mask=mask_np)
+
+        # Step 5. Convert numpy ndarrays to torch Tensors
         image_t = torch.from_numpy(image_np)
         mask_t = torch.from_numpy(mask_np)
-
-        # Step 5. Min-max normalization (over full image)
-        image_t = ScaleIntensity(minv=0.0,
-                                 maxv=1.0)(image_t)
 
         batch_dict['{}_image'.format(image_type)] = image_t
         batch_dict['{}_lung_mask'.format(image_type)] = mask_t.float()
 
         return batch_dict
-
-
 
 
     def __getitem__(self, idx):

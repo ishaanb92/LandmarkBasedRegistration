@@ -121,13 +121,15 @@ def train(args):
                                                  batch_size=args.batch_size,
                                                  num_workers=4,
                                                  test=False,
-                                                 patch_size=TRAINING_PATCH_SIZE_DIRLAB)
+                                                 patch_size=TRAINING_PATCH_SIZE_DIRLAB,
+                                                 seed=args.seed)
 
         val_loader = create_dataloader_dir_lab(data_dicts=val_dicts,
                                                batch_size=args.batch_size,
                                                num_workers=4,
                                                test=False,
-                                               patch_size=TRAINING_PATCH_SIZE_DIRLAB)
+                                               patch_size=TRAINING_PATCH_SIZE_DIRLAB,
+                                               seed=args.seed)
 
 
     model = LesionMatchingModel(K=args.kpts_per_batch,

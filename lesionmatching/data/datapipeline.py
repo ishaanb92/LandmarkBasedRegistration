@@ -139,11 +139,13 @@ def create_dataloader_dir_lab(data_dicts=None,
                               test=False,
                               batch_size=4,
                               num_workers=4,
-                              patch_size=(128, 128, 128)):
+                              patch_size=(128, 128, 128),
+                              seed=1234):
 
     ds = DIRLab(data_dicts=data_dicts,
                 test=test,
-                patch_size=patch_size)
+                patch_size=patch_size,
+                seed=seed)
 
     loader = DataLoader(ds,
                         batch_size=batch_size,

@@ -62,7 +62,6 @@ if __name__ == '__main__':
         data_loader = create_dataloader_dir_lab(data_dicts=train_dict,
                                                 test=False,
                                                 batch_size=2,
-                                                data_aug=False,
                                                 patch_size=(128, 128, 96))
 
         coarse_displacements = (29, 19.84, 9.92)
@@ -100,12 +99,12 @@ if __name__ == '__main__':
             deformed_images = torch.zeros_like(images)
 
             batch_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
-                                                                   coarse=True,
-                                                                   fine=True,
-                                                                   coarse_displacements=coarse_displacements,
-                                                                   fine_displacements=fine_displacements,
-                                                                   coarse_grid_resolution=coarse_grid_resolution,
-                                                                   fine_grid_resolution=fine_grid_resolution)
+                                                                      coarse=True,
+                                                                      fine=True,
+                                                                      coarse_displacements=coarse_displacements,
+                                                                      fine_displacements=fine_displacements,
+                                                                      coarse_grid_resolution=coarse_grid_resolution,
+                                                                      fine_grid_resolution=fine_grid_resolution)
 
             if batch_deformation_grid is not None:
                 deformed_images = F.grid_sample(input=images,
