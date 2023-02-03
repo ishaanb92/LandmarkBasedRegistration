@@ -249,10 +249,13 @@ def train(args):
                     if args.dataset == 'umc':
                         images_hat = shift_intensity(images_hat)
                     elif args.dataset == 'copd':
-                        # See : H. Sokooti et al., 3D Convolutional Neural Networks Image Registration
-                        # Based on Efficient Supervised Learning from Artificial Deformations
-                        images_hat = dry_sponge_augmentation(images_hat,
-                                                             jac_det)
+                        if args.dry_sponge is True:
+                            # See : H. Sokooti et al., 3D Convolutional Neural Networks Image Registration
+                            # Based on Efficient Supervised Learning from Artificial Deformations
+                            images_hat = dry_sponge_augmentation(images_hat,
+                                                                 jac_det)
+                        else:
+                            pass
 
                 else:
                     images_hat = F.grid_sample(input=images,
@@ -538,6 +541,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=250)
     parser.add_argument('--earlystop', action='store_true')
     parser.add_argument('--renew', action='store_true')
+    parser.add_argument('--dry_sponge', action='store_true')
 
     args = parser.parse_args()
 

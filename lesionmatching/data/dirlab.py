@@ -55,20 +55,26 @@ class DIRLab(Dataset):
         # Convert to RAS axis ordering : [z, y, x] -> [x, y, z]
         im_np = np.transpose(im_np, (2, 1, 0))
 
-        # Add 'fake' channel axis
-        im_np = np.expand_dims(im_np, axis=0)
-
-        return im_np
+        return im_np.astype(np.float32)
 
     @staticmethod
     def scale_image_intensities(image, mask):
 
-        lung_max = np.amax(image[np.where(mask==1)])
-        lung_min = np.amin(image[np.where(mask==1)])
+        lung_max = np.max(image[np.where(mask==1)])
+        lung_min = np.min(image[np.where(mask==1)])
 
-        image = (image - lung_min)/(lung_max-lung_min)
+        intensity_range = lung_max-lung_min
 
-        return image.astype(np.float32)
+        # Avoid NaN's by restricting intensity range
+        image = np.where(image>lung_max, lung_max, image)
+        image = np.where(image<lung_min, lung_min, image)
+
+        image = np.divide(np.subtract(image, lung_min), (lung_max-lung_min))
+
+        if np.isnan(np.sum(image)) is True:
+            raise RuntimeError('NaN encountered while rescaling voxel intensities')
+
+        return image
 
     def __getitem__(self, idx):
 
@@ -99,6 +105,10 @@ class DIRLab(Dataset):
         # Step 4. Min-max normalization (only over the lung)
         image_np = self.scale_image_intensities(image=image_np,
                                                 mask=mask_np)
+
+        # Add "fake" channel axis
+        image_np = np.expand_dims(image_np, axis=0)
+        mask_np = np.expand_dims(mask_np, axis=0)
 
         # Step 5. Convert numpy ndarrays to torch Tensors
         image_t = torch.from_numpy(image_np)
@@ -153,10 +163,7 @@ class DIRLabPaired(Dataset):
         # Convert to RAS axis ordering : [z, y, x] -> [x, y, z]
         im_np = np.transpose(im_np, (2, 1, 0))
 
-        # Add 'fake' channel axis
-        im_np = np.expand_dims(im_np, axis=0)
-
-        return im_np
+        return im_np.astype(np.float32)
 
     @staticmethod
     def scale_image_intensities(image, mask):
@@ -196,6 +203,10 @@ class DIRLabPaired(Dataset):
         # Step 4. Min-max normalization (only over the lung)
         image_np = self.scale_image_intensities(image=image_np,
                                                 mask=mask_np)
+
+        # Add "fake" channel axis
+        image_np = np.expand_dims(image_np, axis=0)
+        mask_np = np.expand_dims(mask_np, axis=0)
 
         # Step 5. Convert numpy ndarrays to torch Tensors
         image_t = torch.from_numpy(image_np)

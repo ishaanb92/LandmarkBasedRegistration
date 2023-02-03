@@ -39,6 +39,7 @@ if __name__ == '__main__':
         train_patients = joblib.load('train_patients_umc.pkl')
         train_dict = create_data_dicts_lesion_matching([train_patients[0]])
 
+
         data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
                                                                     train=True,
                                                                     batch_size=1,
@@ -54,15 +55,16 @@ if __name__ == '__main__':
     elif args.dataset == 'dirlab':
         train_patients = joblib.load('train_patients_dirlab.pkl')
 
-        train_dict = create_data_dicts_dir_lab(train_patients[0:2])
+        train_dict = create_data_dicts_dir_lab(train_patients[3:4])
 
         for tdict in train_dict:
             print(tdict['patient_id'])
 
         data_loader = create_dataloader_dir_lab(data_dicts=train_dict,
                                                 test=False,
-                                                batch_size=2,
-                                                patch_size=(128, 128, 96))
+                                                batch_size=1,
+                                                patch_size=(128, 128, 96),
+                                                num_workers=1)
 
         coarse_displacements = (29, 19.84, 9.92)
         fine_displacements = (7.25, 9.92, 9.92)
