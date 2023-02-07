@@ -23,16 +23,17 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--params', type=str, help='Parameter file path(s)', nargs='+')
-    parser.add_argument('--out_dir', type=str, help='Output directory')
+    parser.add_argument('--registration_out_dir', type=str, help='Output directory')
     parser.add_argument('--dataset', type=str, help='dirlab or copd')
     parser.add_argument('--landmarks_dir', type=str, default=None)
     parser.add_argument('--mode', type=str, default='all')
+    parser.add_argument('--affine_reg_dir', type=str, default=None)
     args = parser.parse_args()
 
-    if os.path.exists(args.out_dir) is True:
-        shutil.rmtree(args.out_dir)
+    if os.path.exists(args.registration_out_dir) is True:
+        shutil.rmtree(args.registration_out_dir)
 
-    os.makedirs(args.out_dir)
+    os.makedirs(args.registration_out_dir)
 
     add_library_path(ELASTIX_LIB)
     el = ElastixInterface(elastix_path=ELASTIX_BIN)
@@ -55,18 +56,28 @@ if __name__ == '__main__':
 
     for pdir in pat_dirs:
         image_prefix = pdir.split(os.sep)[-1]
-        reg_out_dir = os.path.join(args.out_dir, image_prefix)
+        reg_out_dir = os.path.join(args.registration_out_dir, image_prefix)
+
+        # Use affine pre-registered moving image if directory is supplied
+        if args.affine_reg_dir is not None:
+            affine_pdir = os.path.join(args.affine_reg_dir, image_prefix)
+        else:
+            affine_pdir = None
+
         os.makedirs(reg_out_dir)
 
         fixed_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
                                                                      im_types[0]))
 
-        moving_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
-                                                                      im_types[1]))
-
-        # Use masks
         fixed_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[0]))
-        moving_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
+
+        if args.affine_reg_dir is None:
+            moving_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
+                                                                          im_types[1]))
+            moving_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
+        else: # Use the result of the affine registration as the moving image (and mask)
+            moving_image_path = os.path.join(affine_pdir, 'result.0.mha')
+            moving_mask_path = os.path.join(affine_pdir, 'moving_lung_mask_affine', 'result.mha')
 
         # Copy files to the output directory for convinient copying+viz
         shutil.copyfile(fixed_image_path, os.path.join(reg_out_dir, 'fixed_image.mha'))
@@ -75,6 +86,7 @@ if __name__ == '__main__':
         shutil.copyfile(fixed_mask_path, os.path.join(reg_out_dir, 'fixed_mask.mha'))
         shutil.copyfile(moving_mask_path, os.path.join(reg_out_dir, 'moving_mask.mha'))
 
+        # Landmark pairs are predicted using fixed and affine registered moving image
         if args.landmarks_dir is not None:
             fixed_landmarks = os.path.join(args.landmarks_dir,
                                            image_prefix,
