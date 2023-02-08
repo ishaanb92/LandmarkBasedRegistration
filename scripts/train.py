@@ -176,11 +176,13 @@ def train(args):
         coarse_grid_resolution = (3, 3, 3)
         fine_displacements = (2, 4, 4)
         fine_grid_resolution = (6, 6, 6)
+        pixel_thresh = (2, 4, 4)
     elif args.dataset == 'dirlab':
         coarse_displacements = (29, 19.84, 9.92)
         fine_displacements = (7.25, 9.92, 9.92)
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
+        pixel_thresh = (1, 2, 2)
 
     print('Start training')
     for epoch in range(epoch_saved+1, args.epochs):
@@ -314,7 +316,8 @@ def train(args):
 
                     gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
                                                                                          kpts2=outputs['kpt_sampling_grid'][1],
-                                                                                         deformation=batch_deformation_grid)
+                                                                                         deformation=batch_deformation_grid,
+                                                                                         pixel_thresh=pixel_thresh)
 
                     loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits'][0],
                                             landmark_logits2=outputs['kpt_logits'][1],
@@ -443,7 +446,8 @@ def train(args):
 
                     gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
                                                                                                kpts2=outputs['kpt_sampling_grid_2'],
-                                                                                               deformation=batch_deformation_grid)
+                                                                                               deformation=batch_deformation_grid,
+                                                                                               pixel_thresh=pixel_thresh)
 
                     loss_dict = custom_loss(landmark_logits1=outputs['kpt_logits_1'],
                                             landmark_logits2=outputs['kpt_logits_2'],
