@@ -131,9 +131,11 @@ def test(args):
     if args.dataset == 'umc':
         roi_size = (128, 128, 64)
         neighbourhood = 3
+        pixel_thresh = (2, 4, 4)
     elif args.dataset == 'dirlab' or args.dataset == 'copd':
         roi_size = (128, 128, 96)
         neighbourhood = 10
+        pixel_thresh = (1, 2, 2)
 
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(data_loader):
@@ -283,7 +285,7 @@ def test(args):
                                     create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
                                                                         kpts2=outputs['kpt_sampling_grid_2'],
                                                                         deformation=batch_deformation_grid,
-                                                                        pixel_thresh=(2, 4, 4),
+                                                                        pixel_thresh=pixel_thresh,
                                                                         train=False)
 
                 print('Number of ground truth matches (based on projecting keypoints) = {}'.format(num_gt_matches))
@@ -520,7 +522,7 @@ def test(args):
                                               kpts_2=kpts_logits_2.to(device),
                                               features_1=features_1,
                                               features_2=features_2,
-                                              conf_thresh=0.5,
+                                              conf_thresh=args.conf_threshold,
                                               num_pts=args.kpts_per_batch,
                                               mask=mask.to(device),
                                               mask2=mask_hat.to(device))
@@ -578,6 +580,7 @@ if __name__ == '__main__':
     parser.add_argument('--synthetic', action='store_true')
     parser.add_argument('--dummy', action='store_true')
     parser.add_argument('--window_size', type=int, default=8)
+    parser.add_argument('--conf_threshold', type=float, default=0.5)
 
     args = parser.parse_args()
 
