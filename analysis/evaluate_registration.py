@@ -61,6 +61,7 @@ if __name__ == '__main__':
         # Save the results
         np.save(file=os.path.join(pdir, 'pre_reg_error.npy'),
                 arr=spatial_errors_pre_reg)
+
         np.save(file=os.path.join(pdir, 'post_reg_error.npy'),
                 arr=spatial_errors_post_reg)
 

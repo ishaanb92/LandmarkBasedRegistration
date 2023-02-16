@@ -759,7 +759,7 @@ def save_landmark_predictions_in_elastix_format(landmarks_fixed,
                                                        origin=metadata_moving['origin'])
 
 
-    # Step 2. Create two "aligned" arrays s.t. index i of each of the arrays
+    # Step 2. Create two "aligned" 2-D arrays s.t. row i of each of the arrays
     # contain landmarks corresponding to the ith pair
     match_indices = np.nonzero(matches)
     landmarks_1_valid_matches = landmarks_1_world[match_indices[0], :]
@@ -773,3 +773,90 @@ def save_landmark_predictions_in_elastix_format(landmarks_fixed,
     create_landmarks_file(landmarks_2_valid_matches,
                           world=True,
                           fname=os.path.join(save_dir, 'moving_landmarks_elx.txt'))
+
+
+def get_affine_transform_parameters(fpath):
+    """
+
+    Extract affine transform parameters A, t, c from the
+    transformix output file
+
+    T(x) =  A(x-c) + t
+
+    """
+
+    tfile = open(fpath, 'r')
+    lines = tfile.readlines()
+    tfile.close()
+    lines = [line.strip() for line in lines]
+
+    A = np.empty(shape=(3, 3), dtype=np.float32)
+    t = np.empty(shape=(3,), dtype=np.float32)
+    c = np.empty(shape=(3,), dtype=np.float32)
+
+    for line in lines:
+        if len(line) > 2:
+            string_tuple = line.split(' ')
+            if line[0] == '/' and line[1] == '/':  # Comment-line, skip it
+                continue
+            elif line[0] == '(' and line[-1] == ')':  # Valid line
+                if string_tuple[0][1:] == 'TransformParameters':
+                    # Parse for A
+                    for i in range(3):
+                        for j in range(3):
+                            param = string_tuple[3*i + j + 1]
+                            if param[-1] == ')':
+                                param = param.split(')')[0]
+
+                            A[i][j] = float(param)
+
+                    # Parse for t : [tx ty tz]
+                    for i in range(3):
+                        param = string_tuple[10 + i]
+                        if param[-1] == ')':
+                            param = param.split(')')[0]
+
+                        t[i] = float(param)
+
+                elif string_tuple[0][1:] == 'CenterOfRotationPoint':
+                    for i in range(3):
+                        param = string_tuple[i+1]
+                        if param[-1] == ')':
+                            param = param.split(')')[0]
+                        c[i] = float(param)
+
+
+    return A, t, c
+
+def inverse_affine_transform(points_arr=None,
+                             A=None,
+                             t=None,
+                             c=None):
+    """
+
+    Reverses the affine transform to move points from the moving image domain to
+    the the fixed image domain
+
+    x_f = A^(-1)(x_m -t -c) + c
+
+    Input:
+        points: (np.ndarray) Array of landmark points of shape Nx3
+        A: (np.ndarray) Affine transform array of shape 3x3
+        t: (np.ndarray) Translation vector of length 3
+        c : (np.ndarray) Center of rotation (cx cy cz)
+
+    """
+
+    points_arr_t = points_arr.T # Shape : 3 x N
+
+    # See: https://numpy.org/doc/stable/user/basics.broadcasting.html
+    t = np.expand_dims(t, axis=1)
+    c = np.expand_dims(c, axis=1)
+
+    transformed_points_arr_t = np.matmul(np.linalg.inv(A), (points_arr_t - t - c)) + c
+
+    transformed_points_arr = transformed_points_arr_t.T # Shape :  N x 3
+
+    return transformed_points_arr
+
+

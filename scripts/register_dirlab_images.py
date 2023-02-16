@@ -19,6 +19,9 @@ ELASTIX_LIB = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/lib'
 
 COPD_DIR = '/home/ishaan/COPDGene/mha'
 
+COPD_POINTS_DIR = '/home/ishaan/COPDGene/points'
+DIRLAB_POINTS_DIR = '/home/ishaan/DIR-Lab/points'
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -28,6 +31,8 @@ if __name__ == '__main__':
     parser.add_argument('--landmarks_dir', type=str, default=None)
     parser.add_argument('--mode', type=str, default='all')
     parser.add_argument('--affine_reg_dir', type=str, default=None)
+    parser.add_argument('--sanity', action='store_true')
+
     args = parser.parse_args()
 
     if os.path.exists(args.registration_out_dir) is True:
@@ -51,8 +56,10 @@ if __name__ == '__main__':
 
     if args.dataset == 'dirlab':
         im_types = ['T00', 'T50']
+        points_dir = DIRLAB_POINTS_DIR
     elif args.dataset == 'copd':
         im_types = ['iBHCT', 'eBHCT']
+        points_dir = COPD_POINTS_DIR
 
     for pdir in pat_dirs:
         image_prefix = pdir.split(os.sep)[-1]
@@ -96,8 +103,21 @@ if __name__ == '__main__':
                                             image_prefix,
                                             'moving_landmarks_elx.txt')
         else:
-            fixed_landmarks = None
-            moving_landmarks = None
+            if args.sanity is False:
+                fixed_landmarks = None
+                moving_landmarks = None
+            else:
+                if args.dataset == 'dirlab':
+                    fixed_landmarks = os.path.join(points_dir,
+                                                   image_prefix,
+                                                   '{}_4D-75_T00_world_elx.txt'.format(image_prefix))
+                elif args.dataset == 'copd':
+                    fixed_landmarks = os.path.join(points_dir,
+                                                   image_prefix,
+                                                   '{}_300_iBH_world_r1_elx.txt'.format(image_prefix))
+
+                moving_landmarks = os.path.join(affine_pdir, 'transformed_moving_landmarks_elx.txt')
+
 
         el.register(fixed_image=fixed_image_path,
                     moving_image=moving_image_path,
