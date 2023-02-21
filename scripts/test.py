@@ -93,7 +93,8 @@ def test(args):
         elif args.dataset == 'dirlab' or args.dataset == 'copd':
 
             data_dicts = create_data_dicts_dir_lab_paired(patients,
-                                                          dataset=args.dataset)
+                                                          dataset=args.dataset,
+                                                          affine_reg_dir=args.affine_reg_dir)
 
             data_loader = create_dataloader_dir_lab_paired(data_dicts=data_dicts,
                                                            batch_size=args.batch_size,
@@ -542,13 +543,14 @@ def test(args):
                     np.save(file=os.path.join(dump_dir, 'predicted_matches'),
                             arr=matches)
 
+                    # Landmarks are saved in k-j-i order!
                     np.save(file=os.path.join(dump_dir, 'landmarks_fixed'),
                             arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
 
                     np.save(file=os.path.join(dump_dir, 'landmarks_moving'),
                             arr=maybe_convert_tensor_to_numpy(outputs['landmarks_1'][batch_id, ...]))
 
-                    # Save corr. landmarks as elastix-compatible .txt files
+                    # Save corr. landmarks as elastix-compatible .txt files (in i-j-k order)
                     save_landmark_predictions_in_elastix_format(landmarks_fixed=outputs['landmarks_2'][batch_id, ...],
                                                                 landmarks_moving=outputs['landmarks_1'][batch_id, ...],
                                                                 metadata_fixed=fixed_metadata_list[batch_id],
@@ -566,10 +568,21 @@ def test(args):
                                            out_dir=os.path.join(dump_dir, 'matches'),
                                            neighbourhood=neighbourhood)
 
+                    # Save images
+                    save_ras_as_itk(img=images[batch_id, ...],
+                                    metadata=moving_metadata_list[batch_id],
+                                    fname=os.path.join(dump_dir, 'moving_image.mha'))
+
+                    save_ras_as_itk(img=images_hat[batch_id, ...],
+                                    metadata=fixed_metadata_list[batch_id],
+                                    fname=os.path.join(dump_dir, 'fixed_image.mha'))
+
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
+    parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
     parser.add_argument('--gpu_id', type=int, default=2)
