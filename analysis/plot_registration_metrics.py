@@ -42,15 +42,15 @@ if __name__ == '__main__':
     # Loop over patients
     for pid in pids:
         # Pre-registration TRE
-        pre_reg_tre = np.load(os.path.join(baseline_dir, pid, 'pre_reg_error.npy'))
-        tre_dict['Patient ID'].extend([pid for i in range(pre_reg_tre.shape[0])])
-        tre_dict['Registration type'].extend(['Pre-registration' for i in range(pre_reg_tre.shape[0])])
-        tre_dict['TRE (mm)'].extend(list(pre_reg_tre))
+#        pre_reg_tre = np.load(os.path.join(baseline_dir, pid, 'pre_reg_error.npy'))
+#        tre_dict['Patient ID'].extend([pid for i in range(pre_reg_tre.shape[0])])
+#        tre_dict['Registration type'].extend(['Pre-registration' for i in range(pre_reg_tre.shape[0])])
+#        tre_dict['TRE (mm)'].extend(list(pre_reg_tre))
         # Loop over registration configurations
         for idx, rdir in enumerate(args.folders):
             pdir = os.path.join(args.result_dir, rdir, pid)
             post_reg_tre = np.load(os.path.join(pdir, 'post_reg_error.npy'))
-            tre_dict['Patient ID'].extend([pid for i in range(pre_reg_tre.shape[0])])
+            tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
             tre_dict['Registration type'].extend([args.legends[idx] for i in range(post_reg_tre.shape[0])])
             tre_dict['TRE (mm)'].extend(list(post_reg_tre))
 
