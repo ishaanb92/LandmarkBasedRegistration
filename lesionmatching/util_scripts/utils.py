@@ -601,6 +601,17 @@ def map_voxel_index_to_world_coord(voxels, spacing, origin):
 
     return world_coords
 
+def map_world_coord_to_voxel_index(world_coords, spacing, origin):
+
+    assert(isinstance(world_coords, np.ndarray))
+    spacing = np.array(spacing)
+    origin = np.array(origin)
+
+    voxel_idxs = np.divide(np.subtract(world_coords,
+                                       np.expand_dims(origin, axis=0)),
+                           np.expand_dims(spacing, axis=0))
+    return voxel_idxs
+
 
 # Update LD_LIBRARY_PATH so that the elastix binary can find the .so file
 def add_library_path(path):

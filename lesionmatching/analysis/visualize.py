@@ -9,9 +9,10 @@ Script to visualize keypoint matches
 import numpy as np
 import pandas as pd
 import cv2
-from utils.utils import maybe_convert_tensor_to_numpy
+from lesionmatching.util_scripts.utils import maybe_convert_tensor_to_numpy
 import os
 import math
+import shutil
 
 def save_matches(outputs,batch_idx):
     keypoints_detected = outputs['matches'][0, :, :]
@@ -98,8 +99,6 @@ def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_ma
     Function to visualize (predicted and true) landmark correspondences.
     Wraps the 2-D visualization function from https://github.com/monikagrewal/End2EndLandmarks
     such that correspondences found on the same slice can be visualized.
-
-    Matches (both predicted and true) found on different slices are ignored (FIXME!)
 
     """
     im1 = maybe_convert_tensor_to_numpy(im1)
@@ -212,7 +211,8 @@ def visualize_keypoints_2d_neighbourhood(im1,
                                          gt_mask,
                                          out_dir,
                                          slice_id,
-                                         basename="slice"):
+                                         basename="slice",
+                                         synthetic=True):
     """
     Function to display matches for a given slice in the original image. To show matches that may occur across slices, we define this hybrid function where the we take only one slice from the original image, but fetch a corresponding "neighbourhood" of slices from the deformed image and display the matches
 
@@ -243,44 +243,228 @@ def visualize_keypoints_2d_neighbourhood(im1,
 
     color = [0, 0, 1]
 
-    for k1, l1 in enumerate(output1):
-        kk1, jj1, ii1 = l1
-        kk1 = round_float_coords(kk1)
-        jj1 = round_float_coords(jj1)
-        ii1 = round_float_coords(ii1)
+    if synthetic is True:
+        for k1, l1 in enumerate(output1):
+            kk1, jj1, ii1 = l1
+            kk1 = round_float_coords(kk1)
+            jj1 = round_float_coords(jj1)
+            ii1 = round_float_coords(ii1)
 
-        cv2.circle(im, (jj1, middle_block*i + ii1), 2, color, -1)
+            cv2.circle(im, (jj1, middle_block*i + ii1), 2, color, -1)
 
-        for k2, l2 in enumerate(output2):
-            kk2, jj2, ii2 = l2
-            kk2 = round_float_coords(kk2)
-            jj2 = round_float_coords(jj2)
-            ii2 = round_float_coords(ii2)
+            for k2, l2 in enumerate(output2):
+                kk2, jj2, ii2 = l2
+                kk2 = round_float_coords(kk2)
+                jj2 = round_float_coords(jj2)
+                ii2 = round_float_coords(ii2)
 
-            slice_diff = kk1 - kk2
+                slice_diff = kk1 - kk2
 
-            cv2.circle(im, (jj2+j, ((middle_block+slice_diff)*i + ii2)), 2, color, -1)
+                cv2.circle(im, (jj2+j, ((middle_block+slice_diff)*i + ii2)), 2, color, -1)
 
-            if pred_mask[k1, k2] == 1:
-                if gt_mask is not None:
-                    if gt_mask[k1, k2] == 1: # True positive
+                if pred_mask[k1, k2] == 1:
+                    if gt_mask is not None:
+                        if gt_mask[k1, k2] == 1: # True positive
+                            cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 0), 1) # Green
+                        else: # False positive
+                            cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 1), 1) # Yellow
+                    else: # No GT mask (i.e. paired data, true deformation is unknown)
                         cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 0), 1) # Green
-                    else: # False positive
-                        cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 1), 1) # Yellow
-                else: # No GT mask (i.e. paired data, true deformation is unknown)
-                    cv2.line(im, (jj1, middle_block*i + ii1), (jj2+j, (middle_block+slice_diff)*i + ii2), (0, 1, 0), 1) # Green
 
-            if gt_mask is not None:
-                if gt_mask[k1, k2] == 1:
-                    if pred_mask[k1, k2] == 0: # False negative
-                        cv2.line(im, (jj1, middle_block*i + ii1), ((jj2+j, (middle_block+slice_diff)*i + ii2)), (0, 0, 1), 1) # Red
+                if gt_mask is not None:
+                    if gt_mask[k1, k2] == 1:
+                        if pred_mask[k1, k2] == 0: # False negative
+                            cv2.line(im, (jj1, middle_block*i + ii1), ((jj2+j, (middle_block+slice_diff)*i + ii2)), (0, 0, 1), 1) # Red
+    else:
+        raise NotImplementedError
 
     cv2.imwrite(os.path.join(out_dir, '{}.jpg'.format(basename)),
                 (im*255).astype(np.uint8))
 
 
+def overlay_predicted_and_manual_landmarks(fixed_image,
+                                           moving_image,
+                                           pred_landmarks_fixed,
+                                           pred_landmarks_moving,
+                                           manual_landmarks_fixed,
+                                           manual_landmarks_moving,
+                                           out_dir=None,
+                                           verbose=False):
+
+    """
+    To gain better insight into TRE trends, visualize the overlay of manual and predicted landmarks pairs
+
+    Args:
+        fixed_image: (numpy ndarray) RAS axes ordering
+        moving_image: (numpy ndarray) RAS axes ordering
+        pred_landmarks_fixed: (numpy ndarray) shape : (N, 3) -- in voxels
+        pred_landmarks_moving: (numpy ndarray) shape: (N, 3) -- in voxels
+        manual_landmarks_fixed: (numpy ndarray) shape: (M, 3) -- in voxels
+        manual_landmarks_moving: (numpy ndarray) shape: (M, 3) -- in voxels
+        out_dir: (str) Output directory to store all the images
+    """
 
 
+    if os.path.exists(out_dir) is True:
+        shutil.rmtree(out_dir)
+
+    os.makedirs(out_dir)
+
+    fixed_image = maybe_convert_tensor_to_numpy(fixed_image)
+    moving_image = maybe_convert_tensor_to_numpy(moving_image)
+
+    # Predicted landmarks
+    pred_landmarks_fixed = maybe_convert_tensor_to_numpy(pred_landmarks_fixed)
+    pred_landmarks_moving = maybe_convert_tensor_to_numpy(pred_landmarks_moving)
+
+    # Manual landmarks
+    manual_landmarks_fixed = maybe_convert_tensor_to_numpy(manual_landmarks_fixed)
+    manual_landmarks_moving = maybe_convert_tensor_to_numpy(manual_landmarks_moving)
+
+    n_slices = fixed_image.shape[-1]
+
+    pred_color = [0, 0, 1]
+    manual_color = [0, 1, 0]
+
+
+    for slice_idx in range(n_slices):
+
+        # Predicted landmarks
+        pred_landmarks_fixed_rows = np.where(pred_landmarks_fixed[:, 2] == slice_idx)[0]
+        n_pred_landmarks = pred_landmarks_fixed_rows.shape[0]
+
+        if n_pred_landmarks != 0:
+            # Fixed image landmarks on current slice
+            slice_pred_landmarks_fixed = pred_landmarks_fixed[pred_landmarks_fixed_rows, :]
+            # Use the same rows because matching landmarks are in corr. rows by definition!!
+            patch_pred_landmarks_moving = pred_landmarks_moving[pred_landmarks_fixed_rows, :]
+            pred_moving_slices = patch_pred_landmarks_moving[:, 2]
+            pred_max_slice = np.amax(pred_moving_slices)
+            pred_min_slice = np.amin(pred_moving_slices)
+        else:
+            pred_max_slice = -1
+            pred_min_slice = 10000
+            slice_pred_landmarks_fixed = None
+            patch_pred_landmarks_moving = None
+
+        # Manual landmarks
+        manual_landmarks_fixed_rows = np.where(manual_landmarks_fixed[:, 2] == slice_idx)[0]
+        n_manual_landmarks = manual_landmarks_fixed_rows.shape[0]
+
+        if n_manual_landmarks != 0:
+            # Fixed image landmarks on current slice
+            slice_manual_landmarks_fixed = manual_landmarks_fixed[manual_landmarks_fixed_rows, :]
+            # Use the same rows because matching landmarks are in corr. rows by definition!!
+            patch_manual_landmarks_moving = manual_landmarks_moving[manual_landmarks_fixed_rows, :]
+            manual_moving_slices = patch_manual_landmarks_moving[:, 2]
+            manual_max_slice = np.amax(manual_moving_slices)
+            manual_min_slice = np.amin(manual_moving_slices)
+        else:
+            manual_max_slice = -1
+            manual_min_slice = 10000
+            slice_manual_landmarks_fixed = None
+            patch_manual_landmarks_moving = None
+
+        if n_manual_landmarks == 0 and n_pred_landmarks == 0:
+            continue
+
+        min_slice = round_float_coords(min(pred_min_slice, manual_min_slice))
+        max_slice = round_float_coords(max(pred_max_slice, manual_max_slice))
+
+
+        # Create the neighbourhood
+        if slice_idx < min_slice:
+            fixed_image_offset = 0
+            min_slice = slice_idx
+            max_slice = max_slice
+        elif slice_idx >= min_slice:
+            fixed_image_offset = slice_idx - min_slice
+            min_slice = min_slice
+            if slice_idx < max_slice:
+                max_slice = max_slice
+            else:
+                max_slice = slice_idx
+
+
+
+#        if slice_idx >= min_slice and slice_idx < max_slice:
+#            fixed_image_offset = slice_idx - min_slice
+#        elif slice_idx < min_slice:
+#            fixed_image_offset = 0
+#            min_slice = slice_idx
+#            max_slice = max_slice
+#        elif slice_idx >= max_slice:
+#            if min_slice != max_slice:
+#                fixed_image_offset = slice_idx - min_slice
+#                min_slice = min_slice
+#                max_slice = slice_idx
+#            else:# slice_idx = min_slice = max_slice
+#                fixed_image_offset = 0
+#                min_slice = slice_idx
+#                max_slice = slice_idx
+
+        if verbose is True:
+            print('Fixed slice idx: {}, Max slice : {}, Min slice: {},\
+                  pred landmarks {}, gt landmarks {}'.format(slice_idx,
+                                                             max_slice,
+                                                             min_slice,
+                                                             n_pred_landmarks,
+                                                             n_gt_matches))
+
+        moving_image_patch = moving_image[:, :, min_slice:(max_slice+1)]
+        i, j, k = moving_image_patch.shape
+
+
+        # np.ndarray to "hold" both images (and matches)
+        im = np.zeros((i*k, 2*j),
+                      dtype=np.float32)
+
+
+        im[fixed_image_offset*i:(fixed_image_offset+1)*i, :j] = fixed_image[:, :, slice_idx]
+
+        for offset, moving_slice_idx in enumerate(range(min_slice, max_slice+1)):
+            im[offset*i:(offset+1)*i, j:] = moving_image[:, :, moving_slice_idx]
+
+        # Convert the image to OpenCV RGB format
+        im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
+
+        # Draw predicted correspondences
+        if slice_pred_landmarks_fixed is not None:
+            for row_idx in range(slice_pred_landmarks_fixed.shape[0]):
+                fx, fy, fz = slice_pred_landmarks_fixed[row_idx]
+                mx, my, mz = patch_pred_landmarks_moving[row_idx]
+
+                fx = round_float_coords(fx)
+                fy = round_float_coords(fy)
+                fz = round_float_coords(fz)
+
+                mx = round_float_coords(mx)
+                my = round_float_coords(my)
+                mz = round_float_coords(mz)
+
+                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, pred_color, -1)
+                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, pred_color, -1)
+                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 0, 1), 1) # Red
+
+        if slice_manual_landmarks_fixed is not None:
+            for row_idx in range(slice_manual_landmarks_fixed.shape[0]):
+                fx, fy, fz = slice_manual_landmarks_fixed[row_idx]
+                mx, my, mz = patch_manual_landmarks_moving[row_idx]
+
+                fx = round_float_coords(fx)
+                fy = round_float_coords(fy)
+                fz = round_float_coords(fz)
+
+                mx = round_float_coords(mx)
+                my = round_float_coords(my)
+                mz = round_float_coords(mz)
+
+                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, manual_color, -1)
+                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, manual_color, -1)
+                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 1, 0), 1) # Green
+
+        cv2.imwrite(os.path.join(out_dir, 'slice_{}.jpg'.format(slice_idx)),
+                    (im*255).astype(np.uint8))
 
 
 

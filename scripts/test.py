@@ -569,11 +569,11 @@ def test(args):
                                            neighbourhood=neighbourhood)
 
                     # Save images
-                    save_ras_as_itk(img=images[batch_id, ...],
+                    save_ras_as_itk(img=images[batch_id, ...].float(),
                                     metadata=moving_metadata_list[batch_id],
                                     fname=os.path.join(dump_dir, 'moving_image.mha'))
 
-                    save_ras_as_itk(img=images_hat[batch_id, ...],
+                    save_ras_as_itk(img=images_hat[batch_id, ...].float(),
                                     metadata=fixed_metadata_list[batch_id],
                                     fname=os.path.join(dump_dir, 'fixed_image.mha'))
 
