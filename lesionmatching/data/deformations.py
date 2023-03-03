@@ -22,6 +22,7 @@ import os
 import SimpleITK as sitk
 import shutil
 from argparse import ArgumentParser
+from scipy.interpolate import RBFInterpolator
 
 def create_affine_transform(ndim=3,
                             center=[0, 0, 0],
@@ -180,3 +181,60 @@ def create_batch_deformation_grid(shape,
     jac_det = torch.Tensor(jac_det).to(device)
     return batch_deformation_grid, jac_det
 
+
+def construct_tps_defromation(p1=None,
+                              p2=None,
+                              smoothing=0.0,
+                              shape=None):
+
+    """
+
+    Function f that fits a thin-plate spline given a set of point correspondences
+
+        s.t. f(x) = x', x \in p1 and x' \in p2
+
+        and f = min_f [\lambda*\int |D^2f|^2 dX] (minimum bending energy)
+
+    Input:
+        p1, p2 are 3-D coordinates scaled between [0, 1]
+        p1: (np.ndarray) Px3 points from the fixed image
+        p2: (np.ndarray) Px3 points from the moving image
+        shape: (np.ndarray) Grid dims from which p1 and p2 have been sampled
+
+    Returns:
+        transformed_grid: (np.ndarray) Regular grid transformed using tps defined by p1-p2 correspondences
+
+    """
+
+    tps_interpolator = RBFInterpolator(y=p1,
+                                       d=p2,
+                                       smoothing=0.0,
+                                       kernel='thin_plate_spline',
+                                       degree=1,
+                                       neighbors=10)
+
+    # Shape: [3, X, Y, Z]
+    grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
+                                np.linspace(0, 1, shape[1]),
+                                np.linspace(0, 1, shape[2]),
+                                indexing="ij"),
+                    dtype=np.float32)
+
+    ndim, X, Y, Z = grid.shape
+
+    # Reshape the grid so that it's compatible with the __call__ method
+    # Shape: [3, X*Y*Z]
+    grid = np.reshape(grid, (ndim, X*Y*Z))
+
+    # Shape: [X*Y*Z, 3]
+    grid = grid.T
+
+    # Shape: [X*Y*Z, 3]
+    transformed_grid = tps_interpolator(grid)
+
+    # Re-shape this grid
+    transformed_grid = transformed_grid.T
+    transformed_grid = np.reshape(transformed_grid,
+                                  (ndim, X, Y, Z))
+
+    return transformed_grid
