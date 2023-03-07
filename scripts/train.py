@@ -202,7 +202,7 @@ def train(args):
                 elif args.dataset == 'dirlab':
                     images, mask = (batch_data['image'], batch_data['lung_mask'])
 
-                    # Additional non-rigid deformatio -- See Eppenhof and Pluim (2019), TMI
+                    # Additional non-rigid deformation -- See Eppenhof and Pluim (2019), TMI
                     if args.data_aug is True:
                         augmentation_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
                                                                                          non_rigid=True,
@@ -305,7 +305,8 @@ def train(args):
                                     x2=images_hat.to(device),
                                     mask=mask.to(device),
                                     mask2=mask_hat.to(device),
-                                    training=True)
+                                    training=True,
+                                    soft_masking=args.soft_masking)
 
                     if outputs is None: # Too few keypoints found
                         continue
@@ -327,6 +328,8 @@ def train(args):
                                             gt2=gt2,
                                             match_target=matches,
                                             k=args.kpts_per_batch,
+                                            mask_idxs_1 = outputs['mask_idxs_1'],
+                                            mask_idxs_2 = outputs['mask_idxs_2'],
                                             device=device)
                 # Backprop
                 scaler.scale(loss_dict['loss']).backward()
@@ -435,6 +438,7 @@ def train(args):
                                               num_pts=args.kpts_per_batch,
                                               mask=mask.to(device),
                                               mask2=mask_hat.to(device),
+                                              soft_masking=args.soft_masking,
                                               test=False)
 
                     if outputs is None: # Too few keypoints found
@@ -457,6 +461,8 @@ def train(args):
                                             gt2=gt2,
                                             match_target=gt_matches,
                                             k=args.kpts_per_batch,
+                                            mask_idxs_1=outputs['mask_idxs_1'],
+                                            mask_idxs_2=outputs['mask_idxs_2'],
                                             device=device)
 
                     for batch_id in range(images.shape[0]):
@@ -546,6 +552,7 @@ if __name__ == '__main__':
     parser.add_argument('--earlystop', action='store_true')
     parser.add_argument('--renew', action='store_true')
     parser.add_argument('--dry_sponge', action='store_true')
+    parser.add_argument('--soft_masking', action='store_true')
 
     args = parser.parse_args()
 

@@ -41,29 +41,32 @@ class LesionMatchingModel(nn.Module):
         self.W = W
         self.K = K
 
-    def forward(self, x1, x2, mask=None, mask2=None, training=True):
+    def forward(self, x1, x2, mask=None, mask2=None, training=True, soft_masking=False):
 
         kpts_1, features_1 = self.cnn(x1)
         kpts_2, features_2 = self.cnn(x2)
 
 
         # Sample keypoints and corr. descriptors
-        kpt_sampling_grid_1, kpt_logits_1, descriptors_1 = self.sampling_block(kpt_map=kpts_1,
-                                                                               features=features_1,
-                                                                               W=self.W,
-                                                                               num_pts=self.K,
-                                                                               training=training,
-                                                                               mask=mask)
+        kpt_sampling_grid_1, kpt_logits_1, descriptors_1, mask_idxs_1 = self.sampling_block(kpt_map=kpts_1,
+                                                                                            features=features_1,
+                                                                                            W=self.W,
+                                                                                            num_pts=self.K,
+                                                                                            training=training,
+                                                                                            mask=mask,
+                                                                                            soft_masking=soft_masking
+                                                                                            )
 
         if kpt_sampling_grid_1 is None:
             return None
 
-        kpt_sampling_grid_2, kpt_logits_2, descriptors_2 = self.sampling_block(kpt_map=kpts_2,
-                                                                               features=features_2,
-                                                                               W=self.W,
-                                                                               num_pts=self.K,
-                                                                               training=training,
-                                                                               mask=mask2)
+        kpt_sampling_grid_2, kpt_logits_2, descriptors_2, mask_idxs_2 = self.sampling_block(kpt_map=kpts_2,
+                                                                                            features=features_2,
+                                                                                            W=self.W,
+                                                                                            num_pts=self.K,
+                                                                                            training=training,
+                                                                                            mask=mask2,
+                                                                                            soft_masking=soft_masking)
         if kpt_sampling_grid_2 is None:
             return None
 
@@ -76,6 +79,8 @@ class LesionMatchingModel(nn.Module):
         output_dict['kpt_logits'] = (kpt_logits_1, kpt_logits_2)
         output_dict['desc_score'] = desc_pairs_score
         output_dict['desc_norm'] = desc_pair_norm
+        output_dict['mask_idxs_1'] = mask_idxs_1
+        output_dict['mask_idxs_2'] = mask_idxs_2
 
         return output_dict
 
@@ -128,26 +133,28 @@ class LesionMatchingModel(nn.Module):
 #        return features_1[0], features_1[1], features_2[0], features_2[1]
 
 
-    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None, test=True):
+    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None, soft_masking=False, test=True):
 
         b, c, i, j, k = kpts_1.shape
 
         # 2.)Sampling grid + descriptors
-        kpt_sampling_grid_1, kpt_logits_1, descriptors_1 = self.sampling_block(kpt_map=kpts_1,
-                                                                               features=features_1,
-                                                                               W=self.W,
-                                                                               num_pts=num_pts,
-                                                                               training=not(test),
-                                                                               conf_thresh=conf_thresh,
-                                                                               mask=mask)
+        kpt_sampling_grid_1, kpt_logits_1, descriptors_1, mask_idxs_1 = self.sampling_block(kpt_map=kpts_1,
+                                                                                            features=features_1,
+                                                                                            W=self.W,
+                                                                                            num_pts=num_pts,
+                                                                                            training=not(test),
+                                                                                            conf_thresh=conf_thresh,
+                                                                                            mask=mask,
+                                                                                            soft_masking=soft_masking)
 
-        kpt_sampling_grid_2, kpt_logits_2, descriptors_2 = self.sampling_block(kpt_map=kpts_2,
-                                                                               features=features_2,
-                                                                               W=self.W,
-                                                                               num_pts=num_pts,
-                                                                               training=not(test),
-                                                                               conf_thresh=conf_thresh,
-                                                                               mask=mask2)
+        kpt_sampling_grid_2, kpt_logits_2, descriptors_2, mask_idxs_2 = self.sampling_block(kpt_map=kpts_2,
+                                                                                            features=features_2,
+                                                                                            W=self.W,
+                                                                                            num_pts=num_pts,
+                                                                                            training=not(test),
+                                                                                            conf_thresh=conf_thresh,
+                                                                                            mask=mask2,
+                                                                                            soft_masking=soft_masking)
 
         if kpt_sampling_grid_1 is None or kpt_sampling_grid_2 is None:
             return None
@@ -213,6 +220,8 @@ class LesionMatchingModel(nn.Module):
         outputs['kpt_sampling_grid_2'] = kpt_sampling_grid_2
         outputs['kpt_logits_1'] = kpt_logits_1
         outputs['kpt_logits_2'] = kpt_logits_2
+        outputs['mask_idxs_1'] = mask_idxs_1
+        outputs['mask_idxs_2'] = mask_idxs_2
 
         return outputs
 
@@ -241,7 +250,8 @@ class LesionMatchingModel(nn.Module):
                        W=4,
                        training=True,
                        mask=None,
-                       num_pts = 512):
+                       num_pts = 512,
+                       soft_masking=False):
 
         """
 
@@ -255,8 +265,9 @@ class LesionMatchingModel(nn.Module):
 
         kpt_probmap = torch.sigmoid(kpt_map)
 
+        # Hard-masking
         # Multiply the probability map by the mask (so sampling probability in non-mask regions = 0)
-        if mask is not None:
+        if mask is not None and soft_masking is False:
             kpt_probmap = kpt_probmap*mask
 
         # Only retain the maximum activation in a given neighbourhood of size of W, W, W
@@ -274,7 +285,7 @@ class LesionMatchingModel(nn.Module):
         kpt_probmap_suppressed = torch.squeeze(kpt_probmap_suppressed,
                                                dim=1)
 
-        kpts = torch.zeros(size=(b, num_pts, 4),
+        kpts = torch.zeros(size=(b, num_pts, 5),
                            dtype=kpt_map.dtype).to(kpt_map.device)
 
         for batch_idx in range(b):
@@ -323,20 +334,27 @@ class LesionMatchingModel(nn.Module):
                         warnings.warn('The number of key-points requested ({}) is \
                                        less than the number of keypoints above threshold ({})'.format(num_pts,
                                                                                              N))
-                        kpts = torch.zeros(size=(b, N, 4),
+                        kpts = torch.zeros(size=(b, N, 5),
                                            dtype=kpt_map.dtype).to(kpt_map.device)
                         num_pts = N
                     else:
                         raise RuntimeError('No landmark candidates found in image')
 
 
-            item_kpts = torch.zeros(size=(N, 4),
+            item_kpts = torch.zeros(size=(N, 5),
                                     dtype=kpt_probmap.dtype).to(kpt_map.device)
 
             item_kpts[:, 0] = xs
             item_kpts[:, 1] = ys
             item_kpts[:, 2] = zs
             item_kpts[:, 3] = kpt_probmap_suppressed[batch_idx, zs , ys, xs]
+            if mask is not None:
+                # Get rid of fake channel axis
+                mask = torch.squeeze(mask, dim=1)
+                item_kpts[:, 4] = mask[batch_idx, zs, ys, xs]
+                if soft_masking is False:
+                    # Sanity check: If soft masking is disabled, all kpts should lie within the lung mask
+                    assert(torch.min(item_kpts[:, 4]) != 0)
 
             idxs_desc = torch.argsort(-1*item_kpts[:, 3])
 
@@ -349,7 +367,10 @@ class LesionMatchingModel(nn.Module):
             kpts[batch_idx, ...] = top_k_kpts
 
 
-        kpts_idxs = kpts[:, :, :3]
+        kpts_idxs = kpts[:, :, :3] # Shape: [B, K, 3]
+
+        # mask_idxs[b, i] == 1 (0) => i^th kpt lies inside (outside) the lung
+        mask_idxs = kpts[:, :, 4] # Shape: [B, K, 1]
 
         # Create sampling grid from kpt coords by recaling them to [-1, 1] range
         kpts_sampling_grid = torch.zeros_like(kpts_idxs)
@@ -383,7 +404,7 @@ class LesionMatchingModel(nn.Module):
         # Expected shape: [B, C, 1, 1, K]
         descriptors = torch.cat(descriptors, dim=1)
 
-        return kpts_sampling_grid, kpts_scores, descriptors
+        return kpts_sampling_grid, kpts_scores, descriptors, mask_idxs
 
 class DescriptorMatcher(nn.Module):
 

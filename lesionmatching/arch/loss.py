@@ -119,12 +119,22 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
 
 
-def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs_norm, gt1, gt2, match_target, k, device="cuda:0"):
+def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs_norm, gt1, gt2, match_target, k, mask_idxs_1, mask_idxs_2, device="cuda:0"):
 
     # LandmarkProbabilityLoss Image 1
     # Mean over batch (first torch.mean from left) and over #landmarks (=K) (first torch.mean from right)
-    landmark_logits1_lossa = torch.mean(1 - torch.mean(torch.sigmoid(landmark_logits1), dim=1))
 
+    # Boost landmark prob. for points inside lung
+    landmark_logits1_lossa_inside = torch.mean(1 - torch.mean(torch.mul(mask_idxs_1,
+                                                                 torch.sigmoid(landmark_logits1)),
+                                               dim=1))
+
+    # Suppress landmark prob. for points outside lung
+    landmark_logits1_lossa_outside = torch.mean(torch.mean(torch.mul(1-mask_idxs_1,
+                                                                     torch.sigmoid(landmark_logits1)),
+                                               dim=1))
+
+    landmark_logits1_lossa = landmark_logits1_lossa_inside + landmark_logits1_lossa_outside
 
     landmark_logits1_lossb = F.binary_cross_entropy_with_logits(landmark_logits1, gt1, reduction='none')
     landmark_logits1_lossb = torch.mean(landmark_logits1_lossb, dim=1) # Mean over #landmarks
@@ -134,7 +144,16 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     landmark_logits1_loss = landmark_logits1_lossa + landmark_logits1_lossb
 
     # LandmarkProbabilityLoss Image 2
-    landmark_logits2_lossa = torch.mean(1 - torch.mean(torch.sigmoid(landmark_logits2), dim=1))
+    landmark_logits2_lossa_inside = torch.mean(1 - torch.mean(torch.mul(mask_idxs_2,
+                                                                 torch.sigmoid(landmark_logits1)),
+                                               dim=1))
+
+    # Suppress landmark prob. for points outside lung
+    landmark_logits2_lossa_outside = torch.mean(torch.mean(torch.mul(1-mask_idxs_2,
+                                                                     torch.sigmoid(landmark_logits1)),
+                                               dim=1))
+
+    landmark_logits2_lossa = landmark_logits2_lossa_inside + landmark_logits2_lossa_outside
 
     landmark_logits2_lossb = F.binary_cross_entropy_with_logits(landmark_logits2, gt2, reduction='none')
     landmark_logits2_lossb = torch.mean(landmark_logits2_lossb, dim=1) # Mean over #landmarks
