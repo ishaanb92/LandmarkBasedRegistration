@@ -62,35 +62,68 @@ if __name__ == '__main__':
 
 
         # Step 2 : Affine transform fixed landmarks
-        transform_param_file = os.path.join(affine_reg_dir, 'TransformParameters.0.txt')
-
-        tr_if = TransformixInterface(parameters=transform_param_file,
-                                     transformix_path=TRANSFORMIX_BIN)
-
-        affine_transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=fixed_image_landmarks_path,
-                                                                      output_dir=affine_reg_dir)
-
-
-        if args.bspline_reg_dir is not None:
-
-            bspline_dir = os.path.join(args.bspline_reg_dir, pid)
-
-            # Step 3-a : Convert transformix output to array
-            affine_transformed_arr = parse_transformix_points_output(fpath=affine_transformed_fixed_points_path)
-
-            # Step 3-b : Convert array to elastix/transformix input format
-            create_landmarks_file(landmarks=affine_transformed_arr,
-                                  world=True,
-                                  fname=os.path.join(bspline_dir, 'affine_transformed_fixed_points.txt'))
-
-            # Step-4 : Non-rigid transform affine fixed landmarks
-            transform_param_file = os.path.join(bspline_dir, 'TransformParameters.1.txt')
+        if args.affine_reg_dir != args.bspline_reg_dir:
+            transform_param_file = os.path.join(affine_reg_dir, 'TransformParameters.0.txt')
 
             tr_if = TransformixInterface(parameters=transform_param_file,
                                          transformix_path=TRANSFORMIX_BIN)
 
-            transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=os.path.join(bspline_dir, 'affine_transformed_fixed_points.txt'),
-                                                                   output_dir=bspline_dir)
+            affine_transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=fixed_image_landmarks_path,
+                                                                          output_dir=affine_reg_dir)
+
+
+            if args.bspline_reg_dir is not None:
+
+                bspline_dir = os.path.join(args.bspline_reg_dir, pid)
+
+                # Step 3-a : Convert transformix output to array
+                affine_transformed_arr = parse_transformix_points_output(fpath=affine_transformed_fixed_points_path)
+
+                # Step 3-b : Convert array to elastix/transformix input format
+                create_landmarks_file(landmarks=affine_transformed_arr,
+                                      world=True,
+                                      fname=os.path.join(bspline_dir, 'affine_transformed_fixed_points.txt'))
+
+                # Step-4 : Non-rigid transform affine fixed landmarks
+                transform_param_file = os.path.join(bspline_dir, 'TransformParameters.1.txt')
+
+                tr_if = TransformixInterface(parameters=transform_param_file,
+                                             transformix_path=TRANSFORMIX_BIN)
+
+                transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=os.path.join(bspline_dir, 'affine_transformed_fixed_points.txt'),
+                                                                       output_dir=bspline_dir)
+
+                # Step 5-a : Convert transformix output to array
+                transformed_fixed_point_arr = parse_transformix_points_output(fpath=transformed_fixed_points_path)
+
+                # Step 5-b : Convert array to elastix/transformix input format
+                create_landmarks_file(landmarks=transformed_fixed_point_arr,
+                                      world=True,
+                                      fname=os.path.join(bspline_dir, 'transformed_fixed_points.txt'))
+
+                # Copy the fixed, moving, transformed fixed landmarks to the bspline registration directory
+                shutil.copy(fixed_image_landmarks_path,
+                            os.path.join(bspline_dir, 'fixed_image_landmarks.txt'))
+
+                shutil.copy(moving_image_landmarks_path,
+                            os.path.join(bspline_dir, 'moving_image_landmarks.txt'))
+            else:
+                # Step 3-a : Convert transformix output to array
+                affine_transformed_arr = parse_transformix_points_output(fpath=affine_transformed_fixed_points_path)
+
+                # Step 3-b : Convert array to elastix/transformix input format
+                create_landmarks_file(landmarks=affine_transformed_arr,
+                                      world=True,
+                                      fname=os.path.join(affine_reg_dir, 'affine_transformed_fixed_points.txt'))
+        else: # Affine + B-spline registrations present in the same directory
+
+            transform_param_file = os.path.join(affine_reg_dir, 'TransformParameters.2.txt')
+
+            tr_if = TransformixInterface(parameters=transform_param_file,
+                                         transformix_path=TRANSFORMIX_BIN)
+
+            transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=fixed_image_landmarks_path,
+                                                                   output_dir=affine_reg_dir)
 
             # Step 5-a : Convert transformix output to array
             transformed_fixed_point_arr = parse_transformix_points_output(fpath=transformed_fixed_points_path)
@@ -98,19 +131,11 @@ if __name__ == '__main__':
             # Step 5-b : Convert array to elastix/transformix input format
             create_landmarks_file(landmarks=transformed_fixed_point_arr,
                                   world=True,
-                                  fname=os.path.join(bspline_dir, 'transformed_fixed_points.txt'))
+                                  fname=os.path.join(affine_reg_dir, 'transformed_fixed_points.txt'))
 
             # Copy the fixed, moving, transformed fixed landmarks to the bspline registration directory
             shutil.copy(fixed_image_landmarks_path,
-                        os.path.join(bspline_dir, 'fixed_image_landmarks.txt'))
+                        os.path.join(affine_reg_dir, 'fixed_image_landmarks.txt'))
 
             shutil.copy(moving_image_landmarks_path,
-                        os.path.join(bspline_dir, 'moving_image_landmarks.txt'))
-        else:
-            # Step 3-a : Convert transformix output to array
-            affine_transformed_arr = parse_transformix_points_output(fpath=affine_transformed_fixed_points_path)
-
-            # Step 3-b : Convert array to elastix/transformix input format
-            create_landmarks_file(landmarks=affine_transformed_arr,
-                                  world=True,
-                                  fname=os.path.join(affine_reg_dir, 'affine_transformed_fixed_points.txt'))
+                        os.path.join(affine_reg_dir, 'moving_image_landmarks.txt'))
