@@ -347,6 +347,10 @@ def train(args):
                 writer.add_scalar('train/desc_loss_ce', loss_dict['desc_loss_ce'].item(), n_iter)
                 writer.add_scalar('train/desc_loss_hinge', loss_dict['desc_loss_hinge'].item(), n_iter)
                 writer.add_scalar('train/gt_matches', num_matches, n_iter)
+                writer.add_scalar('train/kpts_inside_lung_1', loss_dict['kpts_inside_lung_1'], n_iter)
+                writer.add_scalar('train/kpts_inside_lung_2', loss_dict['kpts_inside_lung_2'], n_iter)
+                writer.add_scalar('train/kpts_outside_lung_1', loss_dict['kpts_outside_lung_1'], n_iter)
+                writer.add_scalar('train/kpts_outside_lung_2', loss_dict['kpts_outside_lung_2'], n_iter)
                 n_iter += 1
 
         print('EPOCH {} done'.format(epoch))
@@ -503,6 +507,10 @@ def train(args):
                     writer.add_scalar('val/desc_loss_ce', loss_dict['desc_loss_ce'].item(), n_iter_val)
                     writer.add_scalar('val/desc_loss_hinge', loss_dict['desc_loss_hinge'].item(), n_iter_val)
                     writer.add_scalar('val/GT matches', num_gt_matches, n_iter_val)
+                    writer.add_scalar('val/kpts_inside_lung_1', loss_dict['kpts_inside_lung_1'], n_iter_val)
+                    writer.add_scalar('val/kpts_inside_lung_2', loss_dict['kpts_inside_lung_2'], n_iter_val)
+                    writer.add_scalar('val/kpts_outside_lung_1', loss_dict['kpts_outside_lung_1'], n_iter_val)
+                    writer.add_scalar('val/kpts_outside_lung_2', loss_dict['kpts_outside_lung_2'], n_iter_val)
                     val_loss.append(loss_dict['loss'].item())
                     pbar_val.set_postfix({'Validation loss': loss_dict['loss'].item()})
                     n_iter_val += 1

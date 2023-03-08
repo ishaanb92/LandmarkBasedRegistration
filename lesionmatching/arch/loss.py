@@ -145,12 +145,12 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
 
     # LandmarkProbabilityLoss Image 2
     landmark_logits2_lossa_inside = torch.mean(1 - torch.mean(torch.mul(mask_idxs_2,
-                                                                 torch.sigmoid(landmark_logits1)),
+                                                                 torch.sigmoid(landmark_logits2)),
                                                dim=1))
 
     # Suppress landmark prob. for points outside lung
     landmark_logits2_lossa_outside = torch.mean(torch.mean(torch.mul(1-mask_idxs_2,
-                                                                     torch.sigmoid(landmark_logits1)),
+                                                                     torch.sigmoid(landmark_logits2)),
                                                dim=1))
 
     landmark_logits2_lossa = landmark_logits2_lossa_inside + landmark_logits2_lossa_outside
@@ -197,6 +197,10 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
     loss_dict['landmark_2_loss_max_p'] = landmark_logits2_lossa
     loss_dict['desc_loss_ce'] = desc_loss1
     loss_dict['desc_loss_hinge'] = desc_loss2
+    loss_dict['kpts_inside_lung_1'] = torch.nonzero(mask_idxs_1).shape[0]
+    loss_dict['kpts_inside_lung_2'] = torch.nonzero(mask_idxs_2).shape[0]
+    loss_dict['kpts_outside_lung_1'] = torch.nonzero(1-mask_idxs_1).shape[0]
+    loss_dict['kpts_outside_lung_2'] = torch.nonzero(1-mask_idxs_2).shape[0]
 
     return loss_dict
 
