@@ -385,6 +385,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
             else:
                 max_slice = slice_idx
 
+        if max_slice >= moving_image.shape[-1]:
+            print('The affine transformation has transformed this landmark outside image domain. Skip')
+            continue
 
 
 #        if slice_idx >= min_slice and slice_idx < max_slice:
