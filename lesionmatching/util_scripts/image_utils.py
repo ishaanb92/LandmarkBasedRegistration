@@ -387,6 +387,18 @@ def save_ras_as_itk(img=None,
     sitk.WriteImage(img_itk,
                     fname)
 
+def convert_itk_to_ras_numpy(image):
+
+    assert(isinstance(image, sitk.Image))
+
+    im_np = sitk.GetArrayFromImage(image)
+
+    # Convert to RAS axis ordering : [z, y, x] -> [x, y, z]
+    im_np = np.transpose(im_np, (2, 1, 0))
+
+    return im_np.astype(np.float32)
+
+
 def dry_sponge_augmentation(image, jac_det):
     """
 
@@ -409,4 +421,16 @@ def dry_sponge_augmentation(image, jac_det):
 
     return image_sponge
 
+
+def get_min_max_from_image(image:sitk.Image,
+                           mask:sitk.Image):
+
+    image_np = convert_itk_to_ras_numpy(image)
+    mask_np = convert_itk_to_ras_numpy(mask)
+
+
+    lung_max = np.amax(image_np[np.where(mask_np==1)])
+    lung_min = np.amin(image_np[np.where(mask_np==1)])
+
+    return lung_max, lung_min
 

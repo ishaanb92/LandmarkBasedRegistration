@@ -172,12 +172,14 @@ def create_dataloader_dir_lab(data_dicts=None,
     return loader
 
 
-def create_dataloader_dir_lab_paired(data_dicts=None,
-                                     batch_size=1,
-                                     num_workers=4):
+def create_dataloader_dir_lab_paired(data_dicts:dict=None,
+                                     batch_size:int=1,
+                                     num_workers:int=4,
+                                     rescaling_stats:dict=None):
 
 
-    ds = DIRLabPaired(data_dicts=data_dicts)
+    ds = DIRLabPaired(data_dicts=data_dicts,
+                      rescaling_stats=rescaling_stats)
 
     loader = DataLoader(ds,
                         batch_size=batch_size,

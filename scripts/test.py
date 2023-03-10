@@ -64,6 +64,8 @@ def test(args):
             raise ValueError('DIR-Lab does not have a test set')
         elif args.dataset == 'copd':
             patients = [f.path for f in os.scandir(COPD_DIR) if f.is_dir()]
+            rescaling_stats = joblib.load(os.path.join(COPD_DIR,
+                                                       'rescaling_stats.pkl'))
 
     if args.synthetic is True:
         if args.dataset == 'umc':
@@ -98,7 +100,8 @@ def test(args):
 
             data_loader = create_dataloader_dir_lab_paired(data_dicts=data_dicts,
                                                            batch_size=args.batch_size,
-                                                           num_workers=4)
+                                                           num_workers=4,
+                                                           rescaling_stats=rescaling_stats)
 
 
     # Define the model
@@ -519,14 +522,27 @@ def test(args):
                 print(torch.max(torch.max(kpts_logits_2)))
 
                 try:
-                    outputs = model.inference(kpts_1=kpts_logits_1.to(device),
-                                              kpts_2=kpts_logits_2.to(device),
-                                              features_1=features_1,
-                                              features_2=features_2,
-                                              conf_thresh=args.conf_threshold,
-                                              num_pts=args.kpts_per_batch,
-                                              mask=mask.to(device),
-                                              mask2=mask_hat.to(device))
+                    if args.soft_masking is False:
+                        outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                                  kpts_2=kpts_logits_2.to(device),
+                                                  features_1=features_1,
+                                                  features_2=features_2,
+                                                  conf_thresh=args.conf_threshold,
+                                                  num_pts=args.kpts_per_batch,
+                                                  mask=mask.to(device),
+                                                  mask2=mask_hat.to(device),
+                                                  soft_masking=False)
+                    else:
+                        outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                                  kpts_2=kpts_logits_2.to(device),
+                                                  features_1=features_1,
+                                                  features_2=features_2,
+                                                  conf_thresh=args.conf_threshold,
+                                                  num_pts=args.kpts_per_batch,
+                                                  mask=None,
+                                                  mask2=None,
+                                                  soft_masking=True)
+
                 except RuntimeError:
                     continue
 
@@ -558,16 +574,6 @@ def test(args):
                                                                 matches=matches,
                                                                 save_dir=dump_dir)
 
-
-                    visualize_keypoints_3d(im1=images[batch_id, ...].squeeze(dim=0),
-                                           im2=images_hat[batch_id, ...].squeeze(dim=0),
-                                           landmarks1=outputs['landmarks_1'][batch_id, ...],
-                                           landmarks2=outputs['landmarks_2'][batch_id, ...],
-                                           pred_matches=outputs['matches'][batch_id, ...],
-                                           gt_matches=None,
-                                           out_dir=os.path.join(dump_dir, 'matches'),
-                                           neighbourhood=neighbourhood)
-
                     # Save images
                     save_ras_as_itk(img=images[batch_id, ...].float(),
                                     metadata=moving_metadata_list[batch_id],
@@ -591,6 +597,7 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--synthetic', action='store_true')
+    parser.add_argument('--soft_masking', action='store_true')
     parser.add_argument('--dummy', action='store_true')
     parser.add_argument('--window_size', type=int, default=8)
     parser.add_argument('--conf_threshold', type=float, default=0.5)

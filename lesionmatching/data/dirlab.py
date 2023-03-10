@@ -18,6 +18,7 @@ from monai.transforms import *
 import SimpleITK as sitk
 import numpy as np
 import random
+from lesionmatching.util_scripts.image_utils import convert_itk_to_ras_numpy
 
 class DIRLab(Dataset):
 
@@ -44,18 +45,6 @@ class DIRLab(Dataset):
 
     def __len__(self):
         return len(self.data_dicts)
-
-    @staticmethod
-    def convert_itk_to_ras_numpy(image):
-
-        assert(isinstance(image, sitk.Image))
-
-        im_np = sitk.GetArrayFromImage(image)
-
-        # Convert to RAS axis ordering : [z, y, x] -> [x, y, z]
-        im_np = np.transpose(im_np, (2, 1, 0))
-
-        return im_np.astype(np.float32)
 
     @staticmethod
     def scale_image_intensities(image, mask):
@@ -97,8 +86,8 @@ class DIRLab(Dataset):
         batch_dict['metadata']['origin'] = mask_itk.GetOrigin()
 
         # Step 3. Convert ITK image to numpy array (in RAS axis ordering)
-        image_np = self.convert_itk_to_ras_numpy(image_itk)
-        mask_np = self.convert_itk_to_ras_numpy(mask_itk)
+        image_np = convert_itk_to_ras_numpy(image_itk)
+        mask_np = convert_itk_to_ras_numpy(mask_itk)
 
         assert(np.amax(mask_np) == 1)
 
@@ -145,31 +134,23 @@ class DIRLab(Dataset):
 class DIRLabPaired(Dataset):
 
     def __init__(self,
-                 data_dicts:dict):
+                 data_dicts:dict=None,
+                 rescaling_stats:dict=None):
 
         super().__init__()
         self.data_dicts = data_dicts
+        self.rescaling_stats = rescaling_stats
 
     def __len__(self):
         return len(self.data_dicts)
 
-    @staticmethod
-    def convert_itk_to_ras_numpy(image):
-
-        assert(isinstance(image, sitk.Image))
-
-        im_np = sitk.GetArrayFromImage(image)
-
-        # Convert to RAS axis ordering : [z, y, x] -> [x, y, z]
-        im_np = np.transpose(im_np, (2, 1, 0))
-
-        return im_np.astype(np.float32)
 
     @staticmethod
-    def scale_image_intensities(image, mask):
+    def scale_image_intensities(image, mask, lung_max=None, lung_min=None):
 
-        lung_max = np.amax(image[np.where(mask==1)])
-        lung_min = np.amin(image[np.where(mask==1)])
+        if lung_max is None and lung_min is None:
+            lung_max = np.amax(image[np.where(mask==1)])
+            lung_min = np.amin(image[np.where(mask==1)])
 
         image = (image - lung_min)/(lung_max-lung_min)
 
@@ -196,13 +177,19 @@ class DIRLabPaired(Dataset):
         batch_dict['{}_metadata'.format(image_type)]['origin'] = mask_itk.GetOrigin()
 
         # Step 3. Convert ITK image to numpy array (in RAS axis ordering)
-        image_np = self.convert_itk_to_ras_numpy(image_itk)
-        mask_np = self.convert_itk_to_ras_numpy(mask_itk)
+        image_np = convert_itk_to_ras_numpy(image_itk)
+        mask_np = convert_itk_to_ras_numpy(mask_itk)
         assert(np.amax(mask_np) == 1)
 
         # Step 4. Min-max normalization (only over the lung)
-        image_np = self.scale_image_intensities(image=image_np,
-                                                mask=mask_np)
+        if self.rescaling_stats is None:
+            image_np = self.scale_image_intensities(image=image_np,
+                                                    mask=mask_np)
+        else:
+            image_np = self.scale_image_intensities(image=image_np,
+                                                    mask=mask_np,
+                                                    lung_max=self.rescaling_stats['{}_image_max'.format(image_type)],
+                                                    lung_min=self.rescaling_stats['{}_image_min'.format(image_type)])
 
         # Add "fake" channel axis
         image_np = np.expand_dims(image_np, axis=0)
