@@ -121,8 +121,8 @@ if __name__ == '__main__':
 
         el.register(fixed_image=fixed_image_path,
                     moving_image=moving_image_path,
-                    fixed_mask=fixed_mask_path,
-                    moving_mask=moving_mask_path,
+                    fixed_mask=None,
+                    moving_mask=None,
                     fixed_points=fixed_landmarks,
                     moving_points=moving_landmarks,
                     parameters=args.params,
