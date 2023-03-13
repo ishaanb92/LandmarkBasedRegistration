@@ -119,7 +119,16 @@ def create_ground_truth_correspondences(kpts1, kpts2, deformation, pixel_thresh=
 
 
 
-def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs_norm, gt1, gt2, match_target, k, device="cuda:0"):
+def custom_loss(landmark_logits1,
+                landmark_logits2,
+                desc_pairs_score,
+                desc_pairs_norm,
+                gt1,
+                gt2,
+                match_target,
+                k,
+                device="cuda:0",
+                desc_loss_comp_wt=torch.Tensor([1.0, 1.0])):
 
     # LandmarkProbabilityLoss Image 1
     # Mean over batch (first torch.mean from left) and over #landmarks (=K) (first torch.mean from right)
@@ -158,12 +167,17 @@ def custom_loss(landmark_logits1, landmark_logits2, desc_pairs_score, desc_pairs
 
     # Descriptor loss: Contrastive loss (with margin)
     # TODO: Margin (pos and neg should be hyper-parameters)
-    mpos = 0.1
+    if desc_loss_comp_wt[0] == 1: # loss_mode = 'aux'
+        mpos = 0.1
+    elif desc_loss_comp_wt[0] == 0: # loss_mode = 'hinge'
+        mpos = 0
     mneg = 1
     pos_loss = torch.sum(match_target * torch.max(torch.zeros_like(desc_pairs_norm).to(device), desc_pairs_norm - mpos)) / (2*Npos + 1e-6)
     neg_loss = torch.sum((1.0 - match_target) * torch.max(torch.zeros_like(desc_pairs_norm).to(device), mneg - desc_pairs_norm)) / (2*Nneg + 1e-6)
     desc_loss2 = pos_loss + neg_loss
-    desc_loss = desc_loss1 + desc_loss2
+
+    # DescLoss = alpha*CE-Loss + beta*HingeLoss
+    desc_loss = desc_loss_comp_wt[0]*desc_loss1 + desc_loss_comp_wt[1]*desc_loss2
 
     # total loss
     loss = landmark_logits1_loss + landmark_logits2_loss + desc_loss
