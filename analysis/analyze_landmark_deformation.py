@@ -46,6 +46,7 @@ if __name__ == '__main__':
         fixed_image_shape = fixed_image_itk.GetSize()
         moving_image_shape = moving_image_itk.GetSize()
 
+        # Landmarks in fixed and moving images are specified in world coordinates
         if args.mode == 'nn':
             fixed_points_arr = parse_points_file(os.path.join(pdir,
                                                               'fixed_landmarks_elx.txt'))
@@ -63,8 +64,17 @@ if __name__ == '__main__':
         else:
             raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
 
-        # Scale the coordinates between [0, 1]
 
+        # Convert world coordinates to voxel coordinates
+        fixed_points_arr = map_world_coord_to_voxel_index(world_coords=fixed_points_arr,
+                                                          spacing=fixed_image_itk.GetSpacing(),
+                                                          origin=fixed_image_itk.GetOrigin())
+
+        moving_points_arr = map_world_coord_to_voxel_index(world_coords=moving_points_arr,
+                                                           spacing=moving_image_itk.GetSpacing(),
+                                                           origin=moving_image_itk.GetOrigin())
+
+        # Scale the coordinates between [0, 1]
         fixed_points_scaled = np.divide(fixed_points_arr,
                                         np.expand_dims(np.array(fixed_image_shape),
                                                        axis=0))

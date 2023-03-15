@@ -212,8 +212,7 @@ def construct_tps_defromation(p1=None,
                                        d=p2,
                                        smoothing=0.0,
                                        kernel='thin_plate_spline',
-                                       degree=1,
-                                       neighbors=10)
+                                       degree=1)
 
     # Shape: [3, X, Y, Z]
     grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
@@ -308,10 +307,10 @@ def resample_image(image:np.ndarray,
     scaled_transformed_coordinates[2, ...] = image.shape[2]*transformed_coordinates[2, ...]
 
     resampled_image = map_coordinates(input=image,
-                                      coordinates=transformed_coordinates,
+                                      coordinates=scaled_transformed_coordinates,
                                       order=3,
                                       mode='constant',
-                                      cval=0)
+                                      cval=np.amin(image))
 
     return resampled_image
 
