@@ -97,14 +97,15 @@ def create_deformation_grid(grid=None,
     if len(transforms) == 0: # DEBUG
         return image_grid.grid
 
-    deformed_grid = image_grid.transform(*transforms)
 
-    jac_det = deformed_grid.jacobian_det(*transforms)
+    jac_det = image_grid.jacobian_det(*transforms)
 
     # Check for folding
     if np.amin(jac_det) < 0:
         print('Folding has occured!. Skip this batch')
         return None, None
+
+    deformed_grid = image_grid.transform(*transforms)
 
     dgrid = deformed_grid.grid
 
