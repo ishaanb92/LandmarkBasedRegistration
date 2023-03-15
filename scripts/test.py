@@ -279,7 +279,8 @@ def test(args):
                                           conf_thresh=0.5,
                                           num_pts=args.kpts_per_batch,
                                           mask=mask.to(device),
-                                          mask2=mask_hat.to(device))
+                                          mask2=mask_hat.to(device),
+                                          mode=args.loss_mode)
 
                 # Get ground truth matches based on projecting keypoints using the deformation grid
                 gt1, gt2, gt_matches, num_gt_matches, projected_landmarks = \
@@ -526,7 +527,8 @@ def test(args):
                                               conf_thresh=args.conf_threshold,
                                               num_pts=args.kpts_per_batch,
                                               mask=mask.to(device),
-                                              mask2=mask_hat.to(device))
+                                              mask2=mask_hat.to(device),
+                                              mode=args.loss_mode)
                 except RuntimeError:
                     continue
 
@@ -585,6 +587,7 @@ if __name__ == '__main__':
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
+    parser.add_argument('--loss_mode', type=str, default='aux')
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--seed', type=int, default=1234)
