@@ -23,6 +23,7 @@ import SimpleITK as sitk
 import shutil
 from argparse import ArgumentParser
 from scipy.interpolate import RBFInterpolator
+from scipy.ndimage import map_coordinates
 
 def create_affine_transform(ndim=3,
                             center=[0, 0, 0],
@@ -289,3 +290,28 @@ def calculate_jacobian_determinant(deformed_grid:np.ndarray=None):
     jac_det = np.linalg.det(jacobian)
 
     return jac_det
+
+def resample_image(image:np.ndarray,
+                   transformed_coordinates:np.ndarray):
+
+    """
+
+    Function to resample image on a transformed grid.
+    Example usage: Given a transformation (defined from fixed -> moving domains), resample the moving image
+
+    """
+
+    # Scale the coordinates [0, 1] -> [0, X/Y/Z]
+    scaled_transformed_coordinates = np.zeros_like(transformed_coordinates)
+    scaled_transformed_coordinates[0, ...] = image.shape[0]*transformed_coordinates[0, ...]
+    scaled_transformed_coordinates[1, ...] = image.shape[1]*transformed_coordinates[1, ...]
+    scaled_transformed_coordinates[2, ...] = image.shape[2]*transformed_coordinates[2, ...]
+
+    resampled_image = map_coordinates(input=image,
+                                      coordinates=transformed_coordinates,
+                                      order=3,
+                                      mode='constant',
+                                      cval=0)
+
+    return resampled_image
+
