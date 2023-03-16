@@ -24,6 +24,13 @@ import shutil
 from argparse import ArgumentParser
 from scipy.interpolate import RBFInterpolator
 from scipy.ndimage import map_coordinates
+from lesionmatching.util_scripts.utils import add_library_path
+# FIXME
+# CuPy import
+#add_library_path('/user/ishaan/anaconda3/pkgs/cudatoolkit-10.2.89-hfd86e86_1/lib')
+#print(os.environ.get('LD_LIBRARY_PATH'))
+#import cupy as cp
+#from cupyx.scipy.interpolate import GPURBFInterpolator
 
 def create_affine_transform(ndim=3,
                             center=[0, 0, 0],
@@ -187,7 +194,8 @@ def create_batch_deformation_grid(shape,
 def construct_tps_defromation(p1=None,
                               p2=None,
                               smoothing=0.0,
-                              shape=None):
+                              shape=None,
+                              gpu_id=-1):
 
     """
 
@@ -208,12 +216,6 @@ def construct_tps_defromation(p1=None,
 
     """
 
-    tps_interpolator = RBFInterpolator(y=p1,
-                                       d=p2,
-                                       smoothing=0.0,
-                                       kernel='thin_plate_spline',
-                                       degree=1)
-
     # Shape: [3, X, Y, Z]
     grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
                                 np.linspace(0, 1, shape[1]),
@@ -230,8 +232,32 @@ def construct_tps_defromation(p1=None,
     # Shape: [X*Y*Z, 3]
     grid = grid.T
 
-    # Shape: [X*Y*Z, 3]
-    transformed_grid = tps_interpolator(grid)
+
+    if gpu_id < 0:
+        tps_interpolator = RBFInterpolator(y=p1,
+                                           d=p2,
+                                           smoothing=0.0,
+                                           kernel='thin_plate_spline',
+                                           degree=1)
+        # Shape: [X*Y*Z, 3]
+        transformed_grid = tps_interpolator(grid)
+
+    else:
+        with cp.cuda.Device(gpu_id):
+            p1 = cp.asarray(p1)
+            p2 = cp.asarray(p2)
+            grid = cp.asarray(grid)
+
+            tps_interpolator = GPURBFInterpolator(y=p1,
+                                                  d=p2,
+                                                  smoothing=0.0,
+                                                  kernel='thin_plate_spline',
+                                                  degree=1)
+
+            transformed_grid = tps_interpolator(grid)
+
+        # Move it back to the CPU
+        transformed_grid = cp.asnumpy(transformed_grid)
 
     # Re-shape this grid
     transformed_grid = transformed_grid.T

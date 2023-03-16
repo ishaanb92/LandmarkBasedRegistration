@@ -19,8 +19,10 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--landmarks_dir', type=str, required=True)
+    parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, default='copd')
     parser.add_argument('--mode', type=str, default='nn', help='nn or gt')
+    parser.add_argument('--gpu_id', type=int, default=-1)
 
     args = parser.parse_args()
 
@@ -54,13 +56,17 @@ if __name__ == '__main__':
             moving_points_arr = parse_points_file(os.path.join(pdir,
                                                                'moving_landmarks_elx.txt'))
         elif args.mode == 'gt':
+
+            assert(args.affine_reg_dir is not None)
+
             fixed_points_arr = parse_points_file(os.path.join(points_dir,
                                                               pid,
                                                               '{}_300_iBH_world_r1_elx.txt'.format(pid)))
 
-            moving_points_arr = parse_points_file(os.path.join(points_dir,
+            # Since the moving image is already affine-registered, use the affine transformed moving landmarks
+            moving_points_arr = parse_points_file(os.path.join(args.affine_reg_dir,
                                                                pid,
-                                                               '{}_300_eBH_world_r1_elx.txt'.format(pid)))
+                                                               'transformed_moving_landmarks_elx.txt'))
         else:
             raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
 
@@ -90,7 +96,8 @@ if __name__ == '__main__':
         # properties of the deformations defined by the (predicted/GT) landmark correspondences
         T = construct_tps_defromation(p1=fixed_points_scaled,
                                       p2=moving_points_scaled,
-                                      shape=np.array(fixed_image_shape))
+                                      shape=np.array(fixed_image_shape),
+                                      gpu_id=args.gpu_id)
 
         # Save the transformed grid (to avoid recomputation)
         if args.mode == 'nn':
