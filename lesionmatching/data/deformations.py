@@ -236,7 +236,7 @@ def construct_tps_defromation(p1=None,
     if gpu_id < 0:
         tps_interpolator = RBFInterpolator(y=p1,
                                            d=p2,
-                                           smoothing=0.0,
+                                           smoothing=smoothing,
                                            kernel='thin_plate_spline',
                                            degree=1)
         # Shape: [X*Y*Z, 3]
@@ -250,7 +250,7 @@ def construct_tps_defromation(p1=None,
 
             tps_interpolator = GPURBFInterpolator(y=p1,
                                                   d=p2,
-                                                  smoothing=0.0,
+                                                  smoothing=smoothing,
                                                   kernel='thin_plate_spline',
                                                   degree=1)
 
@@ -265,6 +265,41 @@ def construct_tps_defromation(p1=None,
                                   (ndim, X, Y, Z))
 
     return transformed_grid.astype(np.float32)
+
+
+def transform_grid(transform=None,
+                   shape=None):
+
+    """
+
+    Given a transformation, deform the grid (used to resample later)
+
+    """
+
+    # Shape: [3, X, Y, Z]
+    grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
+                                np.linspace(0, 1, shape[1]),
+                                np.linspace(0, 1, shape[2]),
+                                indexing="ij"),
+                    dtype=np.float32)
+
+    ndim, X, Y, Z = grid.shape
+
+    # Reshape the grid so that it's compatible with the __call__ method
+    # Shape: [3, X*Y*Z]
+    grid = np.reshape(grid, (ndim, X*Y*Z))
+
+    # Shape: [X*Y*Z, 3]
+    grid = grid.T
+
+    transformed_grid = transform(grid)
+
+    transformed_grid = transformed_grid.T
+    transformed_grid = np.reshape(transformed_grid,
+                                  (ndim, X, Y, Z))
+
+    return transformed_grid.astype(np.float32)
+
 
 def calculate_jacobian(deformed_grid:np.ndarray=None):
     """
