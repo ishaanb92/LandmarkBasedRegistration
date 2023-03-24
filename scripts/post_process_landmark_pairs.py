@@ -19,6 +19,7 @@ import shutil
 import SimpleITK as sitk
 from lesionmatching.data.deformations import transform_grid
 from scipy.interpolate import RBFInterpolator
+import joblib
 
 if __name__ == '__main__':
 
@@ -33,7 +34,6 @@ if __name__ == '__main__':
     for pdir in pdirs:
 
         pid = pdir.split(os.sep)[-1]
-
 
         # Pre-process the landmark correspondences
         fixed_image_itk = sitk.ReadImage(os.path.join(pdir,
@@ -106,7 +106,9 @@ if __name__ == '__main__':
                                   world=True,
                                   fname=os.path.join(pdir, 'moving_landmarks_elx_{}.txt'.format(sterm)))
 
-
+            # 6. Save the TPS interpolator object
+            joblib.dump(tps_interpolator,
+                        os.path.join(pdir, 'tps_{}.pkl'.format(sterm)))
 
 
 

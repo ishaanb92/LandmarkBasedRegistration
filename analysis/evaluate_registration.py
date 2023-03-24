@@ -28,6 +28,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--reg_dir', type=str, required=True)
+    parser.add_argument('--smoothing_term', type=float, default=0.0)
 
     args = parser.parse_args()
 
@@ -44,7 +45,13 @@ if __name__ == '__main__':
 
         fixed_points_arr = parse_points_file(fpath=os.path.join(pdir, 'fixed_image_landmarks.txt'))
         moving_points_arr = parse_points_file(fpath=os.path.join(pdir, 'moving_image_landmarks.txt'))
-        transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir, 'transformed_fixed_points.txt'))
+
+        if args.smoothing_term == 0:
+            transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
+                                                                                'transformed_fixed_points.txt'))
+        else:
+            transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
+                                                                                'transformed_fixed_points_{}.txt'.format(args.smoothing_term)))
 
         spatial_errors_pre_reg = compute_euclidean_distance_between_points(x1=fixed_points_arr,
                                                                            x2=moving_points_arr)
