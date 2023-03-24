@@ -1,6 +1,8 @@
 """
 
-To check the "goodness" of our point correspondences, we fit a thin-plate spline (TPS) through all the point correspondences s.t. the TPS defines the transformation T : F->M. This transfomation can be then be analyzed to reason about performance or even filter a subset of point correspondences
+To check the "goodness" of our point correspondences, we fit a thin-plate spline (TPS) through all the point correspondences s.t. the TPS defines the transformation T : F->M.
+This transfomation can be then be used to warp the moving image to check whether the DL-based landmark correspondences produce a plausible deformation.
+Additionally using a smoothing term > 0, the correspondences can be be edited
 
 @author: Ishaan Bhat
 @email: ishaan@isi.uu.nl
@@ -156,10 +158,3 @@ if __name__ == '__main__':
                                 fname=os.path.join(pdir, 'tps_resampled_moving_image_gt.mha'))
             else:
                 raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
-
-
-
-
-
-
-
