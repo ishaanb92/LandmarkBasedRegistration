@@ -214,6 +214,7 @@ class LesionMatchingModel(nn.Module):
         outputs['matches'] = matches
         outputs['matches_norm'] = matches_norm
         outputs['matches_prob'] = matches_prob
+        outputs['match_probabilities'] = desc_pairs_prob
         outputs['kpt_sampling_grid_1'] = kpt_sampling_grid_1
         outputs['kpt_sampling_grid_2'] = kpt_sampling_grid_2
         outputs['kpt_logits_1'] = kpt_logits_1

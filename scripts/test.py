@@ -538,12 +538,17 @@ def test(args):
                     print('Patient {} :: Number of predicted corresponding landmarks = {}'.format(batch_data['patient_id'][batch_id],
                                                                                                   np.nonzero(matches)[0].shape[0]))
 
+                    match_probabilities = maybe_convert_tensor_to_numpy(outputs['match_probabilities'][batch_id, ...])
+
                     patient_id = batch_data['patient_id'][batch_id]
                     dump_dir = os.path.join(save_dir, patient_id)
                     os.makedirs(dump_dir)
 
                     np.save(file=os.path.join(dump_dir, 'predicted_matches'),
                             arr=matches)
+
+                    np.save(file=os.path.join(dump_dir, 'match_probabilities'),
+                            arr=match_probabilities)
 
                     # Landmarks are saved in k-j-i order!
                     np.save(file=os.path.join(dump_dir, 'landmarks_fixed'),
