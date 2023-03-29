@@ -288,6 +288,8 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                                            pred_landmarks_moving,
                                            manual_landmarks_fixed,
                                            manual_landmarks_moving,
+                                           smoothed_landmarks_moving=None,
+                                           gt_projection_landmarks_moving=None,
                                            out_dir=None,
                                            verbose=False):
 
@@ -321,6 +323,14 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
     manual_landmarks_fixed = maybe_convert_tensor_to_numpy(manual_landmarks_fixed)
     manual_landmarks_moving = maybe_convert_tensor_to_numpy(manual_landmarks_moving)
 
+    # Smoothed predicted moving landmarks
+    if smoothed_landmarks_moving is not None:
+        smoothed_landmarks_moving = maybe_convert_tensor_to_numpy(smoothed_landmarks_moving)
+
+    # GT projection landmarks moving landmarks
+    if gt_projection_landmarks_moving is not None:
+        gt_projection_landmarks_moving = maybe_convert_tensor_to_numpy(gt_projection_landmarks_moving)
+
     n_slices = fixed_image.shape[-1]
 
     pred_color = [0, 0, 1]
@@ -336,11 +346,41 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
         if n_pred_landmarks != 0:
             # Fixed image landmarks on current slice
             slice_pred_landmarks_fixed = pred_landmarks_fixed[pred_landmarks_fixed_rows, :]
+
             # Use the same rows because matching landmarks are in corr. rows by definition!!
+            # 1. Predicted landmarks in moving image
             patch_pred_landmarks_moving = pred_landmarks_moving[pred_landmarks_fixed_rows, :]
             pred_moving_slices = patch_pred_landmarks_moving[:, 2]
             pred_max_slice = np.amax(pred_moving_slices)
             pred_min_slice = np.amin(pred_moving_slices)
+
+            # 2. Smoothed landmarks in moving image
+            if smoothed_landmarks_moving is not None:
+                patch_smoothed_landmarks_moving = smoothed_landmarks_moving[pred_landmarks_fixed_rows, :]
+                smoothed_moving_slices = patch_smoothed_landmarks_moving[:, 2]
+                smoothed_max_slice = np.amax(smoothed_moving_slices)
+                smoothed_min_slice = np.amin(smoothed_moving_slices)
+            else:
+                smoothed_max_slice = -1
+                smoothed_min_slice = 10000
+                patch_smoothed_landmarks_moving = None
+                smoothed_moving_slices = None
+
+            # 3. GT projection in moving image
+            if gt_projection_landmarks_moving is not None:
+                patch_gt_projection_landmarks_moving = gt_projection_landmarks_moving[pred_landmarks_fixed_rows, :]
+                gt_projection_moving_slices = patch_gt_projection_landmarks_moving[:, 2]
+                gt_projection_max_slice = np.amax(gt_projection_moving_slices)
+                gt_projection_min_slice = np.amin(gt_projection_moving_slices)
+            else:
+                gt_projection_max_slice = -1
+                gt_projection_min_slice = 1000
+                patch_gt_projection_landmarks_moving = None
+                gt_projection_moving_slices = None
+
+            pred_max_slice = max(pred_max_slice, smoothed_max_slice, gt_projection_max_slice)
+            pred_min_slice = min(pred_min_slice, smoothed_min_slice, gt_projection_min_slice)
+
         else:
             pred_max_slice = -1
             pred_min_slice = 10000
@@ -386,23 +426,6 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 max_slice = slice_idx
 
 
-
-#        if slice_idx >= min_slice and slice_idx < max_slice:
-#            fixed_image_offset = slice_idx - min_slice
-#        elif slice_idx < min_slice:
-#            fixed_image_offset = 0
-#            min_slice = slice_idx
-#            max_slice = max_slice
-#        elif slice_idx >= max_slice:
-#            if min_slice != max_slice:
-#                fixed_image_offset = slice_idx - min_slice
-#                min_slice = min_slice
-#                max_slice = slice_idx
-#            else:# slice_idx = min_slice = max_slice
-#                fixed_image_offset = 0
-#                min_slice = slice_idx
-#                max_slice = slice_idx
-
         if verbose is True:
             print('Fixed slice idx: {}, Max slice : {}, Min slice: {},\
                   pred landmarks {}, gt landmarks {}'.format(slice_idx,
@@ -422,7 +445,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
 
         im[fixed_image_offset*i:(fixed_image_offset+1)*i, :j] = fixed_image[:, :, slice_idx]
 
-        for offset, moving_slice_idx in enumerate(range(min_slice, max_slice+1)):
+        for offset, moving_slice_idx in enumerate(range(min_slice, min(max_slice+1, n_slices))):
             im[offset*i:(offset+1)*i, j:] = moving_image[:, :, moving_slice_idx]
 
         # Convert the image to OpenCV RGB format
@@ -446,6 +469,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, pred_color, -1)
                 cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 0, 1), 1) # Red
 
+        # Draw GT correspondences
         if slice_manual_landmarks_fixed is not None:
             for row_idx in range(slice_manual_landmarks_fixed.shape[0]):
                 fx, fy, fz = slice_manual_landmarks_fixed[row_idx]
@@ -462,6 +486,43 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, manual_color, -1)
                 cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, manual_color, -1)
                 cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 1, 0), 1) # Green
+
+        # Draw predicted correspondences after smoothing
+        if slice_pred_landmarks_fixed is not None and smoothed_landmarks_moving is not None:
+            for row_idx in range(slice_pred_landmarks_fixed.shape[0]):
+                fx, fy, fz = slice_pred_landmarks_fixed[row_idx]
+                mx, my, mz = patch_smoothed_landmarks_moving[row_idx]
+
+                fx = round_float_coords(fx)
+                fy = round_float_coords(fy)
+                fz = round_float_coords(fz)
+
+                mx = round_float_coords(mx)
+                my = round_float_coords(my)
+                mz = round_float_coords(mz)
+
+                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, pred_color, -1)
+                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, pred_color, -1)
+                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (1, 0, 0), 1) # Blue
+
+        # Draw correspondences between predicted landmarks in the fixed image
+        # and GT projection
+        if slice_pred_landmarks_fixed is not None and gt_projection_landmarks_moving is not None:
+            for row_idx in range(slice_pred_landmarks_fixed.shape[0]):
+                fx, fy, fz = slice_pred_landmarks_fixed[row_idx]
+                mx, my, mz = patch_gt_projection_landmarks_moving[row_idx]
+
+                fx = round_float_coords(fx)
+                fy = round_float_coords(fy)
+                fz = round_float_coords(fz)
+
+                mx = round_float_coords(mx)
+                my = round_float_coords(my)
+                mz = round_float_coords(mz)
+
+                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, pred_color, -1)
+                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, pred_color, -1)
+                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 1, 1), 1) # Yellow
 
         cv2.imwrite(os.path.join(out_dir, 'slice_{}.jpg'.format(slice_idx)),
                     (im*255).astype(np.uint8))
