@@ -26,7 +26,6 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--affine_reg_dir', type=str, required=True)
     parser.add_argument('--bspline_reg_dir', type=str, default=None)
-    parser.add_argument('--points_dir', type=str, required=True)
     parser.add_argument('--dataset', type=str, help='dirlab or copd')
 
     args = parser.parse_args()
@@ -37,12 +36,16 @@ if __name__ == '__main__':
 
     add_library_path(ELASTIX_LIB)
 
+    if args.dataset == 'copd':
+        points_dir = '/home/ishaan/COPDGene/points'
+    elif args.dataset == 'dirlab':
+        points_dir = '/home/ishaan/DIR-Lab/points'
 
     for affine_reg_dir in pat_dirs:
 
         # Step 1. Transform anatomical landmarks from fixed image domain
         pid = affine_reg_dir.split(os.sep)[-1]
-        pat_point_dir = os.path.join(args.points_dir, pid)
+        pat_point_dir = os.path.join(points_dir, pid)
 
 
         # To avoid issues that may arise from making images isotropic,
