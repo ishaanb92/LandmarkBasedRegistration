@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='copd')
     parser.add_argument('--mode', type=str, default='nn', help='nn or gt')
     parser.add_argument('--gpu_id', type=int, default=-1)
+    parser.add_argument('--transform_grid', action='store_true')
 
     args = parser.parse_args()
 
@@ -37,7 +38,7 @@ if __name__ == '__main__':
     pdirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
 
     if args.mode == 'nn':
-        LAMBDAS = [0, 0.25, 0.5, 1, 5, 10]
+        LAMBDAS = [0.01, 0.05]
     elif args.mode == 'gt':
         LAMBDAS = [0]
 
@@ -103,58 +104,71 @@ if __name__ == '__main__':
             # 1. Fit thin-plate spline to define DVF based on point correspondences
             # Smoothing term is set to 0 for now, we want exact interpolation to study the
             # properties of the deformations defined by the (predicted/GT) landmark correspondences
-            T = construct_tps_defromation(p1=fixed_points_scaled,
-                                          p2=moving_points_scaled,
-                                          shape=np.array(fixed_image_shape),
-                                          smoothing=lmbda,
-                                          gpu_id=args.gpu_id)
+            tps_interpolator = RBFInterpolator(y=fixed_points_scaled,
+                                               d=moving_points_scaled,
+                                               smoothing=lmbda,
+                                               kernel='thin_plate_spline',
+                                               degree=1)
 
-            # Save the transformed grid (to avoid recomputation)
+
+            if args.transform_grid:
+                transformed_grid = transform_grid(transform=tps_interpolator,
+                                                  shape=np.array(fixed_image_itk.GetSize()))
+
+                # Save the transformed grid (to avoid recomputation)
+                if args.mode == 'nn':
+                    np.save(file=os.path.join(pdir, 'tps_transformed_grid_{}.npy'.format(lmbda)),
+                            arr=transformed_grid)
+                elif args.mode == 'gt':
+                    np.save(file=os.path.join(pdir, 'tps_transformed_grid_gt.npy'),
+                            arr=tranformed_grid)
+                else:
+                    raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
+                # Resample moving image based on TPS deformation estimated from point pairs
+                moving_image_resampled_np = resample_image(image=moving_image_np,
+                                                           transformed_coordinates=transformed_grid)
+
+                if args.mode == 'nn':
+                    save_ras_as_itk(img=moving_image_resampled_np,
+                                    metadata={'spacing':moving_image_itk.GetSpacing(),
+                                              'origin':moving_image_itk.GetOrigin(),
+                                              'direction':moving_image_itk.GetDirection()},
+                                    fname=os.path.join(pdir, 'tps_resampled_moving_image_{}.mha'.format(lmbda)))
+                elif args.mode == 'gt':
+                    save_ras_as_itk(img=moving_image_resampled_np,
+                                    metadata={'spacing':moving_image_itk.GetSpacing(),
+                                              'origin':moving_image_itk.GetOrigin(),
+                                              'direction':moving_image_itk.GetDirection()},
+                                    fname=os.path.join(pdir, 'tps_resampled_moving_image_gt.mha'))
+                else:
+                    raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
+
+                # 2. Compute determinant of Jacobian
+                jac_det = calculate_jacobian_determinant(deformed_grid=transformed_grid)
+
+                print('Jacobian determinant :: Min = {}, Max = {}'.format(np.amin(jac_det),
+                                                                          np.amax(jac_det)))
+                # 3. Save the jac_det as an ITK image
+                if args.mode == 'nn':
+                    save_ras_as_itk(img=jac_det,
+                                    metadata={'spacing':fixed_image_itk.GetSpacing(),
+                                              'origin':fixed_image_itk.GetOrigin(),
+                                              'direction':fixed_image_itk.GetDirection()},
+                                    fname=os.path.join(pdir, 'jac_det_{}.mha'.format(lmbda)))
+                elif args.mode == 'gt':
+                    save_ras_as_itk(img=jac_det,
+                                    metadata={'spacing':fixed_image_itk.GetSpacing(),
+                                              'origin':fixed_image_itk.GetOrigin(),
+                                              'direction':fixed_image_itk.GetDirection()},
+                                    fname=os.path.join(pdir, 'jac_det_gt.mha'))
+                else:
+                    raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
+
+            # 4. Save the TPS deformation as a .pkl file
             if args.mode == 'nn':
-                np.save(file=os.path.join(pdir, 'tps_transformed_grid_{}.npy'.format(lmbda)),
-                        arr=T)
+                joblib.dump(tps_interpolator,
+                            os.path.join(pdir, 'tps_{}.pkl'.format(lmbda)))
             elif args.mode == 'gt':
-                np.save(file=os.path.join(pdir, 'tps_transformed_grid_gt.npy'),
-                        arr=T)
-            else:
-                raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
+                joblib.dump(tps_interpolator,
+                            os.path.join(pdir, 'tps_gt.pkl'))
 
-            # 2. Compute determinant of Jacobian
-            jac_det = calculate_jacobian_determinant(deformed_grid=T)
-
-            print('Jacobian determinant :: Min = {}, Max = {}'.format(np.amin(jac_det),
-                                                                      np.amax(jac_det)))
-            # 3. Save the jac_det as an ITK image
-            if args.mode == 'nn':
-                save_ras_as_itk(img=jac_det,
-                                metadata={'spacing':fixed_image_itk.GetSpacing(),
-                                          'origin':fixed_image_itk.GetOrigin(),
-                                          'direction':fixed_image_itk.GetDirection()},
-                                fname=os.path.join(pdir, 'jac_det_{}.mha'.format(lmbda)))
-            elif args.mode == 'gt':
-                save_ras_as_itk(img=jac_det,
-                                metadata={'spacing':fixed_image_itk.GetSpacing(),
-                                          'origin':fixed_image_itk.GetOrigin(),
-                                          'direction':fixed_image_itk.GetDirection()},
-                                fname=os.path.join(pdir, 'jac_det_gt.mha'))
-            else:
-                raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
-
-            # 4. Resample moving image based on TPS deformation estimated from point pairs
-            moving_image_resampled_np = resample_image(image=moving_image_np,
-                                                       transformed_coordinates=T)
-
-            if args.mode == 'nn':
-                save_ras_as_itk(img=moving_image_resampled_np,
-                                metadata={'spacing':moving_image_itk.GetSpacing(),
-                                          'origin':moving_image_itk.GetOrigin(),
-                                          'direction':moving_image_itk.GetDirection()},
-                                fname=os.path.join(pdir, 'tps_resampled_moving_image_{}.mha'.format(lmbda)))
-            elif args.mode == 'gt':
-                save_ras_as_itk(img=moving_image_resampled_np,
-                                metadata={'spacing':moving_image_itk.GetSpacing(),
-                                          'origin':moving_image_itk.GetOrigin(),
-                                          'direction':moving_image_itk.GetDirection()},
-                                fname=os.path.join(pdir, 'tps_resampled_moving_image_gt.mha'))
-            else:
-                raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
