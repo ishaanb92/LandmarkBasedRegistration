@@ -11,11 +11,10 @@ import os
 from elastix.transform_parameter_editor import TransformParameterFileEditor
 from elastix.transformix_interface import TransformixInterface
 from argparse import ArgumentParser
-from register_dataset import create_datetime_object_from_str
-from register_images import add_library_path
 import joblib
 import shutil
-from utils.image_utils import return_lesion_coordinates
+from lesionmatching.util_scripts.image_utils import *
+from lesionmatching.util_scripts.utils import *
 import SimpleITK as sitk
 import numpy as np
 
@@ -24,68 +23,6 @@ TRANSFORMIX_BIN = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/bin/transfo
 
 
 
-def create_separate_lesion_masks(fname):
-    """
-    For ease of creating ground truth matches, we split the lesion annotation into separate
-    masks, each mask contains a single lesion. This is done for both fixed and moving lesion
-    masks.
-
-    Return number of lesions so that each (moving) lesion can be resampled
-
-    """
-    # Is it fixed or moving?
-    mask_type = fname.split(os.sep)[-1].split('_')[0]
-    lesion_mask_itk = sitk.ReadImage(fname)
-    lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk)
-
-    # Weird!
-    if lesion_mask_np.ndim != 3:
-        return -1
-
-    # Handle non-binary masks!!!
-    if np.amax(lesion_mask_np) > 1:
-        lesion_mask_np = np.where(lesion_mask_np >=1, 1, lesion_mask_np)
-        lesion_mask_itk_binary = sitk.GetImageFromArray(lesion_mask_np)
-        lesion_mask_itk_binary.SetOrigin(lesion_mask_itk.GetOrigin())
-        lesion_mask_itk_binary.SetDirection(lesion_mask_itk.GetDirection())
-        lesion_mask_itk_binary.SetSpacing(lesion_mask_itk.GetSpacing())
-        # Overwrite old file
-        sitk.WriteImage(lesion_mask_itk_binary, fname)
-        # Convert the fixed binary ITK image to a numpy ndarray
-        lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk_binary)
-
-    lesion_slices, n_lesions = return_lesion_coordinates(lesion_mask_np)
-
-    for idx, lesion_slice in enumerate(lesion_slices):
-
-        # Create a new mask for a single lesion
-        single_lesion_mask = np.zeros_like(lesion_mask_np)
-        single_lesion_mask[lesion_slice] += lesion_mask_np[lesion_slice]
-
-        # DEBUG -- ENSURE EACH MASK CONTAINS A SINGLE LESION
-        lesion_slices_debug, n_lesions_debug = return_lesion_coordinates(single_lesion_mask)
-        if n_lesions_debug != 1:
-            raise RuntimeError('Lesion mask {} contains {} lesions. Ideally only 1 lesion should be present'.format(fname,
-                                                                                                                    n_lesions_debug))
-
-        single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
-
-        # Add metadata
-        single_lesion_mask_itk.SetOrigin(lesion_mask_itk.GetOrigin())
-        single_lesion_mask_itk.SetDirection(lesion_mask_itk.GetDirection())
-        single_lesion_mask_itk.SetSpacing(lesion_mask_itk.GetSpacing())
-
-        lesion_dir = os.path.join(reg_dir, '{}_lesion_{}'.format(mask_type, idx))
-        if os.path.exists(lesion_dir) is True:
-            shutil.rmtree(lesion_dir)
-        os.makedirs(lesion_dir)
-
-        lesion_fpath = os.path.join(lesion_dir, 'lesion.nii.gz')
-        sitk.WriteImage(single_lesion_mask_itk,
-                        lesion_fpath)
-
-    return n_lesions
-
 
 if __name__ == '__main__':
 
@@ -93,17 +30,14 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_list_dir', type=str, help='Folder containing .pkl files with patient directories')
     parser.add_argument('--out_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
-    parser.add_argument('--test', action='store_true', help='Use flag so that patients in the test-set are registered')
     parser.add_argument('--mode', type=str, default='image')
 
     args = parser.parse_args()
 
 
-    if args.test is False:
-        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients.pkl'))
-        pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients.pkl')))
-    else:
-        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients.pkl'))
+    pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
+    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
+    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl')))
 
     add_library_path(ELASTIX_LIB)
 
@@ -141,6 +75,7 @@ if __name__ == '__main__':
         # because it may have been deleted in a previous run
         # (because of a failed registraion, missing lesionmask etc.)
         if os.path.exists(reg_dir) is False:
+            print('Registration directory not found for Patient {}'.format(pat_id))
             continue
 
         # Copy the fixed and moving lesion masks to the registration output directory
@@ -148,6 +83,7 @@ if __name__ == '__main__':
         shutil.copyfile(moving_lesion_mask, os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
 
         if args.mode == 'image':
+            # Edit transform parameters to make resampling order 0
             for t_stage in range(3): # Rigid, affine, non-rigid
                 t_file_path = os.path.join(reg_dir, 'TransformParameters.{}.txt'.format(t_stage))
 

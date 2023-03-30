@@ -8,7 +8,7 @@ import SimpleITK as sitk
 from skimage.restoration import denoise_nl_means, estimate_sigma
 from skimage import img_as_float32
 from skimage.measure import compare_ssim as ssim
-
+import os
 
 def calculate_mse(img1, img2):
     """
@@ -421,4 +421,68 @@ def dry_sponge_augmentation(image, jac_det):
 
     return image_sponge
 
+
+def create_separate_lesion_masks(fname):
+    """
+    For ease of creating ground truth matches, we split the lesion annotation into separate
+    masks, each mask contains a single lesion. This is done for both fixed and moving lesion
+    masks.
+
+    Return number of lesions so that each (moving) lesion can be resampled
+
+    """
+    # Is it fixed or moving?
+    mask_type = fname.split(os.sep)[-1].split('_')[0]
+    lesion_mask_itk = sitk.ReadImage(fname)
+    lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk)
+
+    reg_dir = os.sep.join(fname.split(os.sep)[0:-1])
+
+    # Weird!
+    if lesion_mask_np.ndim != 3:
+        return -1
+
+    # Handle non-binary masks!!!
+    if np.amax(lesion_mask_np) > 1:
+        lesion_mask_np = np.where(lesion_mask_np >=1, 1, lesion_mask_np)
+        lesion_mask_itk_binary = sitk.GetImageFromArray(lesion_mask_np)
+        lesion_mask_itk_binary.SetOrigin(lesion_mask_itk.GetOrigin())
+        lesion_mask_itk_binary.SetDirection(lesion_mask_itk.GetDirection())
+        lesion_mask_itk_binary.SetSpacing(lesion_mask_itk.GetSpacing())
+        # Overwrite old file
+        sitk.WriteImage(lesion_mask_itk_binary, fname)
+        # Convert the fixed binary ITK image to a numpy ndarray
+        lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk_binary)
+
+    lesion_slices, n_lesions = return_lesion_coordinates(lesion_mask_np)
+
+    for idx, lesion_slice in enumerate(lesion_slices):
+
+        # Create a new mask for a single lesion
+        single_lesion_mask = np.zeros_like(lesion_mask_np)
+        single_lesion_mask[lesion_slice] += lesion_mask_np[lesion_slice]
+
+        # DEBUG -- ENSURE EACH MASK CONTAINS A SINGLE LESION
+        lesion_slices_debug, n_lesions_debug = return_lesion_coordinates(single_lesion_mask)
+        if n_lesions_debug != 1:
+            raise RuntimeError('Lesion mask {} contains {} lesions. Ideally only 1 lesion should be present'.format(fname,
+                                                                                                                    n_lesions_debug))
+
+        single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
+
+        # Add metadata
+        single_lesion_mask_itk.SetOrigin(lesion_mask_itk.GetOrigin())
+        single_lesion_mask_itk.SetDirection(lesion_mask_itk.GetDirection())
+        single_lesion_mask_itk.SetSpacing(lesion_mask_itk.GetSpacing())
+
+        lesion_dir = os.path.join(reg_dir, '{}_lesion_{}'.format(mask_type, idx))
+        if os.path.exists(lesion_dir) is True:
+            shutil.rmtree(lesion_dir)
+        os.makedirs(lesion_dir)
+
+        lesion_fpath = os.path.join(lesion_dir, 'lesion.nii.gz')
+        sitk.WriteImage(single_lesion_mask_itk,
+                        lesion_fpath)
+
+    return n_lesions
 
