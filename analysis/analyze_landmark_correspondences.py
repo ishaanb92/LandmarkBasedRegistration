@@ -12,6 +12,7 @@ import os
 from argparse import ArgumentParser
 import SimpleITK as sitk
 from lesionmatching.analysis.visualize import *
+from lesionmatching.analysis.metrics import *
 from lesionmatching.util_scripts.utils import *
 from lesionmatching.util_scripts.image_utils import *
 import joblib
@@ -99,6 +100,10 @@ if __name__ == '__main__':
                                               np.expand_dims(np.array(moving_image_itk.GetSize()),
                                                              axis=0))
 
+        gt_projection_landmarks_world = map_voxel_index_to_world_coord(gt_projection_landmarks,
+                                                                       spacing=moving_image_itk.GetSpacing(),
+                                                                       origin=moving_image_itk.GetOrigin())
+
 
         # 3-a. Read and fixed and (affine-transformed) moving GT landmarks .txt files
         if args.dataset == 'copd':
@@ -137,4 +142,34 @@ if __name__ == '__main__':
                                                smoothed_landmarks_moving=moving_image_landmarks_smoothed_voxels,
                                                gt_projection_landmarks_moving=gt_projection_landmarks,
                                                out_dir=out_dir)
+        # 5. Save errors
+        # 5-1 Error(pred, GT projection)
+        euclidean_error_pred_gt = compute_euclidean_distance_between_points(moving_image_landmarks_world,
+                                                                            gt_projection_landmarks_world)
+        np.save(file=os.path.join(pdir,
+                                  'euclidean_error_pred_gt_proj.npy'),
+                arr=euclidean_error_pred_gt)
+
+        dim_wise_erros_pred_gt = np.abs(np.subtract(moving_image_landmarks_world,
+                                                    gt_projection_landmarks_world))
+
+        np.save(file=os.path.join(pdir,
+                                  'dimwise_error_pred_gt_proj.npy'),
+                arr=dim_wise_erros_pred_gt)
+
+        # 5-2 Error(smoothed, GT projection)
+        euclidean_error_smoothed_gt = compute_euclidean_distance_between_points(moving_image_landmarks_smoothed_world,
+                                                                                gt_projection_landmarks_world)
+        np.save(file=os.path.join(pdir,
+                                  'euclidean_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
+                arr=euclidean_error_smoothed_gt)
+
+        dim_wise_erros_smoothed_gt = np.abs(np.subtract(moving_image_landmarks_smoothed_world,
+                                                        gt_projection_landmarks_world))
+
+        np.save(file=os.path.join(pdir,
+                                  'dimwise_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
+                arr=dim_wise_erros_smoothed_gt)
+
+
 

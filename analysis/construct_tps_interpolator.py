@@ -72,7 +72,7 @@ if __name__ == '__main__':
                                                               pid,
                                                               '{}_300_iBH_world_r1_elx.txt'.format(pid)))
 
-            # Since the moving image is already affine-registered, use the affine transformed moving landmarks
+            # Since the moving image is already affine-registered, use the inverse affine transformed moving landmarks
             moving_points_arr = parse_points_file(os.path.join(args.affine_reg_dir,
                                                                pid,
                                                                'transformed_moving_landmarks_elx.txt'))
