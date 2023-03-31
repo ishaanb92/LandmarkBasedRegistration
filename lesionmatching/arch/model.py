@@ -133,7 +133,7 @@ class LesionMatchingModel(nn.Module):
 #        return features_1[0], features_1[1], features_2[0], features_2[1]
 
 
-    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None, soft_masking=False, test=True):
+    def inference(self, kpts_1, kpts_2, features_1, features_2, conf_thresh=0.5, num_pts=1000, mask=None, mask2=None, test=True, mode='aux'):
 
         b, c, i, j, k = kpts_1.shape
 
@@ -198,7 +198,12 @@ class LesionMatchingModel(nn.Module):
             match_rows[torch.arange(k1), torch.argmin(pairs_norm, dim=1)] = 1
             match_norm = match_rows*match_cols
 
-            match = match_prob*match_norm
+            if mode == 'aux':
+                match = match_prob*match_norm
+            elif mode == 'ce':
+                match = match_prob
+            elif mode == 'hinge':
+                match = match_norm
 
             matches.append(match)
             matches_norm.append(match_norm)
@@ -216,6 +221,7 @@ class LesionMatchingModel(nn.Module):
         outputs['matches'] = matches
         outputs['matches_norm'] = matches_norm
         outputs['matches_prob'] = matches_prob
+        outputs['match_probabilities'] = desc_pairs_prob
         outputs['kpt_sampling_grid_1'] = kpt_sampling_grid_1
         outputs['kpt_sampling_grid_2'] = kpt_sampling_grid_2
         outputs['kpt_logits_1'] = kpt_logits_1

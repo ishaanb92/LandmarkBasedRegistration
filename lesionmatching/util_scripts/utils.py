@@ -16,6 +16,7 @@ from scipy.ndimage import label
 from skimage.transform import resize
 from math import sqrt
 import pandas as pd
+import datetime
 
 def get_sub_dirs(base_dir):
     """
@@ -882,5 +883,16 @@ def inverse_affine_transform(points_arr=None,
     transformed_points_arr = transformed_points_arr_t.T # Shape :  N x 3
 
     return transformed_points_arr
+
+
+def create_datetime_object_from_str(dt_str):
+
+    # The foldernames have the following format : yyyymmdd
+    year = dt_str[0:4]
+    month = dt_str[4:6]
+    day = dt_str[-2:]
+
+    dt_obj = datetime.datetime(int(year), int(month), int(day))
+    return dt_obj
 
 

@@ -6,26 +6,16 @@ Script to register a dataset of (paired) images
 @email: ishaan@isi.uu.nl
 
 """
-from register_images import *
+from lesionmatching.util_scripts.register_images import *
 import os
 import shutil
 from argparse import ArgumentParser
-import datetime
 import joblib
 
 
 N_DCE_CHANNELS = 6
 N_DWI_CHANNELS = 3
 
-def create_datetime_object_from_str(dt_str):
-
-    # The foldernames have the following format : yyyymmdd
-    year = dt_str[0:4]
-    month = dt_str[4:6]
-    day = dt_str[-2:]
-
-    dt_obj = datetime.datetime(int(year), int(month), int(day))
-    return dt_obj
 
 if __name__ == '__main__':
 
@@ -39,11 +29,15 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.test is False:
-        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients.pkl'))
-        pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients.pkl')))
-    else:
-        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients.pkl'))
+#    if args.test is False:
+#        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients.pkl'))
+#        pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients.pkl')))
+#    else:
+#        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients.pkl'))
+
+    pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
+    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
+    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl')))
 
     if args.mode == 'mask':
         image_name = ['LiverMask_dilated.nii']

@@ -184,6 +184,13 @@ def train(args):
         fine_grid_resolution = (3, 3, 3)
         pixel_thresh = (1, 2, 2)
 
+    if args.loss_type == 'ce':
+        desc_loss_comp_wt = torch.Tensor([1.0, 0.0])
+    elif args.loss_type == 'hinge':
+        desc_loss_comp_wt = torch.Tensor([0.0, 1.0])
+    elif args.loss_type == 'aux':
+        desc_loss_comp_wt = torch.Tensor([1.0, 1.0])
+
     print('Start training')
     for epoch in range(epoch_saved+1, args.epochs):
 
@@ -331,6 +338,8 @@ def train(args):
                                             mask_idxs_1 = outputs['mask_idxs_1'],
                                             mask_idxs_2 = outputs['mask_idxs_2'],
                                             device=device)
+                                            device=device,
+                                            desc_loss_comp_wt=desc_loss_comp_wt.to(device))
                 # Backprop
                 scaler.scale(loss_dict['loss']).backward()
                 scaler.step(optimizer)
@@ -468,6 +477,8 @@ def train(args):
                                             mask_idxs_1=outputs['mask_idxs_1'],
                                             mask_idxs_2=outputs['mask_idxs_2'],
                                             device=device)
+                                            device=device,
+                                            desc_loss_comp_wt=desc_loss_comp_wt.to(device))
 
                     for batch_id in range(images.shape[0]):
                         im1 = images[batch_id, ...].squeeze(dim=0)
@@ -546,6 +557,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
     parser.add_argument('--dataset', type=str, required=True)
+    parser.add_argument('--loss_type', type=str, default='aux', help='Choices: hinge, ce, aux')
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--window_size', type=int, default=8)

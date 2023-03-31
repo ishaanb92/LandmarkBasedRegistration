@@ -12,8 +12,10 @@ import os
 from argparse import ArgumentParser
 import SimpleITK as sitk
 from lesionmatching.analysis.visualize import *
+from lesionmatching.analysis.metrics import *
 from lesionmatching.util_scripts.utils import *
 from lesionmatching.util_scripts.image_utils import *
+import joblib
 
 if __name__ == '__main__':
 
@@ -22,7 +24,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='copd')
     parser.add_argument('--points_dir', type=str, default='/home/ishaan/COPDGene/points')
     parser.add_argument('--affine_reg_dir', type=str, help='Affine registration directory contains GT moving image landmarks')
-
+    parser.add_argument('--out_dir', type=str, default=None)
+    parser.add_argument('--smoothing', type=float, default=0)
     args = parser.parse_args()
 
     pat_dirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
@@ -59,6 +62,15 @@ if __name__ == '__main__':
         moving_image_landmarks_world = parse_points_file(os.path.join(pdir,
                                                          'moving_landmarks_elx.txt'))
 
+        # Moving landmarks after TPS-based smoothing
+        if args.smoothing > 0:
+            moving_image_landmarks_smoothed_world = parse_points_file(os.path.join(pdir,
+                                                                                   'moving_landmarks_elx_{}.txt'.format(args.smoothing)))
+        else:
+            moving_image_landmarks_smoothed_world = None
+            moving_image_landmarks_smoothed_voxels = None
+
+
         # 2-b. Convert world coordinates to voxels
 
         fixed_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks_world,
@@ -68,6 +80,30 @@ if __name__ == '__main__':
         moving_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks_world,
                                                                        spacing=moving_image_itk.GetSpacing(),
                                                                        origin=moving_image_itk.GetOrigin())
+
+        if moving_image_landmarks_smoothed_world is not None:
+            moving_image_landmarks_smoothed_voxels = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks_smoothed_world,
+                                                                                    spacing=moving_image_itk.GetSpacing(),
+                                                                                    origin=moving_image_itk.GetOrigin())
+
+        # Map fixed image landmarks into moving image using TPS defined by GT corr.
+        fixed_image_landmarks_voxels_scaled = np.divide(fixed_image_landmarks_voxels,
+                                                        np.expand_dims(np.array(fixed_image_itk.GetSize()),
+                                                                       axis=0))
+
+        tps_func = joblib.load(os.path.join(pdir,
+                                            'tps_gt.pkl'))
+
+        gt_projection_landmarks_scaled = tps_func(fixed_image_landmarks_voxels_scaled)
+
+        gt_projection_landmarks = np.multiply(gt_projection_landmarks_scaled,
+                                              np.expand_dims(np.array(moving_image_itk.GetSize()),
+                                                             axis=0))
+
+        gt_projection_landmarks_world = map_voxel_index_to_world_coord(gt_projection_landmarks,
+                                                                       spacing=moving_image_itk.GetSpacing(),
+                                                                       origin=moving_image_itk.GetOrigin())
+
 
         # 3-a. Read and fixed and (affine-transformed) moving GT landmarks .txt files
         if args.dataset == 'copd':
@@ -88,6 +124,14 @@ if __name__ == '__main__':
                                                                           spacing=moving_image_itk.GetSpacing(),
                                                                           origin=moving_image_itk.GetOrigin())
 
+        if args.out_dir is not None:
+            out_dir = os.path.join(args.out_dir, pid)
+            if os.path.exists(out_dir) is True:
+                shutil.rmtree(out_dir)
+            os.makedirs(out_dir)
+        else:
+            out_dir = os.path.join(pdir, 'overlay')
+
         # 4. Overlay GT and predicted landmarks correspondences
         overlay_predicted_and_manual_landmarks(fixed_image=fixed_image_np,
                                                moving_image=moving_image_np,
@@ -95,5 +139,37 @@ if __name__ == '__main__':
                                                pred_landmarks_moving=moving_image_landmarks_voxels,
                                                manual_landmarks_fixed=gt_fixed_image_landmarks_voxels,
                                                manual_landmarks_moving=gt_moving_image_landmarks_voxels,
-                                               out_dir=os.path.join(pdir, 'overlay'))
+                                               smoothed_landmarks_moving=moving_image_landmarks_smoothed_voxels,
+                                               gt_projection_landmarks_moving=gt_projection_landmarks,
+                                               out_dir=out_dir)
+        # 5. Save errors
+        # 5-1 Error(pred, GT projection)
+        euclidean_error_pred_gt = compute_euclidean_distance_between_points(moving_image_landmarks_world,
+                                                                            gt_projection_landmarks_world)
+        np.save(file=os.path.join(pdir,
+                                  'euclidean_error_pred_gt_proj.npy'),
+                arr=euclidean_error_pred_gt)
+
+        dim_wise_erros_pred_gt = np.abs(np.subtract(moving_image_landmarks_world,
+                                                    gt_projection_landmarks_world))
+
+        np.save(file=os.path.join(pdir,
+                                  'dimwise_error_pred_gt_proj.npy'),
+                arr=dim_wise_erros_pred_gt)
+
+        # 5-2 Error(smoothed, GT projection)
+        euclidean_error_smoothed_gt = compute_euclidean_distance_between_points(moving_image_landmarks_smoothed_world,
+                                                                                gt_projection_landmarks_world)
+        np.save(file=os.path.join(pdir,
+                                  'euclidean_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
+                arr=euclidean_error_smoothed_gt)
+
+        dim_wise_erros_smoothed_gt = np.abs(np.subtract(moving_image_landmarks_smoothed_world,
+                                                        gt_projection_landmarks_world))
+
+        np.save(file=os.path.join(pdir,
+                                  'dimwise_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
+                arr=dim_wise_erros_smoothed_gt)
+
+
 

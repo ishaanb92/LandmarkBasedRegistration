@@ -23,6 +23,14 @@ import SimpleITK as sitk
 import shutil
 from argparse import ArgumentParser
 from scipy.interpolate import RBFInterpolator
+from scipy.ndimage import map_coordinates
+from lesionmatching.util_scripts.utils import add_library_path
+# FIXME
+# CuPy import
+#add_library_path('/user/ishaan/anaconda3/pkgs/cudatoolkit-10.2.89-hfd86e86_1/lib')
+#print(os.environ.get('LD_LIBRARY_PATH'))
+#import cupy as cp
+#from cupyx.scipy.interpolate import GPURBFInterpolator
 
 def create_affine_transform(ndim=3,
                             center=[0, 0, 0],
@@ -97,14 +105,15 @@ def create_deformation_grid(grid=None,
     if len(transforms) == 0: # DEBUG
         return image_grid.grid
 
-    deformed_grid = image_grid.transform(*transforms)
 
-    jac_det = deformed_grid.jacobian_det(*transforms)
+    jac_det = image_grid.jacobian_det(*transforms)
 
     # Check for folding
     if np.amin(jac_det) < 0:
         print('Folding has occured!. Skip this batch')
         return None, None
+
+    deformed_grid = image_grid.transform(*transforms)
 
     dgrid = deformed_grid.grid
 
@@ -185,7 +194,8 @@ def create_batch_deformation_grid(shape,
 def construct_tps_defromation(p1=None,
                               p2=None,
                               smoothing=0.0,
-                              shape=None):
+                              shape=None,
+                              gpu_id=-1):
 
     """
 
@@ -206,12 +216,65 @@ def construct_tps_defromation(p1=None,
 
     """
 
-    tps_interpolator = RBFInterpolator(y=p1,
-                                       d=p2,
-                                       smoothing=0.0,
-                                       kernel='thin_plate_spline',
-                                       degree=1,
-                                       neighbors=10)
+    # Shape: [3, X, Y, Z]
+    grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
+                                np.linspace(0, 1, shape[1]),
+                                np.linspace(0, 1, shape[2]),
+                                indexing="ij"),
+                    dtype=np.float32)
+
+    ndim, X, Y, Z = grid.shape
+
+    # Reshape the grid so that it's compatible with the __call__ method
+    # Shape: [3, X*Y*Z]
+    grid = np.reshape(grid, (ndim, X*Y*Z))
+
+    # Shape: [X*Y*Z, 3]
+    grid = grid.T
+
+
+    if gpu_id < 0:
+        tps_interpolator = RBFInterpolator(y=p1,
+                                           d=p2,
+                                           smoothing=smoothing,
+                                           kernel='thin_plate_spline',
+                                           degree=1)
+        # Shape: [X*Y*Z, 3]
+        transformed_grid = tps_interpolator(grid)
+
+    else:
+        with cp.cuda.Device(gpu_id):
+            p1 = cp.asarray(p1)
+            p2 = cp.asarray(p2)
+            grid = cp.asarray(grid)
+
+            tps_interpolator = GPURBFInterpolator(y=p1,
+                                                  d=p2,
+                                                  smoothing=smoothing,
+                                                  kernel='thin_plate_spline',
+                                                  degree=1)
+
+            transformed_grid = tps_interpolator(grid)
+
+        # Move it back to the CPU
+        transformed_grid = cp.asnumpy(transformed_grid)
+
+    # Re-shape this grid
+    transformed_grid = transformed_grid.T
+    transformed_grid = np.reshape(transformed_grid,
+                                  (ndim, X, Y, Z))
+
+    return transformed_grid.astype(np.float32)
+
+
+def transform_grid(transform=None,
+                   shape=None):
+
+    """
+
+    Given a transformation, deform the grid (used to resample later)
+
+    """
 
     # Shape: [3, X, Y, Z]
     grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
@@ -229,12 +292,86 @@ def construct_tps_defromation(p1=None,
     # Shape: [X*Y*Z, 3]
     grid = grid.T
 
-    # Shape: [X*Y*Z, 3]
-    transformed_grid = tps_interpolator(grid)
+    transformed_grid = transform(grid)
 
-    # Re-shape this grid
     transformed_grid = transformed_grid.T
     transformed_grid = np.reshape(transformed_grid,
                                   (ndim, X, Y, Z))
 
-    return transformed_grid
+    return transformed_grid.astype(np.float32)
+
+
+def calculate_jacobian(deformed_grid:np.ndarray=None):
+    """
+
+    Compute Jacobian of the deformed grid. Adapted from Koen's gryds code
+    See: ~/gryds/gryds/gryds/interpolators/grid.py
+
+    """
+
+    ndim, X, Y, Z = deformed_grid.shape
+
+    # Scale [0,1] ->[0, X/Y/Z] depending on dimension
+    scaled_deformed_grid = np.zeros_like(deformed_grid)
+    scaled_deformed_grid[0, ...] = X*deformed_grid[0, ...]
+    scaled_deformed_grid[1, ...] = Y*deformed_grid[1, ...]
+    scaled_deformed_grid[2, ...] = Z*deformed_grid[2, ...]
+
+    jacobian = np.zeros((ndim, ndim, X, Y, Z),
+                        dtype=scaled_deformed_grid.dtype)
+
+    for i in range(ndim):
+        for j in range(ndim):
+            padding = ndim*[(0, 0)]
+            padding[j] = (0, 1) # Only pad after since np.diff uses a[i+1]-a[i]
+            jacobian[i, j, ...] = np.pad(np.diff(scaled_deformed_grid[i, ...],
+                                                 n=1,
+                                                 axis=j),
+                                         padding,
+                                         mode='edge')
+    return jacobian
+
+def calculate_jacobian_determinant(deformed_grid:np.ndarray=None):
+    """
+
+    Compute determinant of Jacobian
+
+    Input:
+        deformed_grid: (np.ndarray, (3, X, Y, Z)) Generated by applying the transformation to a grid
+    Returns:
+        jac_det: (np.ndarray, (X, Y, Z)) Determinant of the Jacobian for each point on the grid
+
+    """
+
+    jacobian = calculate_jacobian(deformed_grid) # Shape: (3, 3, X, Y, Z)
+
+    jacobian = np.transpose(jacobian, (2, 3, 4, 0, 1))
+
+    jac_det = np.linalg.det(jacobian)
+
+    return jac_det
+
+def resample_image(image:np.ndarray,
+                   transformed_coordinates:np.ndarray):
+
+    """
+
+    Function to resample image on a transformed grid.
+    Example usage: Given a transformation (defined from fixed -> moving domains), resample the moving image
+
+    """
+
+    # Scale the coordinates [0, 1] -> [0, X/Y/Z]
+    scaled_transformed_coordinates = np.zeros_like(transformed_coordinates)
+    scaled_transformed_coordinates[0, ...] = image.shape[0]*transformed_coordinates[0, ...]
+    scaled_transformed_coordinates[1, ...] = image.shape[1]*transformed_coordinates[1, ...]
+    scaled_transformed_coordinates[2, ...] = image.shape[2]*transformed_coordinates[2, ...]
+
+    resampled_image = map_coordinates(input=image,
+                                      coordinates=scaled_transformed_coordinates,
+                                      order=3,
+                                      mode='constant',
+                                      cval=np.amin(image))
+
+    return resampled_image
+

@@ -282,7 +282,8 @@ def test(args):
                                           conf_thresh=0.5,
                                           num_pts=args.kpts_per_batch,
                                           mask=mask.to(device),
-                                          mask2=mask_hat.to(device))
+                                          mask2=mask_hat.to(device),
+                                          mode=args.loss_mode)
 
                 # Get ground truth matches based on projecting keypoints using the deformation grid
                 gt1, gt2, gt_matches, num_gt_matches, projected_landmarks = \
@@ -552,12 +553,17 @@ def test(args):
                     print('Patient {} :: Number of predicted corresponding landmarks = {}'.format(batch_data['patient_id'][batch_id],
                                                                                                   np.nonzero(matches)[0].shape[0]))
 
+                    match_probabilities = maybe_convert_tensor_to_numpy(outputs['match_probabilities'][batch_id, ...])
+
                     patient_id = batch_data['patient_id'][batch_id]
                     dump_dir = os.path.join(save_dir, patient_id)
                     os.makedirs(dump_dir)
 
                     np.save(file=os.path.join(dump_dir, 'predicted_matches'),
                             arr=matches)
+
+                    np.save(file=os.path.join(dump_dir, 'match_probabilities'),
+                            arr=match_probabilities)
 
                     # Landmarks are saved in k-j-i order!
                     np.save(file=os.path.join(dump_dir, 'landmarks_fixed'),
@@ -591,6 +597,7 @@ if __name__ == '__main__':
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
+    parser.add_argument('--loss_mode', type=str, default='aux')
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--seed', type=int, default=1234)
