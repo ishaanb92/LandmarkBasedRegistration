@@ -68,9 +68,15 @@ if __name__ == '__main__':
 
             assert(args.affine_reg_dir is not None)
 
-            fixed_points_arr = parse_points_file(os.path.join(points_dir,
-                                                              pid,
-                                                              '{}_300_iBH_world_r1_elx.txt'.format(pid)))
+            if args.dataset == 'copd':
+                fixed_points_arr = parse_points_file(os.path.join(points_dir,
+                                                                  pid,
+                                                                  '{}_300_iBH_world_r1_elx.txt'.format(pid)))
+            elif args.dataset == 'dirlab':
+                fixed_points_arr = parse_points_file(os.path.join(points_dir,
+                                                                  pid,
+                                                                  '{}_4D-75_T00_world_elx.txt'.format(pid)))
+
 
             # Since the moving image is already affine-registered, use the inverse affine transformed moving landmarks
             moving_points_arr = parse_points_file(os.path.join(args.affine_reg_dir,
@@ -121,7 +127,7 @@ if __name__ == '__main__':
                             arr=transformed_grid)
                 elif args.mode == 'gt':
                     np.save(file=os.path.join(pdir, 'tps_transformed_grid_gt.npy'),
-                            arr=tranformed_grid)
+                            arr=transformed_grid)
                 else:
                     raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
                 # Resample moving image based on TPS deformation estimated from point pairs

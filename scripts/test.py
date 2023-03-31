@@ -57,6 +57,11 @@ def test(args):
         patients = joblib.load('val_patients_{}.pkl'.format(args.dataset))
     elif args.mode == 'train':
         patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
+    elif args.mode == 'all':
+        assert(args.dataset == 'dirlab')
+        patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
+        patients.extend(joblib.load('val_patients_{}.pkl'.format(args.dataset)))
+
     elif args.mode == 'test':
         if args.dataset == 'umc':
             patients = joblib.load('test_patients_{}.pkl'.format(args.dataset))
@@ -247,14 +252,24 @@ def test(args):
                 print('Mask shape after padding = {}'.format(mask.shape))
 
                 # U-Net outputs via patch-based inference
-                unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
-                                                        roi_size=roi_size,
-                                                        sw_device=device,
-                                                        device='cpu',
-                                                        sw_batch_size=2,
-                                                        predictor=model.get_unet_outputs,
-                                                        overlap=0.25,
-                                                        progress=True)
+                try:
+                    unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
+                                                            roi_size=roi_size,
+                                                            sw_device=device,
+                                                            device='cpu',
+                                                            sw_batch_size=2,
+                                                            predictor=model.get_unet_outputs,
+                                                            overlap=0.25,
+                                                            progress=True)
+                except RuntimeError:
+                    unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
+                                                            roi_size=roi_size,
+                                                            sw_device=device,
+                                                            device='cpu',
+                                                            sw_batch_size=1,
+                                                            predictor=model.get_unet_outputs,
+                                                            overlap=0.25,
+                                                            progress=True)
 
                 kpts_logits_1 = unet_outputs['kpts_logits_1']
                 kpts_logits_2 = unet_outputs['kpts_logits_2']
@@ -499,7 +514,7 @@ def test(args):
                                                         roi_size=roi_size,
                                                         sw_device=device,
                                                         device='cpu',
-                                                        sw_batch_size=2,
+                                                        sw_batch_size=1,
                                                         predictor=model.get_unet_outputs,
                                                         overlap=0.25,
                                                         progress=True)
