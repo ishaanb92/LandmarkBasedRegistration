@@ -57,6 +57,10 @@ def test(args):
         patients = joblib.load('val_patients_{}.pkl'.format(args.dataset))
     elif args.mode == 'train':
         patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
+    elif args.mode == 'all':
+        assert(args.dataset == 'dirlab')
+        patients = joblib.load('train_patients_{}.pkl'.format(args.dataset))
+        patients.extend(joblib.load('val_patients_{}.pkl'.format(args.dataset)))
     elif args.mode == 'test':
         if args.dataset == 'umc':
             patients = joblib.load('test_patients_{}.pkl'.format(args.dataset))
@@ -64,8 +68,9 @@ def test(args):
             raise ValueError('DIR-Lab does not have a test set')
         elif args.dataset == 'copd':
             patients = [f.path for f in os.scandir(COPD_DIR) if f.is_dir()]
-            rescaling_stats = joblib.load(os.path.join(COPD_DIR,
-                                                       'rescaling_stats.pkl'))
+
+    rescaling_stats = joblib.load(os.path.join(COPD_DIR,
+                                               'rescaling_stats.pkl'))
 
     if args.synthetic is True:
         if args.dataset == 'umc':
@@ -75,6 +80,7 @@ def test(args):
                                                               batch_size=args.batch_size,
                                                               num_workers=4,
                                                               data_aug=False)
+
         elif args.dataset == 'dirlab' or args.dataset =='copd':
             data_dicts = create_data_dicts_dir_lab(patients,
                                                    dataset=args.dataset)
@@ -96,7 +102,8 @@ def test(args):
 
             data_dicts = create_data_dicts_dir_lab_paired(patients,
                                                           dataset=args.dataset,
-                                                          affine_reg_dir=args.affine_reg_dir)
+                                                          affine_reg_dir=args.affine_reg_dir,
+                                                          soft_masking=args.soft_masking)
 
             data_loader = create_dataloader_dir_lab_paired(data_dicts=data_dicts,
                                                            batch_size=args.batch_size,
@@ -480,17 +487,18 @@ def test(args):
                                         0, excess_pixels_xy),
                                    mode='constant')
 
-                    mask = F.pad(mask,
-                                 pad=(0, excess_pixels_z,
-                                      0, excess_pixels_xy,
-                                      0, excess_pixels_xy),
-                                mode='constant')
+                    if args.soft_masking is False:
+                        mask = F.pad(mask,
+                                     pad=(0, excess_pixels_z,
+                                          0, excess_pixels_xy,
+                                          0, excess_pixels_xy),
+                                    mode='constant')
 
-                    mask_hat = F.pad(mask_hat,
-                                 pad=(0, excess_pixels_z,
-                                      0, excess_pixels_xy,
-                                      0, excess_pixels_xy),
-                                mode='constant')
+                        mask_hat = F.pad(mask_hat,
+                                     pad=(0, excess_pixels_z,
+                                          0, excess_pixels_xy,
+                                          0, excess_pixels_xy),
+                                    mode='constant')
 
 
                 images_cat = torch.cat([images, images_hat], dim=1)
@@ -502,7 +510,7 @@ def test(args):
                                                         roi_size=roi_size,
                                                         sw_device=device,
                                                         device='cpu',
-                                                        sw_batch_size=2,
+                                                        sw_batch_size=1,
                                                         predictor=model.get_unet_outputs,
                                                         overlap=0.25,
                                                         progress=True)

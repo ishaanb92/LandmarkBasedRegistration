@@ -148,7 +148,7 @@ class DIRLabPaired(Dataset):
     @staticmethod
     def scale_image_intensities(image, mask, lung_max=None, lung_min=None):
 
-        if lung_max is None and lung_min is None:
+        if lung_max is None and lung_min is None and mask is not None:
             lung_max = np.amax(image[np.where(mask==1)])
             lung_min = np.amin(image[np.where(mask==1)])
 
@@ -168,21 +168,29 @@ class DIRLabPaired(Dataset):
 
         # Step 1. Load the images (ITK)
         image_itk = sitk.ReadImage(impath)
-        mask_itk  = sitk.ReadImage(maskpath)
+        if maskpath is not None:
+            mask_itk  = sitk.ReadImage(maskpath)
+        else:
+            mask_itk = None
 
         # Step 2. Store the original metadata
         batch_dict['{}_metadata'.format(image_type)] = {}
-        batch_dict['{}_metadata'.format(image_type)]['spacing'] = mask_itk.GetSpacing()
-        batch_dict['{}_metadata'.format(image_type)]['direction'] = mask_itk.GetDirection()
-        batch_dict['{}_metadata'.format(image_type)]['origin'] = mask_itk.GetOrigin()
+        batch_dict['{}_metadata'.format(image_type)]['spacing'] = image_itk.GetSpacing()
+        batch_dict['{}_metadata'.format(image_type)]['direction'] = image_itk.GetDirection()
+        batch_dict['{}_metadata'.format(image_type)]['origin'] = image_itk.GetOrigin()
 
         # Step 3. Convert ITK image to numpy array (in RAS axis ordering)
         image_np = convert_itk_to_ras_numpy(image_itk)
-        mask_np = convert_itk_to_ras_numpy(mask_itk)
-        assert(np.amax(mask_np) == 1)
+
+        if mask_itk is not None:
+            mask_np = convert_itk_to_ras_numpy(mask_itk)
+            assert(np.amax(mask_np) == 1)
+        else:
+            mask_np = None
 
         # Step 4. Min-max normalization (only over the lung)
         if self.rescaling_stats is None:
+            assert(mask_np is not None)
             image_np = self.scale_image_intensities(image=image_np,
                                                     mask=mask_np)
         else:
@@ -193,14 +201,22 @@ class DIRLabPaired(Dataset):
 
         # Add "fake" channel axis
         image_np = np.expand_dims(image_np, axis=0)
-        mask_np = np.expand_dims(mask_np, axis=0)
+        if mask_np is not None:
+            mask_np = np.expand_dims(mask_np, axis=0)
 
         # Step 5. Convert numpy ndarrays to torch Tensors
         image_t = torch.from_numpy(image_np)
-        mask_t = torch.from_numpy(mask_np)
+
+        if mask_np is not None:
+            mask_t = torch.from_numpy(mask_np)
+        else:
+            mask_t = None
 
         batch_dict['{}_image'.format(image_type)] = image_t
-        batch_dict['{}_lung_mask'.format(image_type)] = mask_t.float()
+        if mask_t is not None:
+            batch_dict['{}_lung_mask'.format(image_type)] = mask_t.float()
+        else:
+            batch_dict['{}_lung_mask'.format(image_type)] = torch.empty_like(image_t)
 
         return batch_dict
 
