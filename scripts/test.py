@@ -599,7 +599,6 @@ def test(args):
                                     metadata=fixed_metadata_list[batch_id],
                                     fname=os.path.join(dump_dir, 'fixed_image.mha'))
 
-
 if __name__ == '__main__':
 
     parser = ArgumentParser()

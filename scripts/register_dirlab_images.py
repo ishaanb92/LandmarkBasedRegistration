@@ -78,34 +78,24 @@ if __name__ == '__main__':
         fixed_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
                                                                      im_types[0]))
 
-        if args.use_lung_mask is True:
-            fixed_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[0]))
-        else:
-            fixed_mask_path = None
+        fixed_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[0]))
 
         if args.affine_reg_dir is None:
             moving_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
                                                                           im_types[1]))
 
-            if args.use_lung_mask is True:
-                moving_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
-            else:
-                moving_mask_path = None
+            moving_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
         else: # Use the result of the affine registration as the moving image (and mask)
             moving_image_path = os.path.join(affine_pdir, 'result.0.mha')
-            if args.use_lung_mask is True:
-                moving_mask_path = os.path.join(affine_pdir, 'moving_lung_mask_affine', 'result.mha')
-            else:
-                moving_mask_path = None
+            moving_mask_path = os.path.join(affine_pdir, 'moving_lung_mask_affine', 'result.mha')
 
         # Copy files to the output directory for convinient copying+viz
 
         shutil.copyfile(fixed_image_path, os.path.join(reg_out_dir, 'fixed_image.mha'))
         shutil.copyfile(moving_image_path, os.path.join(reg_out_dir, 'moving_image.mha'))
 
-        if args.use_lung_mask is True:
-            shutil.copyfile(fixed_mask_path, os.path.join(reg_out_dir, 'fixed_mask.mha'))
-            shutil.copyfile(moving_mask_path, os.path.join(reg_out_dir, 'moving_mask.mha'))
+        shutil.copyfile(fixed_mask_path, os.path.join(reg_out_dir, 'fixed_mask.mha'))
+        shutil.copyfile(moving_mask_path, os.path.join(reg_out_dir, 'moving_mask.mha'))
 
         # Landmark pairs are predicted using fixed and affine registered moving image
         if args.landmarks_dir is not None:
@@ -137,6 +127,10 @@ if __name__ == '__main__':
 
                 moving_landmarks = os.path.join(affine_pdir, 'transformed_moving_landmarks_elx.txt')
 
+
+        if args.use_lung_mask is False:
+            fixed_mask_path = None
+            moving_mask_path = None
 
         el.register(fixed_image=fixed_image_path,
                     moving_image=moving_image_path,
