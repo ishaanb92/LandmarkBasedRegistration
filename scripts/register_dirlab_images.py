@@ -34,6 +34,7 @@ if __name__ == '__main__':
     parser.add_argument('--sanity', action='store_true')
     parser.add_argument('--smoothing_term', type=float, default=0.0)
     parser.add_argument('--use_lung_mask', action='store_true')
+    parser.add_argument('--use_threshold', action='store_true')
 
     args = parser.parse_args()
 
@@ -99,18 +100,27 @@ if __name__ == '__main__':
 
         # Landmark pairs are predicted using fixed and affine registered moving image
         if args.landmarks_dir is not None:
-            fixed_landmarks = os.path.join(args.landmarks_dir,
-                                           image_prefix,
-                                           'fixed_landmarks_elx_threshold.txt')
-
-            if args.smoothing_term == 0:
+            if args.use_threshold is True:
+                fixed_landmarks = os.path.join(args.landmarks_dir,
+                                               image_prefix,
+                                               'fixed_landmarks_elx_threshold.txt')
                 moving_landmarks = os.path.join(args.landmarks_dir,
                                                 image_prefix,
                                                 'moving_landmarks_elx_threshold.txt')
             else:
-                moving_landmarks = os.path.join(args.landmarks_dir,
-                                                image_prefix,
-                                                'moving_landmarks_elx_{}.txt'.format(args.smoothing_term))
+
+                fixed_landmarks = os.path.join(args.landmarks_dir,
+                                               image_prefix,
+                                               'fixed_landmarks_elx.txt')
+
+                if args.smoothing_term == 0:
+                    moving_landmarks = os.path.join(args.landmarks_dir,
+                                                    image_prefix,
+                                                    'moving_landmarks_elx.txt')
+                else:
+                    moving_landmarks = os.path.join(args.landmarks_dir,
+                                                    image_prefix,
+                                                    'moving_landmarks_elx_{}.txt'.format(args.smoothing_term))
         else:
             if args.sanity is False:
                 fixed_landmarks = None
