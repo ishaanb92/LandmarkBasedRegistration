@@ -101,12 +101,12 @@ if __name__ == '__main__':
         if args.landmarks_dir is not None:
             fixed_landmarks = os.path.join(args.landmarks_dir,
                                            image_prefix,
-                                           'fixed_landmarks_elx.txt')
+                                           'fixed_landmarks_elx_threshold.txt')
 
             if args.smoothing_term == 0:
                 moving_landmarks = os.path.join(args.landmarks_dir,
                                                 image_prefix,
-                                                'moving_landmarks_elx.txt')
+                                                'moving_landmarks_elx_threshold.txt')
             else:
                 moving_landmarks = os.path.join(args.landmarks_dir,
                                                 image_prefix,

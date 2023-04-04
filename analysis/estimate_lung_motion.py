@@ -128,6 +128,24 @@ if __name__ == '__main__':
     # Construct pandas DF for easy plotting
     disp_df = pd.DataFrame.from_dict(disp_dict)
 
+    x_disp_99p = np.percentile(disp_df['X-disp'].to_numpy(),
+                               q=99)
+    y_disp_99p = np.percentile(disp_df['Y-disp'].to_numpy(),
+                               q=99)
+    z_disp_99p = np.percentile(disp_df['Z-disp'].to_numpy(),
+                               q=99)
+    euc_disp_99p = np.percentile(disp_df['Euclidean'].to_numpy(),
+                                 q=99)
+
+    x_disp_1p = np.percentile(disp_df['X-disp'].to_numpy(),
+                               q=1)
+    y_disp_1p = np.percentile(disp_df['Y-disp'].to_numpy(),
+                               q=1)
+    z_disp_1p = np.percentile(disp_df['Z-disp'].to_numpy(),
+                               q=1)
+    euc_disp_1p = np.percentile(disp_df['Euclidean'].to_numpy(),
+                                 q=1)
+
     # Plot histograms
     fig, axs = plt.subplots(2, 2,
                             figsize=(20, 20))
@@ -137,23 +155,91 @@ if __name__ == '__main__':
                  hue='Patient ID',
                  ax=axs[0, 0])
 
+    axs[0, 0].axvline(x=x_disp_1p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
+    axs[0, 0].axvline(x=x_disp_99p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
+
     sns.histplot(data=disp_df,
                  x='Y-disp',
                  hue='Patient ID',
                  ax=axs[0, 1])
+
+    axs[0, 1].axvline(x=y_disp_1p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
+    axs[0, 1].axvline(x=y_disp_99p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
 
     sns.histplot(data=disp_df,
                  x='Z-disp',
                  hue='Patient ID',
                  ax=axs[1, 0])
 
+    axs[1, 0].axvline(x=z_disp_1p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
+    axs[1, 0].axvline(x=z_disp_99p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
+
     sns.histplot(data=disp_df,
                  x='Euclidean',
                  hue='Patient ID',
                  ax=axs[1, 1])
 
+    axs[1, 1].axvline(x=euc_disp_1p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
+    axs[1, 1].axvline(x=euc_disp_99p,
+                      ymin=0,
+                      ymax=1,
+                      c='r',
+                      linestyle='--')
+
+
     fig.savefig(os.path.join(args.deformation_dir,
                              'estimated_displacements.png'),
                 bbox_inches='tight')
+
+    disp_df.to_pickle(os.path.join(args.deformation_dir,
+                                   'displacement_df.pkl'))
+
+
+
+
+    print('99 percentile :: X-disp = {} Y-disp = {} Z-disp = {} Euclidean = {}'.format(x_disp_99p,
+                                                                                       y_disp_99p,
+                                                                                       z_disp_99p,
+                                                                                       euc_disp_99p))
+
+    print('1 percentile :: X-disp = {} Y-disp = {} Z-disp = {} Euclidean = {}'.format(x_disp_1p,
+                                                                                      y_disp_1p,
+                                                                                      z_disp_1p,
+                                                                                      euc_disp_1p))
 
 
