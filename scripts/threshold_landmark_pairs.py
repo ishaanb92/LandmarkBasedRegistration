@@ -61,7 +61,7 @@ if __name__ == '__main__':
                                                                   moving_image_landmarks_voxels)
 
         fixed_image_landmarks_voxels_filtered = fixed_image_landmarks_voxels[euc_distances<=threshold, :]
-        moving_image_landmarks_voxels_filtered = moving_image_landmarks_voxels[euc_distances<threshold, :]
+        moving_image_landmarks_voxels_filtered = moving_image_landmarks_voxels[euc_distances<=threshold, :]
 
         print('Patient {} :: Landmarks pairs before filtering = {}, after filtereing = {}'.format(pid,
                                                                                                   fixed_image_landmarks_voxels.shape[0],
