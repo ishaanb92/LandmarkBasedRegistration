@@ -20,11 +20,13 @@ from argparse import ArgumentParser
 import monai
 from monai.utils.misc import set_determinism
 import random
+import pandas as pd
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--dataset', type=str, default='umc')
+    parser.add_argument('--displacement_dir', type=str, default=None)
     parser.add_argument('--seed', type=int, default=1234)
     args = parser.parse_args()
 
@@ -66,8 +68,8 @@ if __name__ == '__main__':
                                                 patch_size=(128, 128, 96),
                                                 num_workers=1)
 
-        coarse_displacements = (29, 19.84, 9.92)
-        fine_displacements = (7.25, 9.92, 9.92)
+        disp_pdf = joblib.load(os.path.join(args.displacement_dir,
+                                            'disp_pdf.pkl'))
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
 
@@ -100,14 +102,22 @@ if __name__ == '__main__':
 
             deformed_images = torch.zeros_like(images)
 
-            batch_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
-                                                                      coarse=True,
-                                                                      fine=True,
-                                                                      coarse_displacements=coarse_displacements,
-                                                                      fine_displacements=fine_displacements,
-                                                                      coarse_grid_resolution=coarse_grid_resolution,
-                                                                      fine_grid_resolution=fine_grid_resolution)
-
+            if args.dataset == 'umc':
+                batch_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
+                                                                          coarse=True,
+                                                                          fine=True,
+                                                                          coarse_displacements=coarse_displacements,
+                                                                          fine_displacements=fine_displacements,
+                                                                          coarse_grid_resolution=coarse_grid_resolution,
+                                                                          fine_grid_resolution=fine_grid_resolution)
+            elif args.dataset == 'dirlab':
+                batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                                         non_rigid=True,
+                                                                                         coarse=True,
+                                                                                         fine=True,
+                                                                                         disp_pdf=disp_pdf,
+                                                                                         coarse_grid_resolution=coarse_grid_resolution,
+                                                                                         fine_grid_resolution=fine_grid_resolution)
             if batch_deformation_grid is not None:
                 deformed_images = F.grid_sample(input=images,
                                                 grid=batch_deformation_grid,
