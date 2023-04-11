@@ -124,6 +124,8 @@ def create_data_dicts_dir_lab_paired(patient_dir_list=None,
     elif dataset == 'copd':
         im_types = ['iBHCT', 'eBHCT']
 
+    assert(affine_reg_dir is not None)
+
     for p_dir in patient_dir_list:
         im_str = p_dir.split(os.sep)[-1]
         data_dict = {}
@@ -131,20 +133,14 @@ def create_data_dicts_dir_lab_paired(patient_dir_list=None,
         data_dict['fixed_lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_dl_iso.mha'.format(im_types[0]))
 
 
-        if affine_reg_dir is None:
-            data_dict['moving_image'] = os.path.join(p_dir, '{}_{}_iso_affine.mha'.format(im_str, im_types[1])) # Affine pre-registration
-            data_dict['moving_lung_mask'] = os.path.join(p_dir,
-                                                         'lung_mask_{}_dl_iso_affine.mha'
-                                                         .format(im_types[1])) # Affine transformed (moving) lung mask
-        else:
-            data_dict['moving_image'] = os.path.join(affine_reg_dir,
-                                                     im_str,
-                                                     'result.0.mha')
+        data_dict['moving_image'] = os.path.join(affine_reg_dir,
+                                                 im_str,
+                                                 'result.0.mha')
 
-            data_dict['moving_lung_mask'] = os.path.join(affine_reg_dir,
-                                                         im_str,
-                                                         'moving_lung_mask_affine',
-                                                         'result.mha')
+        data_dict['moving_lung_mask'] = os.path.join(affine_reg_dir,
+                                                     im_str,
+                                                     'moving_lung_mask_affine',
+                                                     'result.mha')
 
         data_dict['patient_id'] = im_str
         data_dicts.append(data_dict)
