@@ -257,14 +257,24 @@ def test(args):
                 print('Mask shape after padding = {}'.format(mask.shape))
 
                 # U-Net outputs via patch-based inference
-                unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
-                                                        roi_size=roi_size,
-                                                        sw_device=device,
-                                                        device='cpu',
-                                                        sw_batch_size=2,
-                                                        predictor=model.get_unet_outputs,
-                                                        overlap=0.25,
-                                                        progress=True)
+                try:
+                    unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
+                                                            roi_size=roi_size,
+                                                            sw_device=device,
+                                                            device='cpu',
+                                                            sw_batch_size=2,
+                                                            predictor=model.get_unet_outputs,
+                                                            overlap=0.25,
+                                                            progress=True)
+                except RuntimeError:
+                    unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
+                                                            roi_size=roi_size,
+                                                            sw_device=device,
+                                                            device='cpu',
+                                                            sw_batch_size=1,
+                                                            predictor=model.get_unet_outputs,
+                                                            overlap=0.25,
+                                                            progress=True)
 
                 kpts_logits_1 = unet_outputs['kpts_logits_1']
                 kpts_logits_2 = unet_outputs['kpts_logits_2']
@@ -596,7 +606,6 @@ def test(args):
                     save_ras_as_itk(img=images_hat[batch_id, ...].float(),
                                     metadata=fixed_metadata_list[batch_id],
                                     fname=os.path.join(dump_dir, 'fixed_image.mha'))
-
 
 if __name__ == '__main__':
 

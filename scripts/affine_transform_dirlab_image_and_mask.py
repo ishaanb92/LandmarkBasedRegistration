@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--registration_dir', type=str, required=True)
     parser.add_argument('--dataset', type=str, help='dirlab or copd', default='dirlab')
+    parser.add_argument('--transform_mask', action='store_true')
     args = parser.parse_args()
 
     pat_dirs = [f.path for f in os.scandir(args.registration_dir) if f.is_dir()]
@@ -40,21 +41,24 @@ if __name__ == '__main__':
                                                  output_file_name=os.path.join(pdir, 'affine_transform_mask.txt'))
         tr_editor.modify_transform_parameter_file()
 
-        tr_obj = TransformixInterface(parameters=os.path.join(pdir, 'affine_transform_mask.txt'),
-                                      transformix_path=TRANSFORMIX_BIN)
+        if args.transform_mask is True:
+            # Modify transform file to resample lung mask
+            tr_editor = TransformParameterFileEditor(transform_parameter_file_path=affine_transform_file,
+                                                     output_file_name=os.path.join(pdir, 'affine_transform_mask.txt'))
 
-        affine_resampled_mask_dir = os.path.join(pdir, 'moving_lung_mask_affine')
+            tr_editor.modify_transform_parameter_file()
 
-        if os.path.exists(affine_resampled_mask_dir) is True:
-            shutil.rmtree(affine_resampled_mask_dir)
+            tr_obj = TransformixInterface(parameters=os.path.join(pdir, 'affine_transform_mask.txt'),
+                                          transformix_path=TRANSFORMIX_BIN)
 
-        os.makedirs(affine_resampled_mask_dir)
+            affine_resampled_mask_dir = os.path.join(pdir, 'moving_lung_mask_affine')
 
-        resampled_mask_path = tr_obj.transform_image(image_path=os.path.join(pdir, 'moving_mask.mha'),
-                                                     output_dir=affine_resampled_mask_dir)
+            if os.path.exists(affine_resampled_mask_dir) is True:
+                shutil.rmtree(affine_resampled_mask_dir)
 
+            os.makedirs(affine_resampled_mask_dir)
 
-
-
+            resampled_mask_path = tr_obj.transform_image(image_path=os.path.join(pdir, 'moving_mask.mha'),
+                                                         output_dir=affine_resampled_mask_dir)
 
 

@@ -23,7 +23,7 @@ if __name__ == '__main__':
                     nargs='+')
     parser.add_argument('--legends', type=str, help='Legends for registration comparisons', nargs='+')
     parser.add_argument('--output_file', type=str, help='Name of output file', default='comparison.png')
-
+    parser.add_argument('--title', type=str, default=None, nargs='+')
     args = parser.parse_args()
 
     assert(isinstance(args.folders, list))
@@ -41,11 +41,6 @@ if __name__ == '__main__':
 
     # Loop over patients
     for pid in pids:
-        # Pre-registration TRE
-#        pre_reg_tre = np.load(os.path.join(baseline_dir, pid, 'pre_reg_error.npy'))
-#        tre_dict['Patient ID'].extend([pid for i in range(pre_reg_tre.shape[0])])
-#        tre_dict['Registration type'].extend(['Pre-registration' for i in range(pre_reg_tre.shape[0])])
-#        tre_dict['TRE (mm)'].extend(list(pre_reg_tre))
         # Loop over registration configurations
         for idx, rdir in enumerate(args.folders):
             pdir = os.path.join(args.result_dir, rdir, pid)
@@ -66,6 +61,9 @@ if __name__ == '__main__':
                 y='TRE (mm)',
                 hue='Registration type',
                 ax=ax)
+
+    if args.title is not None:
+        ax.set_title(' '.join(args.title))
 
     fig.savefig(os.path.join(args.result_dir, args.output_file),
                 bbox_inches='tight')
