@@ -76,6 +76,41 @@ def create_bspline_transform(shape=None,
 
     return bspline_transform
 
+def create_bspline_transform_from_pdf(shape=None,
+                                      disp_pdf=None,
+                                      grid_resolution=(4, 4, 4)):
+    """
+
+    Displacements are in terms of voxels
+    dispacement[k] = m => Along the kth axis, displacements will be in the range (-m , m)
+
+    """
+
+    x, y, z = shape
+
+    # 1. Sample displacements from the PDF
+    # Since the numpy seed is set at the start, the order of seeds (and hence sampled displacements)
+    # will be fixed for a given "main" seed
+    random_grid = disp_pdf.resample(size=grid_resolution[0]*grid_resolution[1]*grid_resolution[2],
+                                    seed=np.random.randint(low=1000, high=1000000))
+
+    # 2. Reshape random grid
+    random_grid = np.reshape(random_grid, (3,
+                                           grid_resolution[0],
+                                           grid_resolution[1],
+                                           grid_resolution[2]))
+
+    # 3. Rescale displacement to [0, 1] range
+    random_grid[0, ...] = random_grid[0, ...]*(1/x)
+    random_grid[1, ...] = random_grid[1, ...]*(1/y)
+    random_grid[2, ...] = random_grid[2, ...]*(1/z)
+
+    bspline_transform = gryds.BSplineTransformation(grid=random_grid,
+                                                    order=3)
+
+    return bspline_transform
+
+
 def create_deformation_grid(grid=None,
                             shape=None,
                             transforms=[]):
@@ -161,6 +196,73 @@ def create_batch_deformation_grid(shape,
                     elastic_transform_fine = create_bspline_transform(shape=[k, j, i],
                                                                       displacements=fine_displacements,
                                                                       grid_resolution=fine_grid_resolution)
+                    transforms.append(elastic_transform_fine)
+
+            else: # Translation only
+                translation_transform = create_affine_transform(translation=[0, 0, 0.1])
+                transforms.append(translation_transform)
+
+        # Create deformation grid by composing transforms
+        deformed_grid, jac_det = create_deformation_grid(shape=[k, j, i],
+                                                         transforms=transforms)
+
+        if deformed_grid is None:
+            return None
+
+        # Rearrange axes to make the deformation grid torch-friendly
+        ndim, k, j, i = deformed_grid.shape
+        deformed_grid = np.reshape(deformed_grid, (ndim, -1)).T
+        deformed_grid = np.reshape(deformed_grid, (k, j, i, ndim))
+
+        # Re-order axes to HWD (ijk) for grid_sample
+        deformed_grid = np.transpose(deformed_grid, (2, 1, 0, 3))
+        jac_det = np.transpose(jac_det, (2, 1, 0))
+
+        batch_deformation_grid[batch_idx, ...] = deformed_grid
+
+    #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
+    batch_deformation_grid = torch.Tensor(batch_deformation_grid).to(device)
+    jac_det = torch.Tensor(jac_det).to(device)
+    return batch_deformation_grid, jac_det
+
+
+def create_batch_deformation_grid_from_pdf(shape,
+                                           device='cpu',
+                                           dummy=False,
+                                           non_rigid=True,
+                                           coarse=True,
+                                           fine=False,
+                                           coarse_grid_resolution=(4, 4, 4),
+                                           fine_grid_resolution=(8, 8, 8),
+                                           disp_pdf=None):
+
+    b, c, i, j, k = shape
+
+    # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
+    # grid[:, i, j, k, 0] = new_x (k')
+    # grid[:, i, j, k, 1] = new_y (j')
+    # grid[:, i, j, k, 2] = new_z (i')
+    batch_deformation_grid = np.zeros((b, i, j, k, 3),
+                                      dtype=np.float32)
+
+    jac_det = np.zeros((b, i, j, k, 3),
+                      dtype=np.float32)
+
+    # Loop over batch and generated a unique deformation grid for each image in the batch
+    for batch_idx in range(b):
+        transforms = []
+        if dummy is False:
+            if non_rigid is True:
+                if coarse is True:
+                    elastic_transform_coarse = create_bspline_transform_from_pdf(shape=[k, j, i],
+                                                                                 disp_pdf=disp_pdf,
+                                                                                 grid_resolution=coarse_grid_resolution)
+
+                    transforms.append(elastic_transform_coarse)
+                if fine is True:
+                    elastic_transform_fine = create_bspline_transform_from_pdf(shape=[k, j, i],
+                                                                               disp_pdf=disp_pdf,
+                                                                               grid_resolution=fine_grid_resolution)
                     transforms.append(elastic_transform_fine)
 
             else: # Translation only

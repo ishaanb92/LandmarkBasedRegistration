@@ -128,6 +128,8 @@ def custom_loss(landmark_logits1,
                 match_target,
                 k,
                 device="cuda:0",
+                mask_idxs_1=None,
+                mask_idxs_2=None,
                 desc_loss_comp_wt=torch.Tensor([1.0, 1.0])):
 
     # LandmarkProbabilityLoss Image 1

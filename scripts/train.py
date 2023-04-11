@@ -178,8 +178,8 @@ def train(args):
         fine_grid_resolution = (6, 6, 6)
         pixel_thresh = (2, 4, 4)
     elif args.dataset == 'dirlab':
-        coarse_displacements = (29, 19.84, 9.92)
-        fine_displacements = (7.25, 9.92, 9.92)
+        disp_pdf = joblib.load(os.path.join(args.displacement_dir,
+                                            'disp_pdf.pkl'))
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
         pixel_thresh = (1, 2, 2)
@@ -211,12 +211,12 @@ def train(args):
 
                     # Additional non-rigid deformation -- See Eppenhof and Pluim (2019), TMI
                     if args.data_aug is True:
-                        augmentation_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
-                                                                                         non_rigid=True,
-                                                                                         coarse=True,
-                                                                                         fine=False,
-                                                                                         coarse_displacements=coarse_displacements,
-                                                                                         coarse_grid_resolution=(2, 2, 2))
+                        augmentation_deformation_grid, _ = create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                                                  non_rigid=True,
+                                                                                                  coarse=True,
+                                                                                                  fine=False,
+                                                                                                  disp_pdf=disp_pdf,
+                                                                                                  coarse_grid_resolution=(2, 2, 2))
                         if augmentation_deformation_grid is not None:
                             images = F.grid_sample(input=images,
                                                    grid=augmentation_deformation_grid,
@@ -231,14 +231,23 @@ def train(args):
                                                  padding_mode="border")
 
 
-                batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
-                                                                                non_rigid=True,
-                                                                                coarse=True,
-                                                                                fine=True,
-                                                                                coarse_displacements=coarse_displacements,
-                                                                                fine_displacements=fine_displacements,
-                                                                                coarse_grid_resolution=coarse_grid_resolution,
-                                                                                fine_grid_resolution=fine_grid_resolution)
+                if args.dataset == 'umc':
+                    batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
+                                                                                    non_rigid=True,
+                                                                                    coarse=True,
+                                                                                    fine=True,
+                                                                                    coarse_displacements=coarse_displacements,
+                                                                                    fine_displacements=fine_displacements,
+                                                                                    coarse_grid_resolution=coarse_grid_resolution,
+                                                                                    fine_grid_resolution=fine_grid_resolution)
+                elif args.dataset == 'dirlab':
+                    batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                                             non_rigid=True,
+                                                                                             coarse=True,
+                                                                                             fine=True,
+                                                                                             disp_pdf=disp_pdf,
+                                                                                             coarse_grid_resolution=coarse_grid_resolution,
+                                                                                             fine_grid_resolution=fine_grid_resolution)
                 if batch_deformation_grid is not None:
                     images_hat = F.grid_sample(input=images,
                                                grid=batch_deformation_grid,
@@ -337,7 +346,6 @@ def train(args):
                                             k=args.kpts_per_batch,
                                             mask_idxs_1 = outputs['mask_idxs_1'],
                                             mask_idxs_2 = outputs['mask_idxs_2'],
-                                            device=device)
                                             device=device,
                                             desc_loss_comp_wt=desc_loss_comp_wt.to(device))
                 # Backprop
@@ -379,15 +387,24 @@ def train(args):
                     elif args.dataset == 'dirlab':
                         images, mask = (val_data['image'], val_data['lung_mask'])
 
-                    batch_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
-                                                                              device=images.device,
-                                                                              non_rigid=True,
-                                                                              coarse=True,
-                                                                              fine=True,
-                                                                              coarse_displacements=coarse_displacements,
-                                                                              fine_displacements=fine_displacements,
-                                                                              coarse_grid_resolution=coarse_grid_resolution,
-                                                                              fine_grid_resolution=fine_grid_resolution)
+                    if args.dataset == 'umc':
+                        batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
+                                                                                        non_rigid=True,
+                                                                                        coarse=True,
+                                                                                        fine=True,
+                                                                                        coarse_displacements=coarse_displacements,
+                                                                                        fine_displacements=fine_displacements,
+                                                                                        coarse_grid_resolution=coarse_grid_resolution,
+                                                                                        fine_grid_resolution=fine_grid_resolution)
+                    elif args.dataset == 'dirlab':
+                        batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                                                 non_rigid=True,
+                                                                                                 coarse=True,
+                                                                                                 fine=True,
+                                                                                                 disp_pdf=disp_pdf,
+                                                                                                 coarse_grid_resolution=coarse_grid_resolution,
+                                                                                                 fine_grid_resolution=fine_grid_resolution)
+
                     # Folding may have occured
                     if batch_deformation_grid is None:
                         continue
@@ -476,7 +493,6 @@ def train(args):
                                             k=args.kpts_per_batch,
                                             mask_idxs_1=outputs['mask_idxs_1'],
                                             mask_idxs_2=outputs['mask_idxs_2'],
-                                            device=device)
                                             device=device,
                                             desc_loss_comp_wt=desc_loss_comp_wt.to(device))
 
@@ -556,6 +572,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
+    parser.add_argument('--displacement_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--loss_type', type=str, default='aux', help='Choices: hinge, ce, aux')
     parser.add_argument('--gpu_id', type=int, default=2)
