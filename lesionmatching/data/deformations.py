@@ -207,7 +207,7 @@ def create_batch_deformation_grid(shape,
                                                          transforms=transforms)
 
         if deformed_grid is None:
-            return None
+            return None, None
 
         # Rearrange axes to make the deformation grid torch-friendly
         ndim, k, j, i = deformed_grid.shape
@@ -274,7 +274,7 @@ def create_batch_deformation_grid_from_pdf(shape,
                                                          transforms=transforms)
 
         if deformed_grid is None:
-            return None
+            return None, None
 
         # Rearrange axes to make the deformation grid torch-friendly
         ndim, k, j, i = deformed_grid.shape
