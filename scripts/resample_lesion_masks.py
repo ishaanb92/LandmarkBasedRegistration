@@ -17,11 +17,10 @@ from lesionmatching.util_scripts.image_utils import *
 from lesionmatching.util_scripts.utils import *
 import SimpleITK as sitk
 import numpy as np
+import shutil
 
 ELASTIX_LIB = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/lib'
 TRANSFORMIX_BIN = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/bin/transformix'
-
-
 
 
 if __name__ == '__main__':
@@ -29,7 +28,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
 
     parser.add_argument('--data_list_dir', type=str, help='Folder containing .pkl files with patient directories')
-    parser.add_argument('--out_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
+    parser.add_argument('--reg_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
     parser.add_argument('--mode', type=str, default='image')
 
     args = parser.parse_args()
@@ -69,7 +68,7 @@ if __name__ == '__main__':
             continue
 
 
-        reg_dir = os.path.join(args.out_dir, pat_id)
+        reg_dir = os.path.join(args.reg_dir, pat_id)
 
         # The registration result for a patient may be absent
         # because it may have been deleted in a previous run
@@ -106,6 +105,19 @@ if __name__ == '__main__':
         jac_det_itk = sitk.ReadImage(jac_det_path)
         jac_det_np = sitk.GetArrayFromImage(jac_det_itk)
 
+        # Check if registration has been successful before resampling the moving lesion mask
+        if np.amin(jac_det_np) < 0:
+            print('Registration has failed for patient {} since folding has occured'.format(pat_id))
+            # Save the folding map
+            folding_map_np = np.where(jac_det_np < 0, 1, 0).astype(np.uint8)
+            folding_map_itk = sitk.GetImageFromArray(folding_map_np)
+            folding_map_itk.SetOrigin(jac_det_itk.GetOrigin())
+            folding_map_itk.SetSpacing(jac_det_itk.GetSpacing())
+            folding_map_itk.SetDirection(jac_det_itk.GetDirection())
+            sitk.WriteImage(folding_map_itk, os.path.join(reg_dir, 'folding_map.nii.gz'))
+            failed_registrations.append(pat_id)
+            continue
+
         # Save each lesion as a separate mask
         try:
             n_fixed_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
@@ -129,20 +141,6 @@ if __name__ == '__main__':
             review_patients.append(pat_id)
             continue
 
-        # Check if registration has been successful before resampling the moving lesion mask
-        if np.amin(jac_det_np) < 0:
-            print('Registration has failed for patient {} since folding has occured'.format(pat_id))
-            # Save the folding map
-            folding_map_np = np.where(jac_det_np < 0, 1, 0).astype(np.uint8)
-            folding_map_itk = sitk.GetImageFromArray(folding_map_np)
-            folding_map_itk.SetOrigin(jac_det_itk.GetOrigin())
-            folding_map_itk.SetSpacing(jac_det_itk.GetSpacing())
-            folding_map_itk.SetDirection(jac_det_itk.GetDirection())
-            sitk.WriteImage(folding_map_itk, os.path.join(reg_dir, 'folding_map.nii.gz'))
-            failed_registrations.append(pat_id)
-            continue
-
-
         # Resample each lesion in the moving image separately
         for m_lesion_idx in range(n_moving_lesions):
 
@@ -158,10 +156,10 @@ if __name__ == '__main__':
 
     # Save list of patients whose lesion annotations need to be re-examined
     joblib.dump(value=review_patients,
-                filename=os.path.join(args.out_dir, 'patients_to_review.pkl'))
+                filename=os.path.join(args.reg_dir, 'patients_to_review.pkl'))
 
     joblib.dump(value=failed_registrations,
-                filename=os.path.join(args.out_dir, 'failed_registrations.pkl'))
+                filename=os.path.join(args.reg_dir, 'failed_registrations.pkl'))
 
     joblib.dump(value=missing_lesion_masks,
-                filename=os.path.join(args.out_dir, 'missing_lesion_masks.pkl'))
+                filename=os.path.join(args.reg_dir, 'missing_lesion_masks.pkl'))

@@ -7,6 +7,7 @@ Script to register a dataset of (paired) images
 
 """
 from lesionmatching.util_scripts.register_images import *
+from lesionmatching.util_scripts.utils import create_datetime_object_from_str
 import os
 import shutil
 from argparse import ArgumentParser
@@ -23,32 +24,33 @@ if __name__ == '__main__':
     parser.add_argument('--data_list_dir', type=str, help='Folder containing .pkl files with patient directories')
     parser.add_argument('--out_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
     parser.add_argument('--p', type=str, help='Parameter file path(s)', nargs='+', default=None)
-    parser.add_argument('--test', action='store_true', help='Use flag so that patients in the test-set are registered')
     parser.add_argument('--multichannel', action='store_true', help='Use flag for (pairwise) multichannel registration')
-    parser.add_argument('--mode', type=str, default='dce')
+    parser.add_argument('--mode', type=str, default='all')
+    parser.add_argument('--input', type=str, default='dce')
 
     args = parser.parse_args()
 
-#    if args.test is False:
-#        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients.pkl'))
-#        pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients.pkl')))
-#    else:
-#        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients.pkl'))
+    if args.mode == 'all':
+        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
+        pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
+        pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl')))
+    elif args.mode == 'test':
+        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl'))
+    elif args.mode == 'train':
+        pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
+        pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
 
-    pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
-    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
-    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl')))
 
-    if args.mode == 'mask':
+    if args.input == 'mask':
         image_name = ['LiverMask_dilated.nii']
-    elif args.mode == 'dce':
+    elif args.input == 'dce':
         if args.multichannel is False:
             image_name = ['DCE_mean.nii']
         else:
             image_name = []
             for channel in range(N_DCE_CHANNELS):
                 image_name.append('DCE_channel_{}.nii'.format(channel))
-    elif args.mode == 'dwi':
+    elif args.input == 'dwi':
         if args.multichannel is False:
             image_name = ['DWI_reg_mean.nii']
         else:
@@ -96,7 +98,7 @@ if __name__ == '__main__':
             continue
 
         # Use liver mask to guide registration for image-based registration
-        if args.mode == 'dce' or args.mode == 'dwi':
+        if args.input == 'dce' or args.input == 'dwi':
             fixed_image_mask = os.path.join(pat_dir,
                                             scan_dirs[fixed_image_idx],
                                             'LiverMask_dilated.nii')

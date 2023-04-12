@@ -9,13 +9,13 @@ directly in terms of matching lesions in baseline and follow-up scans
 
 """
 import os
-from segmentation_metrics.lesion_correspondence import *
+from lesionmatching.analysis.lesion_correspondence import *
 import numpy as np
 import SimpleITK as sitk
 from argparse import ArgumentParser
 import glob
 import shutil
-from utils.image_utils import return_lesion_coordinates
+from lesionmatching.util_scripts.image_utils import return_lesion_coordinates
 import joblib
 import warnings
 
@@ -63,23 +63,32 @@ def get_lesion_slices(dir_list=None, fixed=True):
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--out_dir', type=str)
+    parser.add_argument('--reg_dir', type=str, help='Directory containing registration results')
 
     args = parser.parse_args()
 
-    pat_dirs  = [f.path for f in os.scandir(args.out_dir) if f.is_dir()]
+    pat_dirs  = [f.path for f in os.scandir(args.reg_dir) if f.is_dir()]
 
     print('Number of patients = {}'.format(len(pat_dirs)))
 
-    review_patients = joblib.load(os.path.join(args.out_dir, 'patients_to_review.pkl'))
+    review_patients = joblib.load(os.path.join(args.reg_dir, 'patients_to_review.pkl'))
     print('{} patients need to be reviewed'.format(len(review_patients)))
     n_review = len(review_patients)
 
-    failed_registrations = joblib.load(os.path.join(args.out_dir, 'failed_registrations.pkl'))
+    failed_registrations = joblib.load(os.path.join(args.reg_dir, 'failed_registrations.pkl'))
     print('Registration failed for {} patients'.format(len(failed_registrations)))
 
-    missing_lesion_masks = joblib.load(os.path.join(args.out_dir, 'missing_lesion_masks.pkl'))
+    missing_lesion_masks = joblib.load(os.path.join(args.reg_dir, 'missing_lesion_masks.pkl'))
     print('Patients with (at least one) lesion mask(s) missing = {}'.format(len(missing_lesion_masks)))
+
+
+    # How many patients are we missing?
+    missing_patients = failed_registrations
+    missing_patients.extend(review_patients)
+    missing_patients.extend(missing_lesion_masks)
+
+    n_missing_patients = len(list(set(missing_patients)))
+    print('Lesion correspondences cannot be established for {} patients'.format(n_missing_patients))
 
     for pat_dir in pat_dirs:
         pat_id = pat_dir.split(os.sep)[-1]
@@ -166,7 +175,7 @@ if __name__ == '__main__':
     if n_review < len(review_patients):
         # Overwrite old list with the updated one
         joblib.dump(value=review_patients,
-                    filename=os.path.join(args.out_dir, 'patients_to_review.pkl'))
+                    filename=os.path.join(args.reg_dir, 'patients_to_review.pkl'))
 
 
 

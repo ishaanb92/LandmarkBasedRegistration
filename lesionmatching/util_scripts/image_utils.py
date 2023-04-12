@@ -9,6 +9,7 @@ from skimage.restoration import denoise_nl_means, estimate_sigma
 from skimage import img_as_float32
 from skimage.measure import compare_ssim as ssim
 import os
+import shutil
 
 def calculate_mse(img1, img2):
     """
