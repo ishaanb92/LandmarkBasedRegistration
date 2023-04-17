@@ -39,15 +39,26 @@ if __name__ == '__main__':
     tre_dict['TRE (mm)'] = []
     tre_dict['Registration type'] = []
 
+    affine_done = False
     # Loop over patients
     for pid in pids:
         # Loop over registration configurations
         for idx, rdir in enumerate(args.folders):
             pdir = os.path.join(args.result_dir, rdir, pid)
+
+            if os.path.exists(os.path.join(pdir, 'post_affine_error.npy')) and affine_done is False:
+                affine_reg_tre = np.load(os.path.join(pdir, 'post_affine_error.npy'))
+                tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
+                tre_dict['Registration type'].extend(['Elastix-Affine' for i in range(post_reg_tre.shape[0])])
+                tre_dict['TRE (mm)'].extend(list(affine_reg_tre))
+                affine_done = True
+
             post_reg_tre = np.load(os.path.join(pdir, 'post_reg_error.npy'))
             tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
             tre_dict['Registration type'].extend([args.legends[idx] for i in range(post_reg_tre.shape[0])])
             tre_dict['TRE (mm)'].extend(list(post_reg_tre))
+
+        affine_done = False
 
 
     # Construct pandas DF
