@@ -158,18 +158,19 @@ if __name__ == '__main__':
                 arr=dim_wise_erros_pred_gt)
 
         # 5-2 Error(smoothed, GT projection)
-        euclidean_error_smoothed_gt = compute_euclidean_distance_between_points(moving_image_landmarks_smoothed_world,
-                                                                                gt_projection_landmarks_world)
-        np.save(file=os.path.join(pdir,
-                                  'euclidean_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
-                arr=euclidean_error_smoothed_gt)
+        if moving_image_landmarks_smoothed_world is not None:
+            euclidean_error_smoothed_gt = compute_euclidean_distance_between_points(moving_image_landmarks_smoothed_world,
+                                                                                    gt_projection_landmarks_world)
+            np.save(file=os.path.join(pdir,
+                                      'euclidean_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
+                    arr=euclidean_error_smoothed_gt)
 
-        dim_wise_erros_smoothed_gt = np.abs(np.subtract(moving_image_landmarks_smoothed_world,
-                                                        gt_projection_landmarks_world))
+            dim_wise_erros_smoothed_gt = np.abs(np.subtract(moving_image_landmarks_smoothed_world,
+                                                            gt_projection_landmarks_world))
 
-        np.save(file=os.path.join(pdir,
-                                  'dimwise_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
-                arr=dim_wise_erros_smoothed_gt)
+            np.save(file=os.path.join(pdir,
+                                      'dimwise_error_smoothed_gt_proj_{}.npy'.format(args.smoothing)),
+                    arr=dim_wise_erros_smoothed_gt)
 
 
 

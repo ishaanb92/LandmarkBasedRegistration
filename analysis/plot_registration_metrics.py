@@ -67,6 +67,7 @@ if __name__ == '__main__':
     # Use the DF to construct box-plot
     fig, ax = plt.subplots(figsize=(10, 8))
 
+
     sns.boxplot(data=tre_df,
                 x='Patient ID',
                 y='TRE (mm)',
@@ -75,6 +76,8 @@ if __name__ == '__main__':
 
     if args.title is not None:
         ax.set_title(' '.join(args.title))
+
+    ax.set_ylim((0, 100))
 
     fig.savefig(os.path.join(args.result_dir, args.output_file),
                 bbox_inches='tight')
