@@ -30,15 +30,14 @@ if __name__ == '__main__':
     disp_df = pd.read_pickle(os.path.join(args.displacement_dir,
                                           'displacement_df.pkl'))
 
-    # Note: The order is now Z-Y-X to remain torch compliant
-    zyx_displacements = disp_df[['Z-disp', 'Y-disp', 'X-disp']].to_numpy() # Shape: [N, 3]
-    zyx_displacements = zyx_displacements.T # Shape: [3, N]
+    xyz_displacements = disp_df[['X-disp', 'Y-disp', 'Z-disp']].to_numpy() # Shape: [N, 3]
+    xyz_displacements = xyz_displacements.T # Shape: [3, N]
 
     # 2. Estimate PDF using Gaussian KDE
-    disp_pdf = gaussian_kde(dataset=zyx_displacements)
+    disp_pdf = gaussian_kde(dataset=xyz_displacements)
 
     # 3. Save the PDF
     joblib.dump(value=disp_pdf,
                 filename=os.path.join(args.displacement_dir,
-                                      'disp_pdf.pkl'))
+                                      'bspline_motion_pdf.pkl'))
 

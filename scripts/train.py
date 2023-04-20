@@ -179,7 +179,10 @@ def train(args):
         pixel_thresh = (2, 4, 4)
     elif args.dataset == 'dirlab':
         disp_pdf = joblib.load(os.path.join(args.displacement_dir,
-                                            'disp_pdf.pkl'))
+                                            'bspline_motion_pdf.pkl'))
+
+        affine_df = pd.read_pickle(os.path.join(args.displacement_dir,
+                                                'affine_transform_parameters.pkl'))
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
         pixel_thresh = (1, 2, 2)
@@ -246,8 +249,10 @@ def train(args):
                                                                                              coarse=True,
                                                                                              fine=True,
                                                                                              disp_pdf=disp_pdf,
+                                                                                             affine_df=affine_df,
                                                                                              coarse_grid_resolution=coarse_grid_resolution,
-                                                                                             fine_grid_resolution=fine_grid_resolution)
+                                                                                             fine_grid_resolution=fine_grid_resolution,
+                                                                                             affine_df=affine_df)
                 if batch_deformation_grid is not None:
                     images_hat = F.grid_sample(input=images,
                                                grid=batch_deformation_grid,

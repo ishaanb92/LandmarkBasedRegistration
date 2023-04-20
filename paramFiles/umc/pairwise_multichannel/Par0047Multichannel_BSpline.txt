@@ -2,9 +2,9 @@
 
 (MovingInternalImagePixelType "short")
 
-(FixedImageDimension 4)
+//(FixedImageDimension 4)
 
-(MovingImageDimension 4)
+//(MovingImageDimension 4)
 
 
 (UseDirectionCosines "true")

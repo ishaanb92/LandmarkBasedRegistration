@@ -8,6 +8,7 @@ import SimpleITK as sitk
 from skimage.restoration import denoise_nl_means, estimate_sigma
 from skimage import img_as_float32
 import os
+import shutil
 
 def calculate_mse(img1, img2):
     """

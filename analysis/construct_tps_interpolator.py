@@ -38,7 +38,7 @@ if __name__ == '__main__':
     pdirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
 
     if args.mode == 'nn':
-        LAMBDAS = [0.01, 0.05]
+        LAMBDAS = [0.0, 0.01, 0.05]
     elif args.mode == 'gt':
         LAMBDAS = [0]
 

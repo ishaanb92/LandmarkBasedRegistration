@@ -853,6 +853,75 @@ def get_affine_transform_parameters(fpath):
 
     return A, t, c
 
+def get_dti_affine_transform_parameters(fpath):
+    """
+
+    Extract affine transform parameters R, G, s from the
+    transformix output file
+
+    T(x) =  RGS(x-c) + t
+
+    """
+
+    tfile = open(fpath, 'r')
+    lines = tfile.readlines()
+    tfile.close()
+    lines = [line.strip() for line in lines]
+
+
+    R = np.empty(shape=(3,), dtype=np.float32)
+    G = np.empty(shape=(3,), dtype=np.float32)
+    S = np.empty(shape=(3,), dtype=np.float32)
+    t = np.empty(shape=(3,), dtype=np.float32)
+    c = np.empty(shape=(3,), dtype=np.float32)
+
+    for line in lines:
+        if len(line) > 2:
+            string_tuple = line.split(' ')
+            if line[0] == '/' and line[1] == '/':  # Comment-line, skip it
+                continue
+            elif line[0] == '(' and line[-1] == ')':  # Valid line
+                if string_tuple[0][1:] == 'TransformParameters':
+                    # For order of TransformParameters vector,
+                    # see: https://elastix.lumc.nl/doxygen/classitk_1_1AffineDTI3DTransform.html
+                    # Parse for R
+                    for i in range(3):
+                        param = string_tuple[i+1]
+                        if param[-1] == ')':
+                            param = param.split(')')[0]
+                        R[i] = float(param)
+                    # Parse for G
+                    for i in range(3):
+                        param = string_tuple[3+i+1]
+                        if param[-1] == ')':
+                            param = param.split(')')[0]
+                        G[i] = float(param)
+
+                    # Parse for S
+                    for i in range(3):
+                        param = string_tuple[6+i+1]
+                        if param[-1] == ')':
+                            param = param.split(')')[0]
+                        S[i] = float(param)
+
+                    # Parse for t : [tx ty tz]
+                    for i in range(3):
+                        param = string_tuple[10 + i]
+                        if param[-1] == ')':
+                            param = param.split(')')[0]
+
+                        t[i] = float(param)
+
+                elif string_tuple[0][1:] == 'CenterOfRotationPoint':
+                    for i in range(3):
+                        param = string_tuple[i+1]
+                        if param[-1] == ')':
+                            param = param.split(')')[0]
+                        c[i] = float(param)
+
+
+    return R, G, S, t, c
+
 def inverse_affine_transform(points_arr=None,
                              A=None,
                              t=None,
@@ -894,5 +963,6 @@ def create_datetime_object_from_str(dt_str):
 
     dt_obj = datetime.datetime(int(year), int(month), int(day))
     return dt_obj
+
 
 
