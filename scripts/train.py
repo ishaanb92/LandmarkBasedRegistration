@@ -31,6 +31,7 @@ from tqdm import tqdm
 import numpy as np
 import torch
 import random
+import warnings
 
 # Required for CacheDataset
 import resource
@@ -41,6 +42,13 @@ TRAINING_PATCH_SIZE = (128, 128, 64)
 TRAINING_PATCH_SIZE_DIRLAB = (128, 128, 96)
 
 def train(args):
+
+    if args.soft_masking is False:
+        proceed = input('Softmasking is set to False. Are you sure you want to continue? (y/n)')
+        if proceed == 'n':
+            return
+        elif proceed == 'y':
+            pass
 
     # Intialize torch GPU
     if args.gpu_id >= 0:
@@ -251,8 +259,7 @@ def train(args):
                                                                                              disp_pdf=disp_pdf,
                                                                                              affine_df=affine_df,
                                                                                              coarse_grid_resolution=coarse_grid_resolution,
-                                                                                             fine_grid_resolution=fine_grid_resolution,
-                                                                                             affine_df=affine_df)
+                                                                                             fine_grid_resolution=fine_grid_resolution)
                 if batch_deformation_grid is not None:
                     images_hat = F.grid_sample(input=images,
                                                grid=batch_deformation_grid,
