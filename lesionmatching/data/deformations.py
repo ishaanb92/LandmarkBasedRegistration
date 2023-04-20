@@ -25,12 +25,6 @@ from argparse import ArgumentParser
 from scipy.interpolate import RBFInterpolator
 from scipy.ndimage import map_coordinates
 from lesionmatching.util_scripts.utils import add_library_path
-# FIXME
-# CuPy import
-#add_library_path('/user/ishaan/anaconda3/pkgs/cudatoolkit-10.2.89-hfd86e86_1/lib')
-#print(os.environ.get('LD_LIBRARY_PATH'))
-#import cupy as cp
-#from cupyx.scipy.interpolate import GPURBFInterpolator
 
 def create_affine_transform(ndim=3,
                             center=[0, 0, 0],
@@ -47,6 +41,69 @@ def create_affine_transform(ndim=3,
                                                translation=translation)
     return aff_transform
 
+
+def create_affine_transform_from_df(ndim=3,
+                                    param_df=None,
+                                    shape=None):
+    """
+    Create affine transform using motion model estimated using DIR-Lab data
+
+    """
+
+    x, y, z = shape
+
+    angles = [np.random.uniform(low=param_df['theta_x'].min(),
+                                high=param_df['theta_x'].max()),
+              np.random.uniform(low=param_df['theta_y'].min(),
+                                high=param_df['theta_y'].max()),
+              np.random.uniform(low=param_df['theta_z'].min(),
+                                high=param_df['theta_z'].max())]
+
+
+    scaling = [np.random.uniform(low=param_df['sx'].min(),
+                                high=param_df['sx'].max()),
+               np.random.uniform(low=param_df['sy'].min(),
+                                high=param_df['sy'].max()),
+               np.random.uniform(low=param_df['sz'].min(),
+                                high=param_df['sz'].max())]
+
+    translation = [np.random.uniform(low=param_df['tx'].min(),
+                                     high=param_df['tx'].max()),
+                   np.random.uniform(low=param_df['ty'].min(),
+                                     high=param_df['ty'].max()),
+                   np.random.uniform(low=param_df['tz'].min(),
+                                     high=param_df['tz'].max())]
+
+    # Scale to [0, 1]
+    translation = np.divide(translation, shape)
+
+    # Shear factors cannot be randomly sampled because a "valid" shear matrix
+    # must have a determinant = 1 (shears preserve volume)
+    shear_idx = np.random.randint(low=0,
+                                  high=param_df.shape[0])
+    gx = param_df['gx'][shear_idx]
+    gy = param_df['gy'][shear_idx]
+    gz = param_df['gz'][shear_idx]
+
+    Gx = np.array([[1, 0 , 0], [gx, 1, 0], [gx, 0, 1]],
+                  dtype=np.float32)
+    Gy = np.array([[1, gy , 0], [0, 1, 0], [0, gy, 1]],
+                  dtype=np.float32)
+    Gz = np.array([[1, 0 , gz], [0, 1, gz], [0, 0, 1]],
+                  dtype=np.float32)
+
+    G = np.dot(np.dot(Gx, Gy), Gz)
+
+    assert(np.isclose(np.linalg.det(G), 1))
+
+    # Define the affine transform
+    aff_transform = gryds.AffineTransformation(ndim=3,
+                                               center=[0.5, 0.5, 0.5],
+                                               angles=angles,
+                                               scaling=scaling,
+                                               shear_matrix=G,
+                                               translation=translation)
+    return aff_transform
 
 def create_bspline_transform(shape=None,
                              displacements=(5, 3, 3),
@@ -126,14 +183,11 @@ def create_deformation_grid(grid=None,
                                         indexing="ij"),
                             dtype=np.float32)
 
-            center = [0, 0, 0]
         elif ndim == 2:
             grid = np.array(np.meshgrid(np.linspace(0, 1, shape[0]),
                                         np.linspace(0, 1, shape[1]),
                                         indexing="ij"),
                             dtype=np.float32)
-            center = [0, 0]
-
 
     image_grid = gryds.Grid(grid=grid)
 
@@ -167,14 +221,11 @@ def create_batch_deformation_grid(shape,
                                   coarse_displacements=(4, 4, 3),
                                   fine_displacements=(0.75, 0.75, 0.75),
                                   coarse_grid_resolution=(4, 4, 4),
-                                  fine_grid_resolution=(8, 8, 8)):
+                                  fine_grid_resolution=(8, 8, 8),
+                                  affine_df=None):
 
     b, c, i, j, k = shape
 
-    # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
-    # grid[:, i, j, k, 0] = new_x (k')
-    # grid[:, i, j, k, 1] = new_y (j')
-    # grid[:, i, j, k, 2] = new_z (i')
     batch_deformation_grid = np.zeros((b, i, j, k, 3),
                                       dtype=np.float32)
 
@@ -185,15 +236,16 @@ def create_batch_deformation_grid(shape,
     for batch_idx in range(b):
         transforms = []
         if dummy is False:
+            if affine_df is not None:
+                raise NotImplementedError
             if non_rigid is True:
                 if coarse is True:
-                    elastic_transform_coarse = create_bspline_transform(shape=[k, j, i],
+                    elastic_transform_coarse = create_bspline_transform(shape=[i, j, k],
                                                                         displacements=coarse_displacements,
                                                                         grid_resolution=coarse_grid_resolution)
-
                     transforms.append(elastic_transform_coarse)
                 if fine is True:
-                    elastic_transform_fine = create_bspline_transform(shape=[k, j, i],
+                    elastic_transform_fine = create_bspline_transform(shape=[i, j, k],
                                                                       displacements=fine_displacements,
                                                                       grid_resolution=fine_grid_resolution)
                     transforms.append(elastic_transform_fine)
@@ -203,22 +255,26 @@ def create_batch_deformation_grid(shape,
                 transforms.append(translation_transform)
 
         # Create deformation grid by composing transforms
-        deformed_grid, jac_det = create_deformation_grid(shape=[k, j, i],
+        deformed_grid, jac_det = create_deformation_grid(shape=[i, j, k],
                                                          transforms=transforms)
 
         if deformed_grid is None:
             return None, None
 
-        # Rearrange axes to make the deformation grid torch-friendly
-        ndim, k, j, i = deformed_grid.shape
-        deformed_grid = np.reshape(deformed_grid, (ndim, -1)).T
-        deformed_grid = np.reshape(deformed_grid, (k, j, i, ndim))
+        ndim, i, j, k = deformed_grid.shape
+        deformed_grid = np.transpose(deformed_grid,
+                                     (1, 2, 3, 0)) # Dimension at the last
 
-        # Re-order axes to HWD (ijk) for grid_sample
-        deformed_grid = np.transpose(deformed_grid, (2, 1, 0, 3))
-        jac_det = np.transpose(jac_det, (2, 1, 0))
+        deformed_grid_torch = np.copy(deformed_grid)
+        # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
+        # grid[:, i, j, k, 0] = new_x (k')
+        # grid[:, i, j, k, 1] = new_y (j')
+        # grid[:, i, j, k, 2] = new_z (i')
+        deformed_grid_torch[:, :, :, 0] = deformed_grid[:, :, :, 2]
+        deformed_grid_torch[:, :, :, 2] = deformed_grid[:, :, :, 0]
 
-        batch_deformation_grid[batch_idx, ...] = deformed_grid
+
+        batch_deformation_grid[batch_idx, ...] = deformed_grid_torch
 
     #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
     batch_deformation_grid = torch.Tensor(batch_deformation_grid).to(device)
@@ -234,14 +290,11 @@ def create_batch_deformation_grid_from_pdf(shape,
                                            fine=False,
                                            coarse_grid_resolution=(4, 4, 4),
                                            fine_grid_resolution=(8, 8, 8),
-                                           disp_pdf=None):
+                                           disp_pdf=None,
+                                           affine_df=None):
 
     b, c, i, j, k = shape
 
-    # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
-    # grid[:, i, j, k, 0] = new_x (k')
-    # grid[:, i, j, k, 1] = new_y (j')
-    # grid[:, i, j, k, 2] = new_z (i')
     batch_deformation_grid = np.zeros((b, i, j, k, 3),
                                       dtype=np.float32)
 
@@ -252,44 +305,53 @@ def create_batch_deformation_grid_from_pdf(shape,
     for batch_idx in range(b):
         transforms = []
         if dummy is False:
+            if affine_df is not None:
+                affine_transform = create_affine_transform_from_df(shape=[i, j, k],
+                                                                   ndim=3,
+                                                                   param_df=affine_df)
+                transforms.append(affine_transform)
+
             if non_rigid is True:
                 if coarse is True:
-                    elastic_transform_coarse = create_bspline_transform_from_pdf(shape=[k, j, i],
+                    elastic_transform_coarse = create_bspline_transform_from_pdf(shape=[i, j, k],
                                                                                  disp_pdf=disp_pdf,
                                                                                  grid_resolution=coarse_grid_resolution)
 
                     transforms.append(elastic_transform_coarse)
                 if fine is True:
-                    elastic_transform_fine = create_bspline_transform_from_pdf(shape=[k, j, i],
+                    elastic_transform_fine = create_bspline_transform_from_pdf(shape=[i, j, k],
                                                                                disp_pdf=disp_pdf,
                                                                                grid_resolution=fine_grid_resolution)
                     transforms.append(elastic_transform_fine)
 
-            else: # Translation only
-                translation_transform = create_affine_transform(translation=[0, 0, 0.1])
-                transforms.append(translation_transform)
-
         # Create deformation grid by composing transforms
-        deformed_grid, jac_det = create_deformation_grid(shape=[k, j, i],
+        deformed_grid, jac_det = create_deformation_grid(shape=[i, j, k],
                                                          transforms=transforms)
 
         if deformed_grid is None:
             return None, None
 
         # Rearrange axes to make the deformation grid torch-friendly
-        ndim, k, j, i = deformed_grid.shape
-        deformed_grid = np.reshape(deformed_grid, (ndim, -1)).T
-        deformed_grid = np.reshape(deformed_grid, (k, j, i, ndim))
+        ndim, i, j, k = deformed_grid.shape
+        deformed_grid = np.transpose(deformed_grid,
+                                     (1, 2, 3, 0)) # Dimension at the last
 
-        # Re-order axes to HWD (ijk) for grid_sample
-        deformed_grid = np.transpose(deformed_grid, (2, 1, 0, 3))
-        jac_det = np.transpose(jac_det, (2, 1, 0))
 
-        batch_deformation_grid[batch_idx, ...] = deformed_grid
+        deformed_grid_torch = np.copy(deformed_grid)
+        # See: https://discuss.pytorch.org/t/surprising-convention-for-grid-sample-coordinates/79997/6
+        # grid[:, i, j, k, 0] = new_x (k')
+        # grid[:, i, j, k, 1] = new_y (j')
+        # grid[:, i, j, k, 2] = new_z (i')
+        deformed_grid_torch[:, :, :, 0] = deformed_grid[:, :, :, 2]
+        deformed_grid_torch[:, :, :, 1] = deformed_grid[:, :, :, 1]
+        deformed_grid_torch[:, :, :, 2] = deformed_grid[:, :, :, 0]
+
+        batch_deformation_grid[batch_idx, ...] = deformed_grid_torch
 
     #Deform the whole batch by stacking all deformation grids along the batch axis (dim=0)
     batch_deformation_grid = torch.Tensor(batch_deformation_grid).to(device)
     jac_det = torch.Tensor(jac_det).to(device)
+
     return batch_deformation_grid, jac_det
 
 
