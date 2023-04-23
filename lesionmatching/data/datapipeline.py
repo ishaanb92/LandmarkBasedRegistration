@@ -116,7 +116,6 @@ def create_data_dicts_dir_lab(patient_dir_list=None, dataset='dirlab'):
 
 def create_data_dicts_dir_lab_paired(patient_dir_list=None,
                                      dataset='dirlab',
-                                     affine_reg_dir=None,
                                      soft_masking=False):
     data_dicts = []
 
@@ -124,8 +123,6 @@ def create_data_dicts_dir_lab_paired(patient_dir_list=None,
         im_types = ['T00', 'T50']
     elif dataset == 'copd':
         im_types = ['iBHCT', 'eBHCT']
-
-    assert(affine_reg_dir is not None)
 
     for p_dir in patient_dir_list:
         im_str = p_dir.split(os.sep)[-1]
@@ -137,15 +134,23 @@ def create_data_dicts_dir_lab_paired(patient_dir_list=None,
         else:
             data_dict['fixed_lung_mask'] = None
 
+        data_dict['moving_image'] = os.path.join(p_dir, '{}_{}_iso.mha'.format(im_str, im_types[1]))
 
-        data_dict['moving_image'] = os.path.join(affine_reg_dir,
-                                                 im_str,
-                                                 'result.0.mha')
+        # Use original exhalation image as input to NN
+        if soft_masking is False:
+            data_dict['moving_lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
+        else:
+            data_dict['moving_lung_mask'] = None
 
-        data_dict['moving_lung_mask'] = os.path.join(affine_reg_dir,
-                                                     im_str,
-                                                     'moving_lung_mask_affine',
-                                                     'result.mha')
+
+#        data_dict['moving_image'] = os.path.join(affine_reg_dir,
+#                                                 im_str,
+#                                                 'result.0.mha')
+#
+#        data_dict['moving_lung_mask'] = os.path.join(affine_reg_dir,
+#                                                     im_str,
+#                                                     'moving_lung_mask_affine',
+#                                                     'result.mha')
         data_dict['patient_id'] = im_str
         data_dicts.append(data_dict)
 

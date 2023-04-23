@@ -231,6 +231,20 @@ class DIRLabPaired(Dataset):
         moving_image_dict = self.preprocess_image_and_mask(data_dict=data_dict,
                                                            image_type='moving')
 
+        if fixed_image_dict['fixed_image'].shape != moving_image_dict['moving_image'].shape:
+            _, f_i, f_j, f_k = fixed_image_dict['fixed_image'].shape
+            _, m_i, m_j, m_k = moving_image_dict['moving_image'].shape
+            new_i = max(f_i, m_i)
+            new_j = max(f_j, m_j)
+            new_k = max(f_k, m_k)
+            resized_fixed_image = torch.zeros((1, new_i, new_j, new_k)).float()
+            resized_moving_image = torch.zeros((1, new_i, new_j, new_k)).float()
+            resized_fixed_image[:, :f_i, :f_j, :f_k] = fixed_image_dict['fixed_image']
+            resized_moving_image[:, :m_i, :m_j, :m_k] = moving_image_dict['moving_image']
+            fixed_image_dict['fixed_image'] = resized_fixed_image
+            moving_image_dict['moving_image'] = resized_moving_image
+            # FIXME: Adjust mask sizes as well
+
         # Merge the two dictionaries
         batch_dict = {**fixed_image_dict, **moving_image_dict}
         batch_dict['patient_id'] = data_dict['patient_id']

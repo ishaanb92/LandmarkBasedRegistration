@@ -33,6 +33,13 @@ COPD_DIR = '/home/ishaan/COPDGene/mha'
 
 def test(args):
 
+    if args.soft_masking is False:
+        proceed = input('Softmasking is set to False. Are you sure you want to continue? (y/n)')
+        if proceed == 'n':
+            return
+        elif proceed == 'y':
+            pass
+
     # Intialize torch GPU
     if args.gpu_id >= 0:
         device = torch.device('cuda:{}'.format(args.gpu_id))
@@ -102,7 +109,6 @@ def test(args):
 
             data_dicts = create_data_dicts_dir_lab_paired(patients,
                                                           dataset=args.dataset,
-                                                          affine_reg_dir=args.affine_reg_dir,
                                                           soft_masking=args.soft_masking)
 
             data_loader = create_dataloader_dir_lab_paired(data_dicts=data_dicts,
@@ -469,6 +475,9 @@ def test(args):
                     moving_metadata_list = detensorize_metadata(metadata=batch_data['moving_metadata'],
                                                                 batchsz=images.shape[0])
 
+                    print(images.shape)
+                    print(images_hat.shape)
+
                     assert(images.shape == images_hat.shape)
 
                     b, c, i, j, k = images.shape
@@ -611,7 +620,6 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
-    parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
     parser.add_argument('--loss_mode', type=str, default='aux')

@@ -409,15 +409,17 @@ def train(args):
                                                                                         coarse_grid_resolution=coarse_grid_resolution,
                                                                                         fine_grid_resolution=fine_grid_resolution)
                     elif args.dataset == 'dirlab':
-                        batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
-                                                                                                 non_rigid=True,
-                                                                                                 coarse=True,
-                                                                                                 fine=True,
-                                                                                                 disp_pdf=disp_pdf,
-                                                                                                 coarse_grid_resolution=coarse_grid_resolution,
-                                                                                                 fine_grid_resolution=fine_grid_resolution)
+                        batch_deformation_grid, jac_det = \
+                            create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                   non_rigid=True,
+                                                                   coarse=True,
+                                                                   fine=True,
+                                                                   disp_pdf=disp_pdf,
+                                                                   affine_df=affine_df,
+                                                                   coarse_grid_resolution=coarse_grid_resolution,
+                                                                   fine_grid_resolution=fine_grid_resolution)
 
-                    # Folding may have occured
+
                     if batch_deformation_grid is None:
                         continue
 
