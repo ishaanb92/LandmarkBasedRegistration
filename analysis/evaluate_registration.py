@@ -38,7 +38,6 @@ if __name__ == '__main__':
 
     add_library_path(ELASTIX_LIB)
 
-
     for pdir in pat_dirs:
 
         pid = pdir.split(os.sep)[-1]
@@ -48,6 +47,7 @@ if __name__ == '__main__':
 
         moving_points_arr = parse_points_file(fpath=os.path.join(pdir,
                                                                  'moving_image_landmarks.txt'))
+
 
         affine_tr_fixed_points = parse_points_file(fpath=os.path.join(pdir,
                                                                       'affine_transformed_fixed_points.txt'))
