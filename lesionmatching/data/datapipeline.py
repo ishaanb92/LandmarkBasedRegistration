@@ -115,6 +115,7 @@ def create_data_dicts_dir_lab(patient_dir_list=None, dataset='dirlab'):
     return data_dicts
 
 def create_data_dicts_dir_lab_paired(patient_dir_list=None,
+                                     affine_reg_dir = None,
                                      dataset='dirlab',
                                      soft_masking=False):
     data_dicts = []
@@ -134,11 +135,19 @@ def create_data_dicts_dir_lab_paired(patient_dir_list=None,
         else:
             data_dict['fixed_lung_mask'] = None
 
-        data_dict['moving_image'] = os.path.join(p_dir, '{}_{}_iso.mha'.format(im_str, im_types[1]))
+        if affine_reg_dir is None:
+            data_dict['moving_image'] = os.path.join(p_dir, '{}_{}_iso.mha'.format(im_str, im_types[1]))
+        else:
+            data_dict['moving_image'] = os.path.join(affine_reg_dir, im_str, 'result.0.mha')
 
-        # Use original exhalation image as input to NN
         if soft_masking is False:
-            data_dict['moving_lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
+            if affine_reg_dir is None:
+                data_dict['moving_lung_mask'] = os.path.join(p_dir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
+            else:
+                data_dict['moving_lung_mask'] = os.path.join(affine_reg_dir,
+                                                             im_str,
+                                                             'moving_lung_mask_affine',
+                                                             'result.mha')
         else:
             data_dict['moving_lung_mask'] = None
 

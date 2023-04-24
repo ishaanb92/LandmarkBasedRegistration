@@ -108,6 +108,7 @@ def test(args):
         elif args.dataset == 'dirlab' or args.dataset == 'copd':
 
             data_dicts = create_data_dicts_dir_lab_paired(patients,
+                                                          affine_reg_dir=args.affine_reg_dir,
                                                           dataset=args.dataset,
                                                           soft_masking=args.soft_masking)
 
@@ -620,6 +621,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
+    parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
     parser.add_argument('--loss_mode', type=str, default='aux')

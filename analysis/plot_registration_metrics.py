@@ -24,6 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--legends', type=str, help='Legends for registration comparisons', nargs='+')
     parser.add_argument('--output_file', type=str, help='Name of output file', default='comparison.png')
     parser.add_argument('--title', type=str, default=None, nargs='+')
+    parser.add_argument('--plot_affine', action='store_true')
     args = parser.parse_args()
 
     assert(isinstance(args.folders, list))
@@ -46,12 +47,13 @@ if __name__ == '__main__':
         for idx, rdir in enumerate(args.folders):
             pdir = os.path.join(args.result_dir, rdir, pid)
 
-            if os.path.exists(os.path.join(pdir, 'post_affine_error.npy')) and affine_done is False:
-                affine_reg_tre = np.load(os.path.join(pdir, 'post_affine_error.npy'))
-                tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
-                tre_dict['Registration type'].extend(['Elastix-Affine' for i in range(post_reg_tre.shape[0])])
-                tre_dict['TRE (mm)'].extend(list(affine_reg_tre))
-                affine_done = True
+            if args.plot_affine is True:
+                if os.path.exists(os.path.join(pdir, 'post_affine_error.npy')) and affine_done is False:
+                    affine_reg_tre = np.load(os.path.join(pdir, 'post_affine_error.npy'))
+                    tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
+                    tre_dict['Registration type'].extend(['Elastix-Affine' for i in range(post_reg_tre.shape[0])])
+                    tre_dict['TRE (mm)'].extend(list(affine_reg_tre))
+                    affine_done = True
 
             post_reg_tre = np.load(os.path.join(pdir, 'post_reg_error.npy'))
             tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
