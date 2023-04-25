@@ -66,7 +66,7 @@ if __name__ == '__main__':
                                                                'moving_landmarks_elx.txt'))
         elif args.mode == 'gt':
 
-            assert(args.affine_reg_dir is not None)
+            #assert(args.affine_reg_dir is not None)
 
             if args.dataset == 'copd':
                 fixed_points_arr = parse_points_file(os.path.join(points_dir,
@@ -79,9 +79,20 @@ if __name__ == '__main__':
 
 
             # Since the moving image is already affine-registered, use the inverse affine transformed moving landmarks
-            moving_points_arr = parse_points_file(os.path.join(args.affine_reg_dir,
-                                                               pid,
-                                                               'transformed_moving_landmarks_elx.txt'))
+            if args.affine_reg_dir is not None:
+                moving_points_arr = parse_points_file(os.path.join(args.affine_reg_dir,
+                                                                   pid,
+                                                                   'transformed_moving_landmarks_elx.txt'))
+            else:
+                if args.dataset == 'copd':
+                    moving_points_arr = parse_points_file(os.path.join(points_dir,
+                                                                      pid,
+                                                                      '{}_300_eBH_world_r1_elx.txt'.format(pid)))
+                elif args.dataset == 'dirlab':
+                    moving_points_arr = parse_points_file(os.path.join(points_dir,
+                                                                       pid,
+                                                                      '{}_4D-75_T50_world_elx.txt'.format(pid)))
+
         else:
             raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
 

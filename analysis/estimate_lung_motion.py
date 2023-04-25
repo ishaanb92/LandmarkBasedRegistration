@@ -20,7 +20,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--deformation_dir', type=str, required=True)
     parser.add_argument('--data_dir', type=str, required=True)
-    parser.add_argument('--affine_reg_dir', type=str, required=True)
+    parser.add_argument('--affine_reg_dir', type=str, default=None)
     args = parser.parse_args()
 
     pdirs = [f.path for f in os.scandir(args.deformation_dir) if f.is_dir()]
@@ -36,7 +36,11 @@ if __name__ == '__main__':
         pid = pdir.split(os.sep)[-1]
 
         patient_data_dir = os.path.join(args.data_dir, pid)
-        patient_affine_reg_dir = os.path.join(args.affine_reg_dir, pid)
+
+        if args.affine_reg_dir is not None:
+            patient_affine_reg_dir = os.path.join(args.affine_reg_dir, pid)
+        else:
+            patient_affine_reg_dir = None
 
         print('Estimating displacements for patient {}'.format(pid))
 
@@ -50,9 +54,13 @@ if __name__ == '__main__':
         fixed_image_lung_mask_np = convert_itk_to_ras_numpy(fixed_image_lung_mask_itk)
 
         # Moving image mask
-        moving_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_affine_reg_dir,
-                                                                 'moving_lung_mask_affine',
-                                                                 'result.mha'))
+        if patient_affine_reg_dir is not None:
+            moving_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_affine_reg_dir,
+                                                                     'moving_lung_mask_affine',
+                                                                     'result.mha'))
+        else:
+            moving_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                                    'lung_mask_T50_dl_iso.mha'))
 
         moving_image_lung_mask_np = convert_itk_to_ras_numpy(moving_image_lung_mask_itk)
 
