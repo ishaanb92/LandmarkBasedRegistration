@@ -472,7 +472,7 @@ def train(args):
                     features_2_high = unet_outputs['features_2_high']
 
                     features_1 = (features_1_low.to(device), features_1_high.to(device))
-                    features_2 = (features_2_low.to(device), features_1_high.to(device))
+                    features_2 = (features_2_low.to(device), features_2_high.to(device))
 
                     outputs = model.inference(kpts_1=kpts_logits_1.to(device),
                                               kpts_2=kpts_logits_2.to(device),

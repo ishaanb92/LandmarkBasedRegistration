@@ -293,8 +293,7 @@ def test(args):
 
 
                 features_1 = (features_1_low.to(device), features_1_high.to(device))
-                features_2 = (features_2_low.to(device), features_1_high.to(device))
-
+                features_2 = (features_2_low.to(device), features_2_high.to(device))
 
                 # Get (predicted) landmarks and matches on the full image
                 # These landmarks are predicted based on L2-norm between feature descriptors
@@ -545,7 +544,7 @@ def test(args):
 
 
                 features_1 = (features_1_low.to(device), features_1_high.to(device))
-                features_2 = (features_2_low.to(device), features_1_high.to(device))
+                features_2 = (features_2_low.to(device), features_2_high.to(device))
 
                 print(torch.max(torch.max(kpts_logits_1)))
                 print(torch.max(torch.max(kpts_logits_2)))
