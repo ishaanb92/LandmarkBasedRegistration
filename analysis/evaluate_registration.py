@@ -49,42 +49,69 @@ if __name__ == '__main__':
                                                                  'moving_image_landmarks.txt'))
 
 
-        affine_tr_fixed_points = parse_points_file(fpath=os.path.join(pdir,
-                                                                      'affine_transformed_fixed_points.txt'))
+        try:
+            affine_tr_fixed_points = parse_points_file(fpath=os.path.join(pdir,
+                                                                          'affine_transformed_fixed_points.txt'))
 
-        if args.smoothing_term == 0:
-            transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
-                                                                                'transformed_fixed_points.txt'))
-        else:
-            transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
-                                                                                'transformed_fixed_points_{}.txt'.format(args.smoothing_term)))
+            if args.smoothing_term == 0:
+                transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
+                                                                                    'transformed_fixed_points.txt'))
+            else:
+                transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
+                                                                                    'transformed_fixed_points_{}.txt'.format(args.smoothing_term)))
 
-        spatial_errors_pre_reg = compute_euclidean_distance_between_points(x1=fixed_points_arr,
-                                                                           x2=moving_points_arr)
-
-        spatial_errors_post_affine = compute_euclidean_distance_between_points(x1=affine_tr_fixed_points,
+            spatial_errors_pre_reg = compute_euclidean_distance_between_points(x1=fixed_points_arr,
                                                                                x2=moving_points_arr)
 
-        spatial_errors_post_reg = compute_euclidean_distance_between_points(x1=transformed_fixed_points_arr,
-                                                                            x2=moving_points_arr)
+            spatial_errors_post_affine = compute_euclidean_distance_between_points(x1=affine_tr_fixed_points,
+                                                                                   x2=moving_points_arr)
 
-        print('Patient {} :: TRE :: Pre-reg : {:.3f} +/- {:.3f}  Affine: {:.3f} +/- {:.3f} Post-reg :: {:.3f} +/- {:.3f}'.format(pid,
-                                                                                                         np.mean(spatial_errors_pre_reg),
-                                                                                                         np.std(spatial_errors_pre_reg),
-                                                                                                         np.mean(spatial_errors_post_affine),
-                                                                                                         np.std(spatial_errors_post_affine),
-                                                                                                         np.mean(spatial_errors_post_reg),
-                                                                                                         np.std(spatial_errors_post_reg)))
+            spatial_errors_post_reg = compute_euclidean_distance_between_points(x1=transformed_fixed_points_arr,
+                                                                                x2=moving_points_arr)
+
+            print('Patient {} :: TRE :: Pre-reg : {:.3f} +/- {:.3f}  Affine: {:.3f} +/- {:.3f} Post-reg :: {:.3f} +/- {:.3f}'.format(pid,
+                                                                                                             np.mean(spatial_errors_pre_reg),
+                                                                                                             np.std(spatial_errors_pre_reg),
+                                                                                                             np.mean(spatial_errors_post_affine),
+                                                                                                             np.std(spatial_errors_post_affine),
+                                                                                                             np.mean(spatial_errors_post_reg),
+                                                                                                             np.std(spatial_errors_post_reg)))
+
+            # Save the results
+            np.save(file=os.path.join(pdir, 'pre_reg_error.npy'),
+                    arr=spatial_errors_pre_reg)
+
+            np.save(file=os.path.join(pdir, 'post_affine_error.npy'),
+                    arr=spatial_errors_post_affine)
+
+            np.save(file=os.path.join(pdir, 'post_reg_error.npy'),
+                    arr=spatial_errors_post_reg)
+
+        except FileNotFoundError: # Only affine registration
+
+            if args.smoothing_term == 0:
+                transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
+                                                                                    'transformed_fixed_points.txt'))
+            else:
+                transformed_fixed_points_arr = parse_points_file(fpath=os.path.join(pdir,
+                                                                                    'transformed_fixed_points_{}.txt'.format(args.smoothing_term)))
+
+            spatial_errors_pre_reg = compute_euclidean_distance_between_points(x1=fixed_points_arr,
+                                                                               x2=moving_points_arr)
 
 
-        # Save the results
-        np.save(file=os.path.join(pdir, 'pre_reg_error.npy'),
-                arr=spatial_errors_pre_reg)
+            spatial_errors_post_reg = compute_euclidean_distance_between_points(x1=transformed_fixed_points_arr,
+                                                                                x2=moving_points_arr)
 
-        np.save(file=os.path.join(pdir, 'post_affine_error.npy'),
-                arr=spatial_errors_post_affine)
+            print('Patient {} :: TRE :: Pre-reg : {:.3f} +/- {:.3f}  Post-reg :: {:.3f} +/- {:.3f}'.format(pid,
+                                                                                                           np.mean(spatial_errors_pre_reg),
+                                                                                                           np.std(spatial_errors_pre_reg),
+                                                                                                           np.mean(spatial_errors_post_reg),
+                                                                                                           np.std(spatial_errors_post_reg)))
 
-        np.save(file=os.path.join(pdir, 'post_reg_error.npy'),
-                arr=spatial_errors_post_reg)
 
+            np.save(file=os.path.join(pdir, 'pre_reg_error.npy'),
+                    arr=spatial_errors_pre_reg)
 
+            np.save(file=os.path.join(pdir, 'post_reg_error.npy'),
+                    arr=spatial_errors_post_reg)

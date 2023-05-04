@@ -34,8 +34,11 @@ if __name__ == '__main__':
         pid = pdir.split(os.sep)[-1]
 
         print('Processing patient {}'.format(pid))
+        if args.affine_reg_dir is not None:
+            affine_pdir = os.path.join(args.affine_reg_dir, pid)
+        else:
+            affine_pdir = None
 
-        affine_pdir = os.path.join(args.affine_reg_dir, pid)
         points_pdir = os.path.join(args.points_dir, pid)
 
         # 1. Read fixed and (affine-transformed) moving images
@@ -112,8 +115,13 @@ if __name__ == '__main__':
         elif args.dataset == 'dirlab':
             raise NotImplementedError
 
-        gt_moving_image_landmarks_world = parse_points_file(os.path.join(affine_pdir,
-                                                                         'transformed_moving_landmarks_elx.txt'))
+        if affine_pdir is not None:
+            gt_moving_image_landmarks_world = parse_points_file(os.path.join(affine_pdir,
+                                                                             'transformed_moving_landmarks_elx.txt'))
+        else:
+            gt_moving_image_landmarks_world = parse_points_file(os.path.join(points_pdir,
+                                                                             '{}_300_eBH_world_r1_elx.txt'.format(pid)))
+
 
         # 3-b. Convert world coordinates to voxels
         gt_fixed_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=gt_fixed_image_landmarks_world,
