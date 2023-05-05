@@ -22,14 +22,10 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--landmarks_dir', type=str, required=True)
-    parser.add_argument('--softmask', action='store_true')
 
     args = parser.parse_args()
 
-    if args.softmask is True:
-        threshold = 27
-    else:
-        threshold = 12
+    threshold = 50
 
     pdirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
 
