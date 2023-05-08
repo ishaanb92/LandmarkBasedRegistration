@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--landmarks_dir', type=str, required=True)
     parser.add_argument('--smoothing_terms', type=float, help='Smoothing terms', nargs='+')
+    parser.add_argument('--use_threshold', action='store_true')
     args = parser.parse_args()
 
     pdirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
@@ -47,11 +48,18 @@ if __name__ == '__main__':
         fixed_image_shape = fixed_image_itk.GetSize()
         moving_image_shape = moving_image_itk.GetSize()
 
-        fixed_points_arr = parse_points_file(os.path.join(pdir,
-                                                          'fixed_landmarks_elx.txt'))
+        if args.use_threshold is True:
+            fixed_points_arr = parse_points_file(os.path.join(pdir,
+                                                              'fixed_landmarks_elx_threshold.txt'))
 
-        moving_points_arr = parse_points_file(os.path.join(pdir,
-                                                           'moving_landmarks_elx.txt'))
+            moving_points_arr = parse_points_file(os.path.join(pdir,
+                                                               'moving_landmarks_elx_threshold.txt'))
+        else:
+            fixed_points_arr = parse_points_file(os.path.join(pdir,
+                                                              'fixed_landmarks_elx.txt'))
+
+            moving_points_arr = parse_points_file(os.path.join(pdir,
+                                                               'moving_landmarks_elx.txt'))
 
 
         # Convert world coordinates to voxel coordinates
@@ -102,13 +110,22 @@ if __name__ == '__main__':
                                                                                   origin=moving_image_itk.GetOrigin())
 
             # 5. Save the updated landmark correspondences
-            create_landmarks_file(landmarks=updated_moving_points_rescaled_world,
-                                  world=True,
-                                  fname=os.path.join(pdir, 'moving_landmarks_elx_{}.txt'.format(sterm)))
+            if args.use_threshold is True:
+                create_landmarks_file(landmarks=updated_moving_points_rescaled_world,
+                                      world=True,
+                                      fname=os.path.join(pdir, 'moving_landmarks_elx_threshold_{}.txt'.format(sterm)))
+            else:
+                create_landmarks_file(landmarks=updated_moving_points_rescaled_world,
+                                      world=True,
+                                      fname=os.path.join(pdir, 'moving_landmarks_elx_{}.txt'.format(sterm)))
 
             # 6. Save the TPS interpolator object
-            joblib.dump(tps_interpolator,
-                        os.path.join(pdir, 'tps_{}.pkl'.format(sterm)))
+            if args.use_threshold is True:
+                joblib.dump(tps_interpolator,
+                            os.path.join(pdir, 'tps_threshold_{}.pkl'.format(sterm)))
+            else:
+                joblib.dump(tps_interpolator,
+                            os.path.join(pdir, 'tps_{}.pkl'.format(sterm)))
 
 
 
