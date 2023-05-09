@@ -39,6 +39,7 @@ if __name__ == '__main__':
     significance_dict['Significant'] = []
     significance_dict['{} median TRE'.format(args.legends[0])] = []
     significance_dict['{} median TRE'.format(args.legends[1])] = []
+    significance_dict['Who is better?'] = []
 
     for pid in pids:
 
@@ -53,11 +54,17 @@ if __name__ == '__main__':
 
         if p_value < ALPHA:
             significance_dict['Significant'].append('Yes')
+            if np.median(tre_1) < np.median(tre_2):
+                significance_dict['Who is better?'].append(args.legends[0])
+            else:
+                significance_dict['Who is better?'].append(args.legends[1])
         else:
             significance_dict['Significant'].append('No')
+            significance_dict['Who is better?'].append('N/A')
 
         significance_dict['{} median TRE'.format(args.legends[0])].append(np.median(tre_1))
         significance_dict['{} median TRE'.format(args.legends[1])].append(np.median(tre_2))
+
 
     sig_df = pd.DataFrame.from_dict(significance_dict)
     print(tabulate(sig_df, headers='keys', tablefmt='psql'))
