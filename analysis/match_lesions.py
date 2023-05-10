@@ -15,49 +15,8 @@ import SimpleITK as sitk
 from argparse import ArgumentParser
 import glob
 import shutil
-from lesionmatching.util_scripts.image_utils import return_lesion_coordinates
+from lesionmatching.util_scripts.image_utils import *
 import joblib
-import warnings
-
-def merge_lesions_masks(dir_list=None):
-
-    for idx in range(len(dir_list)):
-        lesion_mask_itk = sitk.ReadImage(os.path.join(dir_list[idx], 'result.nii'))
-        if idx == 0:
-            lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk)
-        else:
-            lesion_mask_np += sitk.GetArrayFromImage(lesion_mask_itk)
-
-    lesion_mask_np = np.where(lesion_mask_np > 1, 1, lesion_mask_np)
-    _, n_lesions = return_lesion_coordinates(lesion_mask_np)
-
-    return lesion_mask_np
-
-
-def get_lesion_slices(dir_list=None, fixed=True):
-
-    if fixed is True:
-        fname = 'lesion.nii.gz'
-    else:
-        fname = 'result.nii'
-
-    slices = []
-
-    for idx, lesion_dir in enumerate(dir_list):
-        single_lesion_mask_itk = sitk.ReadImage(os.path.join(lesion_dir, fname))
-        single_lesion_mask_np = sitk.GetArrayFromImage(single_lesion_mask_itk)
-        lesion_slices, n_lesions = return_lesion_coordinates(single_lesion_mask_np)
-        if n_lesions > 1:
-            warning_str =  "Weird, there should be only one lesion present, but there are {}."\
-                            " ID = {}, fixed = {}. Skip this patient".format(n_lesions, idx, fixed)
-            warnings.warn(warning_str, RuntimeWarning)
-            return None
-
-        slices.append(lesion_slices[0])
-
-    return slices
-
-
 
 
 if __name__ == '__main__':
@@ -77,10 +36,8 @@ if __name__ == '__main__':
 
     failed_registrations = joblib.load(os.path.join(args.reg_dir, 'failed_registrations.pkl'))
     print('Registration failed for {} patients'.format(len(failed_registrations)))
-
     missing_lesion_masks = joblib.load(os.path.join(args.reg_dir, 'missing_lesion_masks.pkl'))
     print('Patients with (at least one) lesion mask(s) missing = {}'.format(len(missing_lesion_masks)))
-
 
     # How many patients are we missing?
     missing_patients = failed_registrations
@@ -93,7 +50,7 @@ if __name__ == '__main__':
     for pat_dir in pat_dirs:
         pat_id = pat_dir.split(os.sep)[-1]
 
-        if pat_id in review_patients or pat_id in failed_registrations or pat_id in missing_lesion_masks:
+        if pat_id in review_patients or pat_id in missing_lesion_masks:
             continue
 
         m_lesion_dirs = [d for d in glob.glob(os.path.join(pat_dir, 'moving_lesion_*')) if os.path.isdir(d)]
@@ -138,6 +95,7 @@ if __name__ == '__main__':
         if fixed_lesion_slices is None or moving_lesion_slices is None:
             # Some problem, add patient ID to the review list
             review_patients.append(pat_id)
+            handle_lesion_separation_error(pat_dir=pat_dir)
             continue
 
         fixed_lesions = []

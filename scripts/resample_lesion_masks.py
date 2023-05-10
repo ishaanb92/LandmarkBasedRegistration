@@ -43,7 +43,6 @@ if __name__ == '__main__':
     review_patients = []
     failed_registrations = []
     missing_lesion_masks = []
-
     for pat_dir in pat_dirs:
 
         pat_id = pat_dir.split(os.sep)[-1]
@@ -116,7 +115,7 @@ if __name__ == '__main__':
             folding_map_itk.SetDirection(jac_det_itk.GetDirection())
             sitk.WriteImage(folding_map_itk, os.path.join(reg_dir, 'folding_map.nii.gz'))
             failed_registrations.append(pat_id)
-            continue
+
 
         # Save each lesion as a separate mask
         try:
@@ -124,10 +123,12 @@ if __name__ == '__main__':
             if n_fixed_lesions < 0:
                 print('Error encountered while processing fixed lesion mask for Patient {}. Skipping'.format(pat_id))
                 review_patients.append(pat_id)
+                handle_lesion_separation_error(pat_dir=reg_dir)
                 continue
         except RuntimeError:
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
             review_patients.append(pat_id)
+            handle_lesion_separation_error(pat_dir=reg_dir)
             continue
 
         try:
@@ -135,10 +136,12 @@ if __name__ == '__main__':
             if n_moving_lesions < 0:
                 print('Error encountered while processing moving lesion mask for Patient {}. Skipping'.format(pat_id))
                 review_patients.append(pat_id)
+                handle_lesion_separation_error(pat_dir=reg_dir)
                 continue
         except RuntimeError:
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
             review_patients.append(pat_id)
+            handle_lesion_separation_error(pat_dir=reg_dir)
             continue
 
         # Resample each lesion in the moving image separately
@@ -152,6 +155,7 @@ if __name__ == '__main__':
 
             tr.transform_image(image_path=lesion_fpath,
                                output_dir=moving_lesion_dir)
+
 
 
     # Save list of patients whose lesion annotations need to be re-examined

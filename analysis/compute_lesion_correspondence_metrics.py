@@ -86,8 +86,8 @@ if __name__ == '__main__':
                                                                             min_overlap=0.0)
 
 
-        print('Patient {} :: GT matches = {} Unmatched lesion (GT) = {} True positive = {} False positives = {} \
-               False negatives = {}  True negatives = {}'.format(pat_id,
+        print('Patient {} :: GT matches = {} Unmatched lesion (GT) = {} True positive = {} False positives = {} '\
+               'False negatives = {}  True negatives = {}'.format(pat_id,
                                                                  count_dict['TM'],
                                                                  count_dict['UM'],
                                                                  count_dict['TP'],

@@ -9,6 +9,8 @@ from skimage.restoration import denoise_nl_means, estimate_sigma
 from skimage import img_as_float32
 import os
 import shutil
+import glob
+import warnings
 
 def calculate_mse(img1, img2):
     """
@@ -498,3 +500,58 @@ def create_separate_lesion_masks(fname):
                         lesion_fpath)
 
     return n_lesions
+
+def handle_lesion_separation_error(pat_dir):
+    """
+    Handle errors arising from saving each lesion as a separate mask by
+    removing all folders
+
+    """
+    m_lesion_dirs = [d for d in glob.glob(os.path.join(pat_dir, 'moving_lesion_*')) if os.path.isdir(d)]
+    f_lesion_dirs = [d for d in glob.glob(os.path.join(pat_dir, 'fixed_lesion_*')) if os.path.isdir(d)]
+
+    if len(m_lesion_dirs) > 0:
+        for ldir in m_lesion_dirs:
+            shutil.rmtree(ldir)
+
+    if len(f_lesion_dirs) > 0:
+        for ldir in f_lesion_dirs:
+            shutil.rmtree(ldir)
+
+def merge_lesions_masks(dir_list=None):
+
+    for idx in range(len(dir_list)):
+        lesion_mask_itk = sitk.ReadImage(os.path.join(dir_list[idx], 'result.nii'))
+        if idx == 0:
+            lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk)
+        else:
+            lesion_mask_np += sitk.GetArrayFromImage(lesion_mask_itk)
+
+    lesion_mask_np = np.where(lesion_mask_np > 1, 1, lesion_mask_np)
+    _, n_lesions = return_lesion_coordinates(lesion_mask_np)
+
+    return lesion_mask_np
+
+
+def get_lesion_slices(dir_list=None, fixed=True):
+
+    if fixed is True:
+        fname = 'lesion.nii.gz'
+    else:
+        fname = 'result.nii'
+
+    slices = []
+
+    for idx, lesion_dir in enumerate(dir_list):
+        single_lesion_mask_itk = sitk.ReadImage(os.path.join(lesion_dir, fname))
+        single_lesion_mask_np = sitk.GetArrayFromImage(single_lesion_mask_itk)
+        lesion_slices, n_lesions = return_lesion_coordinates(single_lesion_mask_np)
+        if n_lesions > 1:
+            warning_str =  "Weird, there should be only one lesion present, but there are {}."\
+                            " ID = {}, fixed = {}. Skip this patient".format(n_lesions, idx, fixed)
+            warnings.warn(warning_str, RuntimeWarning)
+            return None
+
+        slices.append(lesion_slices[0])
+
+    return slices
