@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('--affine_reg_dir', type=str, help='Affine registration directory contains GT moving image landmarks')
     parser.add_argument('--out_dir', type=str, default=None)
     parser.add_argument('--smoothing', type=float, default=0)
+    parser.add_argument('--use_threshold', action='store_true')
     args = parser.parse_args()
 
     pat_dirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
@@ -59,16 +60,27 @@ if __name__ == '__main__':
 
         # 2-a. Read fixed and moving predicted landmarks .txt files
 
-        fixed_image_landmarks_world = parse_points_file(os.path.join(pdir,
-                                                        'fixed_landmarks_elx.txt'))
+        if args.use_threshold is False:
+            fixed_image_landmarks_world = parse_points_file(os.path.join(pdir,
+                                                            'fixed_landmarks_elx.txt'))
 
-        moving_image_landmarks_world = parse_points_file(os.path.join(pdir,
-                                                         'moving_landmarks_elx.txt'))
+            moving_image_landmarks_world = parse_points_file(os.path.join(pdir,
+                                                             'moving_landmarks_elx.txt'))
+        else:
+            fixed_image_landmarks_world = parse_points_file(os.path.join(pdir,
+                                                            'fixed_landmarks_elx_threshold.txt'))
+
+            moving_image_landmarks_world = parse_points_file(os.path.join(pdir,
+                                                             'moving_landmarks_elx_threshold.txt'))
 
         # Moving landmarks after TPS-based smoothing
         if args.smoothing > 0:
-            moving_image_landmarks_smoothed_world = parse_points_file(os.path.join(pdir,
-                                                                                   'moving_landmarks_elx_{}.txt'.format(args.smoothing)))
+            if args.use_threshold is False:
+                moving_image_landmarks_smoothed_world = parse_points_file(os.path.join(pdir,
+                                                                                       'moving_landmarks_elx_{}.txt'.format(args.smoothing)))
+            else:
+                moving_image_landmarks_smoothed_world = parse_points_file(os.path.join(pdir,
+                                                                                       'moving_landmarks_elx_threshold_{}.txt'.format(args.smoothing)))
         else:
             moving_image_landmarks_smoothed_world = None
             moving_image_landmarks_smoothed_voxels = None
