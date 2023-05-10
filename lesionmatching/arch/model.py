@@ -334,7 +334,7 @@ class LesionMatchingModel(nn.Module):
                     # Even after reducing the threshold to 0, we still do not have enough kpts => most of the heatmap is "cold"
                     if num_pts > N:
                         print('Skip this batch. Too few keypoint candidates')
-                        return None, None, None
+                        return None, None, None, None
                 else:
                     if N > 0:
                         warnings.warn('The number of key-points requested ({}) is \
