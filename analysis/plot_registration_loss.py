@@ -29,6 +29,7 @@ if __name__ == '__main__':
     for pdir in pdirs:
         metric = []
         transform_bending_penalty = []
+        ncc_loss = []
         landmarks_cost_function = []
         end_points = {} # Dictionary to store end points (used for plotting)
         end_points['Affine'] = {}
@@ -56,6 +57,13 @@ if __name__ == '__main__':
                 total_loss = elastix_log['2:Metric'].to_numpy().astype(np.float32)
                 metric.extend(list(total_loss))
 
+                try:
+                    ncc = elastix_log['2:Metric0'].to_numpy().astype(np.float32)
+                    ncc_loss.extend(list(ncc))
+                except KeyError:
+                    print('Single metric registration')
+                    continue
+
                 # Store the "end-points" for each stage/resolution
                 if stage == 0:
                     end_points['Affine']['R{}'.format(res)] = len(metric)
@@ -79,8 +87,8 @@ if __name__ == '__main__':
                         print('Landmarks not used for B-Spline registration')
                         continue
 
-        fig, ax = plt.subplots(1, 2,
-                               figsize=(10, 8))
+        fig, ax = plt.subplots(1, 3,
+                               figsize=(15, 5))
 
         # Plotting the main metric
         ax[0].plot(np.arange(len(metric)),np.array(metric))
@@ -88,7 +96,7 @@ if __name__ == '__main__':
         ax[0].set_ylabel('Total Metric')
         ax[0].set_xlabel('Iterations')
 
-        ax[0].set_ylim((-3, 3))
+        ax[0].set_ylim((-2, 3))
 
         # Draw the "boundaries" between different stages and resolutions
         # Start lines
@@ -125,6 +133,33 @@ if __name__ == '__main__':
                                    xy=(spoint, ANNOTATION_Y_LM+offset))
                     offset += 4
 
+        # Plotting the main metric
+        if len(ncc_loss) != 0:
+            # When we don't use landmarks, affine reg. uses only NCC,
+            # but B-Spline uses NCC + BendingPenalty => We need to "adjust" the limits
+            if len(ncc_loss) < len(metric):
+                ncc_loss_append = [0 for i in range((len(metric) - len(ncc_loss)))]
+                ncc_loss_append.extend(ncc_loss)
+                ncc_loss = ncc_loss_append
+
+            ax[2].plot(np.arange(len(ncc_loss)),np.array(ncc_loss))
+
+            ax[2].set_ylabel('AdvancedNCC')
+            ax[2].set_xlabel('Iterations')
+
+            ax[2].set_ylim((-2, 3))
+
+            # Draw the "boundaries" between different stages and resolutions
+            # Start lines
+            offset = 0
+            for reg_stage in start_points.keys():
+                spoint = start_points[reg_stage]['R0']
+                ax[2].axvline(x=spoint,
+                           linestyle='--')
+
+                ax[2].annotate('{} Start'.format(reg_stage),
+                            xy=(spoint, ANNOTATION_Y+offset))
+                offset += 1
         # Save the plot
         fig.savefig(os.path.join(pdir, 'reg_loss.png'),
                     bbox_inches='tight')
