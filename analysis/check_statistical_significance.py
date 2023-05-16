@@ -25,6 +25,8 @@ if __name__ == '__main__':
     parser.add_argument('--legends', type=str, help='Legends' ,
                     nargs='+')
 
+    parser.add_argument('--verbose', action='store_true')
+
     args = parser.parse_args()
 
 
@@ -66,6 +68,9 @@ if __name__ == '__main__':
         significance_dict['{} median TRE'.format(args.legends[1])].append(np.median(tre_2))
 
 
-    sig_df = pd.DataFrame.from_dict(significance_dict)
+    if args.verbose is True:
+        sig_df = pd.DataFrame.from_dict(significance_dict)
+    else:
+        sig_df = pd.DataFrame.from_dict({k:significance_dict[k] for k in ('Patient ID', 'Who is better?')})
     print(tabulate(sig_df, headers='keys', tablefmt='psql'))
 
