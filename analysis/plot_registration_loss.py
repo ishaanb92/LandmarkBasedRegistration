@@ -138,7 +138,7 @@ if __name__ == '__main__':
             # When we don't use landmarks, affine reg. uses only NCC,
             # but B-Spline uses NCC + BendingPenalty => We need to "adjust" the limits
             if len(ncc_loss) < len(metric):
-                ncc_loss_append = [0 for i in range((len(metric) - len(ncc_loss)))]
+                ncc_loss_append = metric[:(len(metric)-len(ncc_loss))]
                 ncc_loss_append.extend(ncc_loss)
                 ncc_loss = ncc_loss_append
 

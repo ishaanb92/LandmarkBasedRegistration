@@ -29,6 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('--registration_out_dir', type=str, help='Output directory')
     parser.add_argument('--dataset', type=str, help='dirlab or copd')
     parser.add_argument('--landmarks_dir', type=str, default=None)
+    parser.add_argument('--initial_transform', type=str, default=None)
     parser.add_argument('--mode', type=str, default='all')
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--sanity', action='store_true')
@@ -140,7 +141,17 @@ if __name__ == '__main__':
                                                    image_prefix,
                                                    '{}_300_iBH_world_r1_elx.txt'.format(image_prefix))
 
-                moving_landmarks = os.path.join(affine_pdir, 'transformed_moving_landmarks_elx.txt')
+                if affine_pdir is not None:
+                    moving_landmarks = os.path.join(affine_pdir, 'transformed_moving_landmarks_elx.txt')
+                else:
+                    if args.dataset == 'dirlab':
+                        moving_landmarks = os.path.join(points_dir,
+                                                        image_prefix,
+                                                        '{}_4D-75_T50_world_elx.txt'.format(image_prefix))
+                    elif args.dataset == 'copd':
+                        moving_landmarks = os.path.join(points_dir,
+                                                        image_prefix,
+                                                        '{}_300_eBH_world_r1_elx.txt'.format(image_prefix))
 
 
         if args.use_lung_mask is False:
@@ -154,7 +165,7 @@ if __name__ == '__main__':
                     fixed_points=fixed_landmarks,
                     moving_points=moving_landmarks,
                     parameters=args.params,
-                    initial_transform=None,
+                    initial_transform=args.initial_transform,
                     output_dir=reg_out_dir)
 
 
