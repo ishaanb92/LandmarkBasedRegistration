@@ -475,9 +475,6 @@ def test(args):
                     moving_metadata_list = detensorize_metadata(metadata=batch_data['moving_metadata'],
                                                                 batchsz=images.shape[0])
 
-                    print(images.shape)
-                    print(images_hat.shape)
-
                     assert(images.shape == images_hat.shape)
 
                     b, c, i, j, k = images.shape
@@ -518,7 +515,6 @@ def test(args):
                                           0, excess_pixels_xy,
                                           0, excess_pixels_xy),
                                     mode='constant')
-
 
                 images_cat = torch.cat([images, images_hat], dim=1)
 
@@ -571,7 +567,8 @@ def test(args):
                                                   mask2=None,
                                                   soft_masking=True)
 
-                except RuntimeError:
+                except RuntimeError as e:
+                    print(e)
                     continue
 
                 # How many matches predicted between paired (affinely registered) images?

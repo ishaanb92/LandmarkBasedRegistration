@@ -231,6 +231,7 @@ class DIRLabPaired(Dataset):
         moving_image_dict = self.preprocess_image_and_mask(data_dict=data_dict,
                                                            image_type='moving')
 
+        # Handle cases where fixed and moving images are different
         if fixed_image_dict['fixed_image'].shape != moving_image_dict['moving_image'].shape:
             _, f_i, f_j, f_k = fixed_image_dict['fixed_image'].shape
             _, m_i, m_j, m_k = moving_image_dict['moving_image'].shape
@@ -239,11 +240,18 @@ class DIRLabPaired(Dataset):
             new_k = max(f_k, m_k)
             resized_fixed_image = torch.zeros((1, new_i, new_j, new_k)).float()
             resized_moving_image = torch.zeros((1, new_i, new_j, new_k)).float()
+            # The origin of the resized images and masks remains unchanged
             resized_fixed_image[:, :f_i, :f_j, :f_k] = fixed_image_dict['fixed_image']
             resized_moving_image[:, :m_i, :m_j, :m_k] = moving_image_dict['moving_image']
             fixed_image_dict['fixed_image'] = resized_fixed_image
             moving_image_dict['moving_image'] = resized_moving_image
-            # FIXME: Adjust mask sizes as well
+            if data_dict['fixed_lung_mask'] is not None and data_dict['moving_lung_mask'] is not None:
+                resized_fixed_mask = torch.zeros((1, new_i, new_j, new_k)).float()
+                resized_moving_mask = torch.zeros((1, new_i, new_j, new_k)).float()
+                resized_fixed_mask[:, :f_i, :f_j, :f_k] = fixed_image_dict['fixed_lung_mask']
+                resized_moving_mask[:, :m_i, :m_j, :m_k] = moving_image_dict['moving_lung_mask']
+                fixed_image_dict['fixed_lung_mask'] = resized_fixed_mask
+                moving_image_dict['moving_lung_mask'] = resized_moving_mask
 
         # Merge the two dictionaries
         batch_dict = {**fixed_image_dict, **moving_image_dict}

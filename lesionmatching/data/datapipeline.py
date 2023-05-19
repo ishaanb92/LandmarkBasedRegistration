@@ -152,14 +152,6 @@ def create_data_dicts_dir_lab_paired(patient_dir_list=None,
             data_dict['moving_lung_mask'] = None
 
 
-#        data_dict['moving_image'] = os.path.join(affine_reg_dir,
-#                                                 im_str,
-#                                                 'result.0.mha')
-#
-#        data_dict['moving_lung_mask'] = os.path.join(affine_reg_dir,
-#                                                     im_str,
-#                                                     'moving_lung_mask_affine',
-#                                                     'result.mha')
         data_dict['patient_id'] = im_str
         data_dicts.append(data_dict)
 
