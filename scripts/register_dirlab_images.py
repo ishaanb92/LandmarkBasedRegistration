@@ -29,13 +29,14 @@ if __name__ == '__main__':
     parser.add_argument('--registration_out_dir', type=str, help='Output directory')
     parser.add_argument('--dataset', type=str, help='dirlab or copd')
     parser.add_argument('--landmarks_dir', type=str, default=None)
-    parser.add_argument('--initial_transform', type=str, default=None)
+    parser.add_argument('--initial_transform_dir', type=str, default=None)
     parser.add_argument('--mode', type=str, default='all')
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--sanity', action='store_true')
     parser.add_argument('--smoothing_term', type=float, default=0.0)
     parser.add_argument('--use_lung_mask', action='store_true')
     parser.add_argument('--use_threshold', action='store_true')
+    parser.add_argument('--use_threshold_local', action='store_true')
 
     args = parser.parse_args()
 
@@ -101,7 +102,8 @@ if __name__ == '__main__':
 
         # Landmark pairs are predicted using fixed and affine registered moving image
         if args.landmarks_dir is not None:
-            if args.use_threshold is True:
+            if args.use_threshold is True: # Lenient threshold for global alignment
+                assert(args.use_threshold_local is False)
                 fixed_landmarks = os.path.join(args.landmarks_dir,
                                                image_prefix,
                                                'fixed_landmarks_elx_threshold.txt')
@@ -115,18 +117,28 @@ if __name__ == '__main__':
                                                     image_prefix,
                                                     'moving_landmarks_elx_threshold_{}.txt'.format(args.smoothing_term))
             else:
-                fixed_landmarks = os.path.join(args.landmarks_dir,
-                                               image_prefix,
-                                               'fixed_landmarks_elx.txt')
+                if args.use_threshold_local is True: # Stricter threshold for "local" displacements
+                    fixed_landmarks = os.path.join(args.landmarks_dir,
+                                                   image_prefix,
+                                                   'fixed_landmarks_elx_threshold_local.txt')
 
-                if args.smoothing_term == 0:
                     moving_landmarks = os.path.join(args.landmarks_dir,
                                                     image_prefix,
-                                                    'moving_landmarks_elx.txt')
-                else:
-                    moving_landmarks = os.path.join(args.landmarks_dir,
-                                                    image_prefix,
-                                                    'moving_landmarks_elx_{}.txt'.format(args.smoothing_term))
+                                                    'moving_landmarks_elx_threshold_local.txt')
+
+                else: # No threshold => Raw landmark corr. predicted by DL model
+                    fixed_landmarks = os.path.join(args.landmarks_dir,
+                                                   image_prefix,
+                                                   'fixed_landmarks_elx.txt')
+
+                    if args.smoothing_term == 0:
+                        moving_landmarks = os.path.join(args.landmarks_dir,
+                                                        image_prefix,
+                                                        'moving_landmarks_elx.txt')
+                    else:
+                        moving_landmarks = os.path.join(args.landmarks_dir,
+                                                        image_prefix,
+                                                        'moving_landmarks_elx_{}.txt'.format(args.smoothing_term))
         else:
             if args.sanity is False:
                 fixed_landmarks = None
@@ -158,6 +170,13 @@ if __name__ == '__main__':
             fixed_mask_path = None
             moving_mask_path = None
 
+        if args.initial_transform_dir is not None:
+            initial_transform = os.path.join(args.initial_transform_dir,
+                                             image_prefix,
+                                             'TransformParameters.0.txt')
+        else:
+            initial_transform = None
+
         el.register(fixed_image=fixed_image_path,
                     moving_image=moving_image_path,
                     fixed_mask=None,
@@ -165,7 +184,7 @@ if __name__ == '__main__':
                     fixed_points=fixed_landmarks,
                     moving_points=moving_landmarks,
                     parameters=args.params,
-                    initial_transform=args.initial_transform,
+                    initial_transform=initial_transform,
                     output_dir=reg_out_dir)
 
 

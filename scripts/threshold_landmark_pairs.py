@@ -22,10 +22,13 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--landmarks_dir', type=str, required=True)
-
+    parser.add_argument('--local_disp', action='store_true')
     args = parser.parse_args()
 
-    threshold = 50
+    if args.local_disp is False:
+        threshold = 50
+    else:
+        threshold = 20
 
     pdirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
 
@@ -73,11 +76,20 @@ if __name__ == '__main__':
                                                                          spacing=moving_image_itk.GetSpacing(),
                                                                          origin=moving_image_itk.GetOrigin())
 
-        create_landmarks_file(fixed_image_landmarks_filtered,
-                              world=True,
-                              fname=os.path.join(pdir, 'fixed_landmarks_elx_threshold.txt'))
+        if args.local_disp is False:
+            create_landmarks_file(fixed_image_landmarks_filtered,
+                                  world=True,
+                                  fname=os.path.join(pdir, 'fixed_landmarks_elx_threshold.txt'))
 
-        create_landmarks_file(moving_image_landmarks_filtered,
-                              world=True,
-                              fname=os.path.join(pdir, 'moving_landmarks_elx_threshold.txt'))
+            create_landmarks_file(moving_image_landmarks_filtered,
+                                  world=True,
+                                  fname=os.path.join(pdir, 'moving_landmarks_elx_threshold.txt'))
+        else:
+            create_landmarks_file(fixed_image_landmarks_filtered,
+                                  world=True,
+                                  fname=os.path.join(pdir, 'fixed_landmarks_elx_threshold_local.txt'))
+
+            create_landmarks_file(moving_image_landmarks_filtered,
+                                  world=True,
+                                  fname=os.path.join(pdir, 'moving_landmarks_elx_threshold_local.txt'))
 
