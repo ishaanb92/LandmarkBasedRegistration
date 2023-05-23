@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--affine_reg_dir', type=str, required=True)
     parser.add_argument('--bspline_reg_dir', type=str, default=None)
+    parser.add_argument('--initial_transform_included', action='store_true')
     parser.add_argument('--dataset', type=str, help='dirlab or copd')
 
     args = parser.parse_args()
@@ -66,14 +67,13 @@ if __name__ == '__main__':
 
         # Step 2 : Affine transform fixed landmarks
         if args.affine_reg_dir != args.bspline_reg_dir:
-            transform_param_file = os.path.join(affine_reg_dir, 'TransformParameters.0.txt')
 
+            transform_param_file = os.path.join(affine_reg_dir, 'TransformParameters.0.txt')
             tr_if = TransformixInterface(parameters=transform_param_file,
                                          transformix_path=TRANSFORMIX_BIN)
 
             affine_transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=fixed_image_landmarks_path,
                                                                           output_dir=affine_reg_dir)
-
 
             if args.bspline_reg_dir is not None:
 
@@ -92,8 +92,13 @@ if __name__ == '__main__':
                 tr_if = TransformixInterface(parameters=transform_param_file,
                                              transformix_path=TRANSFORMIX_BIN)
 
-                transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=os.path.join(bspline_dir, 'affine_transformed_fixed_points.txt'),
-                                                                       output_dir=bspline_dir)
+
+                if args.initial_transform_included is False:
+                    transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=os.path.join(bspline_dir, 'affine_transformed_fixed_points.txt'),
+                                                                           output_dir=bspline_dir)
+                else: # The transform parameter file will affine transform the original landmarks internally
+                    transformed_fixed_points_path = tr_if.transform_points(pointsfile_path=fixed_image_landmarks_path,
+                                                                           output_dir=bspline_dir)
 
                 # Step 5-a : Convert transformix output to array
                 transformed_fixed_point_arr = parse_transformix_points_output(fpath=transformed_fixed_points_path)
