@@ -12,7 +12,6 @@ import os
 from argparse import ArgumentParser
 import matplotlib.pyplot as plt
 
-iterations = [0, 1, 2] # 0: Affine 1: B-Spline-1 2: B-Spline-2
 resolutions = [0, 1, 2, 3, 4] # Each registration stage operates over 4 resolutins
 
 ANNOTATION_Y = -2
@@ -21,12 +20,19 @@ ANNOTATION_Y_LM = 20
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--reg_dir', type=str, required=True)
+    parser.add_argument('--bspline_reg_dir', type=str, required=True)
+    parser.add_argument('--affine_reg_dir', type=str, default=None)
     args = parser.parse_args()
 
-    pdirs = [f.path for f in os.scandir(args.reg_dir) if f.is_dir()]
+    pdirs = [f.path for f in os.scandir(args.bspline_reg_dir) if f.is_dir()]
+
+    if args.affine_reg_dir is None:
+        affine_reg_dir = args.bspline_reg_dir
+    else:
+        affine_reg_dir = args.affine_reg_dir
 
     for pdir in pdirs:
+        pid = pdir.split(os.sep)[-1]
         metric = []
         transform_bending_penalty = []
         ncc_loss = []
@@ -40,14 +46,48 @@ if __name__ == '__main__':
         start_points['BSpline-1'] = {}
         start_points['BSpline-2'] = {}
 
-        for stage in iterations:
+
+        # Loss during affine stage
+        for res in resolutions:
+            start_points['Affine']['R{}'.format(res)] = len(metric)
+
+            elastix_log = pd.read_csv(os.path.join(affine_reg_dir,
+                                                   pid,
+                                                   'IterationInfo.0.R{}.txt'.format(res)),
+                                      sep='\t')
+
+            total_loss = elastix_log['2:Metric'].to_numpy().astype(np.float32)
+            metric.extend(list(total_loss))
+
+            try:
+                ncc = elastix_log['2:Metric0'].to_numpy().astype(np.float32)
+                ncc_loss.extend(list(ncc))
+            except KeyError:
+                print('Single metric registration')
+                continue
+
+            # Store the "end-points" for each stage/resolution
+            end_points['Affine']['R{}'.format(res)] = len(metric)
+
+            try:
+                landmark_loss = elastix_log['2:Metric1'].to_numpy().astype(np.float32)
+                landmarks_cost_function.extend(landmark_loss)
+            except KeyError:
+                print('Landmarks not used for Affine regsitration')
+                continue
+
+        # Loss during B-spline stage(s)
+        if args.affine_reg_dir is None:
+            iterations = [1, 2]
+        else:
+            iterations = [0, 1]
+
+        for stage_idx, stage in enumerate(iterations):
             for res in resolutions:
 
-                if stage == 0:
-                    start_points['Affine']['R{}'.format(res)] = len(metric)
-                elif stage == 1:
+                if stage_idx == 0:
                     start_points['BSpline-1']['R{}'.format(res)] = len(metric)
-                elif stage == 2:
+                elif stage_idx == 1:
                     start_points['BSpline-2']['R{}'.format(res)] = len(metric)
 
                 elastix_log = pd.read_csv(os.path.join(pdir, 'IterationInfo.{}.R{}.txt'.format(stage,
@@ -65,30 +105,21 @@ if __name__ == '__main__':
                     continue
 
                 # Store the "end-points" for each stage/resolution
-                if stage == 0:
-                    end_points['Affine']['R{}'.format(res)] = len(metric)
-                elif stage == 1:
+                if stage_idx == 0:
                     end_points['BSpline-1']['R{}'.format(res)] = len(metric)
-                elif stage == 2:
+                elif stage_idx == 1:
                     end_points['BSpline-2']['R{}'.format(res)] = len(metric)
 
-                if stage == 0: # Affine (=> No transform bending loss)
-                    try:
-                        landmark_loss = elastix_log['2:Metric1'].to_numpy().astype(np.float32)
-                        landmarks_cost_function.extend(landmark_loss)
-                    except KeyError:
-                        print('Landmarks not used for Affine regsitration')
-                        continue
-                else: # B-Spline (Landmarks loss is Metric2)
-                    try:
-                        landmark_loss = elastix_log['2:Metric2'].to_numpy().astype(np.float32)
-                        landmarks_cost_function.extend(landmark_loss)
-                    except KeyError:
-                        print('Landmarks not used for B-Spline registration')
-                        continue
+                try:
+                    landmark_loss = elastix_log['2:Metric2'].to_numpy().astype(np.float32)
+                    landmarks_cost_function.extend(landmark_loss)
+                except KeyError:
+                    print('Landmarks not used for B-Spline registration')
+                    continue
 
         fig, ax = plt.subplots(1, 3,
                                figsize=(15, 5))
+
 
         # Plotting the main metric
         ax[0].plot(np.arange(len(metric)),np.array(metric))
