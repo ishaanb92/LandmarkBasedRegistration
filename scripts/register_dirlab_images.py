@@ -30,7 +30,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, help='dirlab or copd')
     parser.add_argument('--landmarks_dir', type=str, default=None)
     parser.add_argument('--initial_transform_dir', type=str, default=None)
-    parser.add_argument('--mode', type=str, default='all')
+    parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--sanity', action='store_true')
     parser.add_argument('--smoothing_term', type=float, default=0.0)
@@ -179,8 +179,8 @@ if __name__ == '__main__':
 
         el.register(fixed_image=fixed_image_path,
                     moving_image=moving_image_path,
-                    fixed_mask=None,
-                    moving_mask=None,
+                    fixed_mask=fixed_mask_path,
+                    moving_mask=moving_mask_path,
                     fixed_points=fixed_landmarks,
                     moving_points=moving_landmarks,
                     parameters=args.params,
