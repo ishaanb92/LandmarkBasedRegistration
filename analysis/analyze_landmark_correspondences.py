@@ -2,6 +2,10 @@
 
 Script to visualize GT landmarks pairs and (DL-)predicted landmark pairs on the same image.
 
+Additionally, this script also computes the landmark localization error:
+    For a corresponding landmark pair X_f, X_m, the localization error is defined as:
+        LocError = d(X_m, T(X_f)), where T is the GT deformation estimated from manual landmarks (by fitting a thin-plate spline)
+        and d is the Euclidean distance
 
 @author: Ishaan Bhat
 @email: ishaan@isi.uu.nl
@@ -106,7 +110,7 @@ if __name__ == '__main__':
                                                         np.expand_dims(np.array(fixed_image_itk.GetSize()),
                                                                        axis=0))
 
-        tps_func = joblib.load(os.path.join(pdir,
+        tps_func = joblib.load(os.path.join(points_pdir,
                                             'tps_gt.pkl'))
 
         gt_projection_landmarks_scaled = tps_func(fixed_image_landmarks_voxels_scaled)
@@ -163,7 +167,7 @@ if __name__ == '__main__':
                                                gt_projection_landmarks_moving=gt_projection_landmarks,
                                                out_dir=out_dir)
         # 5. Save errors
-        # 5-1 Error(pred, GT projection)
+        # 5-1 Localization Error: d(X_m, T(X_f))
         euclidean_error_pred_gt = compute_euclidean_distance_between_points(moving_image_landmarks_world,
                                                                             gt_projection_landmarks_world)
         np.save(file=os.path.join(pdir,

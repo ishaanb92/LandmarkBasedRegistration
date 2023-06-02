@@ -21,7 +21,7 @@ from lesionmatching.data.deformations import *
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--landmarks_dir', type=str, required=True)
+    parser.add_argument('--landmarks_dir', type=str, default=None)
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, default='copd')
     parser.add_argument('--mode', type=str, default='nn', help='nn or gt')
@@ -39,8 +39,10 @@ if __name__ == '__main__':
 
     if args.mode == 'nn':
         LAMBDAS = [0.0, 0.01, 0.05]
+        assert(args.landmarks_dir is not None)
     elif args.mode == 'gt':
         LAMBDAS = [0]
+
 
     for pdir in pdirs:
 
@@ -187,5 +189,5 @@ if __name__ == '__main__':
                             os.path.join(pdir, 'tps_{}.pkl'.format(lmbda)))
             elif args.mode == 'gt':
                 joblib.dump(tps_interpolator,
-                            os.path.join(pdir, 'tps_gt.pkl'))
+                            os.path.join(points_dir, pid, 'tps_gt.pkl'))
 
