@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--reg_dir', type=str, help='Directory containing registration results')
     parser.add_argument('--gt_dir', type=str, help='Path to file containing ground truth matches')
-
+    parser.add_argument('--verbose', action='store_true')
 
     args = parser.parse_args()
 
@@ -85,15 +85,15 @@ if __name__ == '__main__':
         unmatched_lesions_moving += find_unmatched_lesions_in_moving_images(dgraph,
                                                                             min_overlap=0.0)
 
-
-        print('Patient {} :: GT matches = {} Unmatched lesion (GT) = {} True positive = {} False positives = {} '\
-               'False negatives = {}  True negatives = {}'.format(pat_id,
-                                                                 count_dict['TM'],
-                                                                 count_dict['UM'],
-                                                                 count_dict['TP'],
-                                                                 count_dict['FP'],
-                                                                 count_dict['FN'],
-                                                                 count_dict['TN']))
+        if args.verbose is True:
+            print('Patient {} :: GT matches = {} Unmatched lesion (GT) = {} True positive = {} False positives = {} '\
+                   'False negatives = {}  True negatives = {}'.format(pat_id,
+                                                                     count_dict['TM'],
+                                                                     count_dict['UM'],
+                                                                     count_dict['TP'],
+                                                                     count_dict['FP'],
+                                                                     count_dict['FN'],
+                                                                     count_dict['TN']))
         true_matches += count_dict['TM']
         unmatched_lesions_fixed += count_dict['UM']
         true_positives += count_dict['TP']
