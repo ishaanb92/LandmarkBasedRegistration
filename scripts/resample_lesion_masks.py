@@ -58,10 +58,10 @@ if __name__ == '__main__':
             moving_image_idx = 1
             fixed_image_idx = 0
 
-        fixed_lesion_mask = os.path.join(pat_dir, scan_dirs[fixed_image_idx], '3DLesionAnnotations.nii')
-        moving_lesion_mask = os.path.join(pat_dir, scan_dirs[moving_image_idx], '3DLesionAnnotations.nii')
+        fixed_lesion_mask_path = os.path.join(pat_dir, scan_dirs[fixed_image_idx], '3DLesionAnnotations.nii')
+        moving_lesion_mask_path = os.path.join(pat_dir, scan_dirs[moving_image_idx], '3DLesionAnnotations.nii')
 
-        if os.path.exists(fixed_lesion_mask) is False or os.path.exists(moving_lesion_mask) is False:
+        if os.path.exists(fixed_lesion_mask_path) is False or os.path.exists(moving_lesion_mask_path) is False:
             print('Lesion mask(s) missing for patient {}'.format(pat_id))
             missing_lesion_masks.append(pat_id)
             continue
@@ -77,8 +77,23 @@ if __name__ == '__main__':
             continue
 
         # Copy the fixed and moving lesion masks to the registration output directory
-        shutil.copyfile(fixed_lesion_mask, os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
-        shutil.copyfile(moving_lesion_mask, os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
+        fixed_lesion_mask_itk = sitk.ReadImage(fixed_lesion_mask_path)
+        moving_lesion_mask_itk = sitk.ReadImage(moving_lesion_mask_path)
+
+        fixed_lesion_mask_itk = check_and_fix_masks(fixed_lesion_mask_itk)
+        moving_lesion_mask_itk = check_and_fix_masks(moving_lesion_mask_itk)
+
+        if fixed_lesion_mask_itk is None or moving_lesion_mask_itk is None:
+            print('Problem with either fixed or moving mask for Patient {}'.format(pat_id))
+            review_patients.append(pat_id)
+            continue
+
+        # Save the lesion masks in the registration dir
+        sitk.WriteImage(fixed_lesion_mask_itk,
+                        os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
+
+        sitk.WriteImage(moving_lesion_mask_itk,
+                        os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
 
         if args.mode == 'image':
             # Edit transform parameters to make resampling order 0

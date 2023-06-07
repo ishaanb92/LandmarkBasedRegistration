@@ -290,7 +290,10 @@ def return_lesion_coordinates(mask):
 
     """
     assert(isinstance(mask, np.ndarray))
-    assert(mask.ndim == 3)
+
+    if mask.ndim != 3:
+        raise RuntimeError('Mask dimensions = {} with shape {}'.format(mask.ndim, mask.shape))
+
     struct_element = generate_binary_structure(rank=mask.ndim, connectivity=4)
     labelled_mask, num_objects = label(input=mask, structure=struct_element)
 
@@ -453,22 +456,6 @@ def create_separate_lesion_masks(fname):
 
     reg_dir = os.sep.join(fname.split(os.sep)[0:-1])
 
-    # Weird!
-    if lesion_mask_np.ndim != 3:
-        return -1
-
-    # Handle non-binary masks!!!
-    if np.amax(lesion_mask_np) > 1:
-        lesion_mask_np = np.where(lesion_mask_np >=1, 1, lesion_mask_np)
-        lesion_mask_itk_binary = sitk.GetImageFromArray(lesion_mask_np)
-        lesion_mask_itk_binary.SetOrigin(lesion_mask_itk.GetOrigin())
-        lesion_mask_itk_binary.SetDirection(lesion_mask_itk.GetDirection())
-        lesion_mask_itk_binary.SetSpacing(lesion_mask_itk.GetSpacing())
-        # Overwrite old file
-        sitk.WriteImage(lesion_mask_itk_binary, fname)
-        # Convert the fixed binary ITK image to a numpy ndarray
-        lesion_mask_np = sitk.GetArrayFromImage(lesion_mask_itk_binary)
-
     lesion_slices, n_lesions = return_lesion_coordinates(lesion_mask_np)
 
     for idx, lesion_slice in enumerate(lesion_slices):
@@ -477,11 +464,10 @@ def create_separate_lesion_masks(fname):
         single_lesion_mask = np.zeros_like(lesion_mask_np)
         single_lesion_mask[lesion_slice] += lesion_mask_np[lesion_slice]
 
-        # DEBUG -- ENSURE EACH MASK CONTAINS A SINGLE LESION
-        lesion_slices_debug, n_lesions_debug = return_lesion_coordinates(single_lesion_mask)
-        if n_lesions_debug != 1:
-            raise RuntimeError('Lesion mask {} contains {} lesions. Ideally only 1 lesion should be present'.format(fname,
-                                                                                                                    n_lesions_debug))
+        # For lesions clumped very close to each other, a single slice may contain
+        # (a part of) another lesion. Therefore, in case a single slice contains more than
+        # one lesion, we retain only the largest (by volume) lesion
+        single_lesion_mask = find_largest_lesion(single_lesion_mask)
 
         single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
 
@@ -517,6 +503,18 @@ def handle_lesion_separation_error(pat_dir):
     if len(f_lesion_dirs) > 0:
         for ldir in f_lesion_dirs:
             shutil.rmtree(ldir)
+
+def find_largest_lesion(mask):
+
+    lesion_slices, n_lesions = return_lesion_coordinates(mask)
+    if n_lesions == 1:
+        return mask
+    else:
+        sizes = [np.sum(mask[l_slice]) for l_slice in lesion_slices]
+        largest_lesion_slice = lesion_slices[sizes.index(max(sizes))]
+        new_mask = np.zeros_like(mask)
+        new_mask[largest_lesion_slice] += mask[largest_lesion_slice]
+        return new_mask
 
 def merge_lesions_masks(dir_list=None):
 
@@ -555,3 +553,41 @@ def get_lesion_slices(dir_list=None, fixed=True):
         slices.append(lesion_slices[0])
 
     return slices
+
+
+def check_and_fix_masks(mask_itk):
+    """
+
+    Function to check if masks are correctly saved i.e. 3 dimensions
+
+    """
+
+    assert(isinstance(mask_itk, sitk.Image))
+
+    # Check dimensions
+    if len(mask_itk.GetSize()) == 3:
+        pass
+    elif len(mask_itk.GetSize()) == 4:
+        mask_itk = mask_itk[:, :, :, 0]
+    else:
+        return None
+
+    spacing = mask_itk.GetSpacing()
+    origin = mask_itk.GetOrigin()
+    direction = mask_itk.GetDirection()
+
+    # Check intensities
+    mask_np = sitk.GetArrayFromImage(mask_itk)
+    if np.amax(mask_np) > 1:
+        mask_np = np.where(mask_np > 1, 1, 0).astype(mask_np.dtype)
+        mask_itk = sitk.GetImageFromArray(mask_np)
+        mask_itk.SetSpacing(spacing)
+        mask_itk.SetDirection(direction)
+        mask_itk.SetOrigin(origin)
+
+    return mask_itk
+
+
+
+
+
