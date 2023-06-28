@@ -147,9 +147,18 @@ def custom_loss(landmark_logits1,
 
     landmark_logits1_lossa = landmark_logits1_lossa_inside + landmark_logits1_lossa_outside
 
-    landmark_logits1_lossb = F.binary_cross_entropy_with_logits(landmark_logits1, gt1, reduction='none')
-    landmark_logits1_lossb = torch.mean(landmark_logits1_lossb, dim=1) # Mean over #landmarks
-    landmark_logits1_lossb = torch.mean(landmark_logits1_lossb, dim=0) # Mean over batch
+    inside_mask_idxs = torch.nonzero(mask_idxs_1,
+                                     as_tuple=True)
+
+    # Only compute CE loss for landmarks inside lung
+    if inside_mask_idxs[1].shape[0] >= k/10:
+        landmark_logits1_lossb = F.binary_cross_entropy_with_logits(landmark_logits1[inside_mask_idxs[0], inside_mask_idxs[1]],
+                                                                    gt1[inside_mask_idxs[0], inside_mask_idxs[1]],
+                                                                    reduction='mean')
+    else:
+        landmark_logits1_lossb = F.binary_cross_entropy_with_logits(landmark_logits1,
+                                                                    gt1,
+                                                                    reduction='mean')
 
     # Sum the losses!
     landmark_logits1_loss = landmark_logits1_lossa + landmark_logits1_lossb
@@ -166,9 +175,17 @@ def custom_loss(landmark_logits1,
 
     landmark_logits2_lossa = landmark_logits2_lossa_inside + landmark_logits2_lossa_outside
 
-    landmark_logits2_lossb = F.binary_cross_entropy_with_logits(landmark_logits2, gt2, reduction='none')
-    landmark_logits2_lossb = torch.mean(landmark_logits2_lossb, dim=1) # Mean over #landmarks
-    landmark_logits2_lossb = torch.mean(landmark_logits2_lossb, dim=0) # Mean over batch
+    inside_mask_idxs = torch.nonzero(mask_idxs_2,
+                                     as_tuple=True)
+
+    if inside_mask_idxs[1].shape[0] >= k/10:
+        landmark_logits2_lossb = F.binary_cross_entropy_with_logits(landmark_logits2[inside_mask_idxs[0], inside_mask_idxs[1]],
+                                                                    gt2[inside_mask_idxs[0], inside_mask_idxs[1]],
+                                                                    reduction='mean')
+    else:
+        landmark_logits2_lossb = F.binary_cross_entropy_with_logits(landmark_logits2,
+                                                                    gt2,
+                                                                    reduction='mean')
 
     landmark_logits2_loss = landmark_logits2_lossa + landmark_logits2_lossb
 
