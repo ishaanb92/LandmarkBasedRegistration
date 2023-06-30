@@ -23,7 +23,8 @@ class LesionMatchingModel(nn.Module):
     def __init__(self,
                  K=512,
                  W=4,
-                 n_channels=1
+                 n_channels=1,
+                 descriptor_length=-1 # Length=-1 => Disable 1x1x1 convolution on U-Net feat. map concat.
                  ):
 
         super(LesionMatchingModel, self).__init__()
@@ -35,8 +36,17 @@ class LesionMatchingModel(nn.Module):
                         n_classes=1,
                         trilinear=False)
 
-        self.descriptor_matching = DescriptorMatcher(in_channels=self.cnn.descriptor_length,
+        if descriptor_length != self.cnn.descriptor_length:
+            self.descriptor_length = descriptor_length
+            self.desc_length_conv = nn.Conv3d(in_channels=self.cnn.descriptor_length,
+                                              out_channels=self.descriptor_length,
+                                              kernel_size=1)
+        else:
+            self.descriptor_length = self.cnn.descriptor_length
+
+        self.descriptor_matching = DescriptorMatcher(in_channels=descriptor_length,
                                                      out_channels=2)
+
 
         self.W = W
         self.K = K
@@ -69,6 +79,12 @@ class LesionMatchingModel(nn.Module):
                                                                                             soft_masking=soft_masking)
         if kpt_sampling_grid_2 is None:
             return None
+
+        # Descriptor length convolution (if applicable)
+        assert(descriptors_1.shape[1] == descriptors_2.shape[1])
+        if descriptors_1.shape[1] != self.descriptor_length and descriptors_2.shape[1] != self.descriptor_length:
+            descriptors_1 = self.desc_length_conv(descriptors_1)
+            descriptors_2 = self.desc_length_conv(descriptors_2)
 
         # Match descriptors
         desc_pairs_score, desc_pair_norm = self.descriptor_matching(descriptors_1,
@@ -164,6 +180,12 @@ class LesionMatchingModel(nn.Module):
 
         landmarks_2 = self.convert_grid_to_image_coords(kpt_sampling_grid_2,
                                                         shape=(k, j, i))
+
+        # Descriptor length convolution (if applicable)
+        assert(descriptors_1.shape[1] == descriptors_2.shape[1])
+        if descriptors_1.shape[1] != self.descriptor_length and descriptors_2.shape[1] != self.descriptor_length:
+            descriptors_1 = self.desc_length_conv(descriptors_1)
+            descriptors_2 = self.desc_length_conv(descriptors_2)
 
         # 3. Compute descriptor matching scores
         desc_pairs_score, desc_pair_norm = self.descriptor_matching(descriptors_1,

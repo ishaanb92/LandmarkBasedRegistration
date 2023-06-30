@@ -141,7 +141,8 @@ def train(args):
 
 
     model = LesionMatchingModel(K=args.kpts_per_batch,
-                                W=args.window_size)
+                                W=args.window_size,
+                                descriptor_length=args.desc_length)
 
 
     model.to(device)
@@ -594,6 +595,7 @@ if __name__ == '__main__':
     parser.add_argument('--window_size', type=int, default=8)
     parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--num_samples', type=int, default=1)
+    parser.add_argument('--desc_length', type=int, default=-1)
     parser.add_argument('--patience', type=int, default=20)
     parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--fp16', action='store_true')

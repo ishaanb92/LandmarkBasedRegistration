@@ -120,7 +120,8 @@ def test(args):
 
     # Define the model
     model = LesionMatchingModel(W=args.window_size,
-                                K=args.kpts_per_batch)
+                                K=args.kpts_per_batch,
+                                descriptor_length=args.desc_length)
 
     # Load the model
     load_dict = load_model(model=model,
@@ -631,6 +632,7 @@ if __name__ == '__main__':
     parser.add_argument('--dummy', action='store_true')
     parser.add_argument('--window_size', type=int, default=8)
     parser.add_argument('--conf_threshold', type=float, default=0.5)
+    parser.add_argument('--desc_length', type=int, default=-1)
 
     args = parser.parse_args()
 
