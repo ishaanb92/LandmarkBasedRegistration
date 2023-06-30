@@ -37,14 +37,17 @@ class LesionMatchingModel(nn.Module):
                         trilinear=False)
 
         if descriptor_length != self.cnn.descriptor_length:
-            self.descriptor_length = descriptor_length
-            self.desc_length_conv = nn.Conv3d(in_channels=self.cnn.descriptor_length,
-                                              out_channels=self.descriptor_length,
-                                              kernel_size=1)
+            if descriptor_length != -1:
+                self.descriptor_length = descriptor_length
+                self.desc_length_conv = nn.Conv3d(in_channels=self.cnn.descriptor_length,
+                                                  out_channels=self.descriptor_length,
+                                                  kernel_size=1)
+            else:
+                self.descriptor_length = self.cnn.descriptor_length
         else:
             self.descriptor_length = self.cnn.descriptor_length
 
-        self.descriptor_matching = DescriptorMatcher(in_channels=descriptor_length,
+        self.descriptor_matching = DescriptorMatcher(in_channels=self.descriptor_length,
                                                      out_channels=2)
 
 
