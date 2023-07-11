@@ -34,20 +34,10 @@ class LesionMatchingModel(nn.Module):
         # detection (output map)
         self.cnn = UNet(n_channels=n_channels,
                         n_classes=1,
-                        trilinear=False)
+                        trilinear=False,
+                        descriptor_length=descriptor_length)
 
-        if descriptor_length != self.cnn.descriptor_length:
-            if descriptor_length != -1:
-                self.descriptor_length = descriptor_length
-                self.desc_length_conv = nn.Conv3d(in_channels=self.cnn.descriptor_length,
-                                                  out_channels=self.descriptor_length,
-                                                  kernel_size=1)
-            else:
-                self.descriptor_length = self.cnn.descriptor_length
-        else:
-            self.descriptor_length = self.cnn.descriptor_length
-
-        self.descriptor_matching = DescriptorMatcher(in_channels=self.descriptor_length,
+        self.descriptor_matching = DescriptorMatcher(in_channels=self.cnn.descriptor_length,
                                                      out_channels=2)
 
 
@@ -58,7 +48,6 @@ class LesionMatchingModel(nn.Module):
 
         kpts_1, features_1 = self.cnn(x1)
         kpts_2, features_2 = self.cnn(x2)
-
 
         # Sample keypoints and corr. descriptors
         kpt_sampling_grid_1, kpt_logits_1, descriptors_1, mask_idxs_1 = self.sampling_block(kpt_map=kpts_1,
@@ -82,12 +71,6 @@ class LesionMatchingModel(nn.Module):
                                                                                             soft_masking=soft_masking)
         if kpt_sampling_grid_2 is None:
             return None
-
-        # Descriptor length convolution (if applicable)
-        assert(descriptors_1.shape[1] == descriptors_2.shape[1])
-        if descriptors_1.shape[1] != self.descriptor_length and descriptors_2.shape[1] != self.descriptor_length:
-            descriptors_1 = self.desc_length_conv(descriptors_1)
-            descriptors_2 = self.desc_length_conv(descriptors_2)
 
         # Match descriptors
         desc_pairs_score, desc_pair_norm = self.descriptor_matching(descriptors_1,
@@ -183,12 +166,6 @@ class LesionMatchingModel(nn.Module):
 
         landmarks_2 = self.convert_grid_to_image_coords(kpt_sampling_grid_2,
                                                         shape=(k, j, i))
-
-        # Descriptor length convolution (if applicable)
-        assert(descriptors_1.shape[1] == descriptors_2.shape[1])
-        if descriptors_1.shape[1] != self.descriptor_length and descriptors_2.shape[1] != self.descriptor_length:
-            descriptors_1 = self.desc_length_conv(descriptors_1)
-            descriptors_2 = self.desc_length_conv(descriptors_2)
 
         # 3. Compute descriptor matching scores
         desc_pairs_score, desc_pair_norm = self.descriptor_matching(descriptors_1,

@@ -2,10 +2,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from math import floor
 
 
 class UNet(nn.Module):
-    def __init__(self, n_channels, n_classes, width_multiplier=1, trilinear=True, use_ds_conv=False,channels=[64, 128, 256, 512]):
+    def __init__(self, n_channels, n_classes, width_multiplier=1, trilinear=True, use_ds_conv=False,channels=[64, 128, 256, 512], descriptor_length=-1):
         """A simple 3D Unet, adapted from a 2D Unet from https://github.com/milesial/Pytorch-UNet/tree/master/unet
         Arguments:
           n_channels = number of input channels; 3 for RGB, 1 for grayscale input
@@ -24,7 +25,26 @@ class UNet(nn.Module):
         self.trilinear = trilinear
         self.convtype = DepthwiseSeparableConv3d if use_ds_conv else nn.Conv3d
 
-        self.descriptor_length = self.channels[-1] + self.channels[-2]
+        if descriptor_length == -1 or descriptor_length == (self.channels[-1] + self.channels[-2]):
+            self.descriptor_length = self.channels[-1] + self.channels[-2]
+            self.upper_feature_conv = None
+            self.lower_feature_conv = None
+        else:
+            self.descriptor_length = descriptor_length
+
+            # The number of features maps in the lower (bottleneck) layer are 2x the number in the upper layer
+            # Therefore we reduce the depth of each feature in a 1:2 (upper:lower) ratio to maintain balance of information content
+            self.upper_descriptor_length = floor((1/3)*self.descriptor_length + 0.5)
+            self.lower_desriptor_length = self.descriptor_length - self.upper_descriptor_length
+
+            self.upper_feature_conv = nn.Conv3d(in_channels=self.channels[-2],
+                                                out_channels=self.upper_descriptor_length,
+                                                kernel_size=1)
+
+            self.lower_feature_conv = nn.Conv3d(in_channels=self.channels[-1],
+                                                out_channels=self.lower_desriptor_length,
+                                                kernel_size=1)
+
 
         self.inc = DoubleConv(n_channels, self.channels[0], conv_type=self.convtype)
         self.down1 = Down(self.channels[0], self.channels[1], conv_type=self.convtype)
@@ -54,7 +74,10 @@ class UNet(nn.Module):
 
         # logits: kpt logit map
         # features: descriptors
-        # TODO: Add 1x1x1 convolution to reduce/increase descriptor length
+        if self.upper_feature_conv is not None and self.lower_feature_conv is not None:
+            x3 = self.upper_feature_conv(x3)
+            x4 = self.lower_feature_conv(x4)
+
         return logits, (x3, x4)
 
 

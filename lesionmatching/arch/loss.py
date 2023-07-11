@@ -137,7 +137,7 @@ def custom_loss(landmark_logits1,
 
     # Boost landmark prob. for points inside lung
     landmark_logits1_lossa_inside = torch.mean(1 - torch.mean(torch.mul(mask_idxs_1,
-                                                                 torch.sigmoid(landmark_logits1)),
+                                                              torch.sigmoid(landmark_logits1)),
                                                dim=1))
 
     # Suppress landmark prob. for points outside lung
@@ -165,7 +165,7 @@ def custom_loss(landmark_logits1,
 
     # LandmarkProbabilityLoss Image 2
     landmark_logits2_lossa_inside = torch.mean(1 - torch.mean(torch.mul(mask_idxs_2,
-                                                                 torch.sigmoid(landmark_logits2)),
+                                                              torch.sigmoid(landmark_logits2)),
                                                dim=1))
 
     # Suppress landmark prob. for points outside lung
@@ -188,6 +188,7 @@ def custom_loss(landmark_logits1,
                                                                     reduction='mean')
 
     landmark_logits2_loss = landmark_logits2_lossa + landmark_logits2_lossb
+
 
     # Descriptor loss: Weighted CE
     b, k1, k2 = match_target.shape
