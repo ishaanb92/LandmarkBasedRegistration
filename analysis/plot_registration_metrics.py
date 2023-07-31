@@ -19,6 +19,8 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--result_dir', type=str, help='Directory where all results are stored')
+    parser.add_argument('--save_dir', type=str, default=None)
+    parser.add_argument('--dataset', type=str, default='copd')
     parser.add_argument('--folders', type=str, help='Registration configurations we want to compare' ,
                     nargs='+')
     parser.add_argument('--legends', type=str, help='Legends for registration comparisons', nargs='+')
@@ -30,10 +32,18 @@ if __name__ == '__main__':
     assert(isinstance(args.folders, list))
     assert(isinstance(args.legends, list))
 
-    baseline_dir = os.path.join(args.result_dir, args.folders[0])
+    if args.save_dir is None:
+        save_dir = args.result_dir
+    else:
+        save_dir = args.save_dir
+        if os.path.exists(save_dir) is False:
+            os.makedirs(save_dir)
 
     # Extract patient IDs from baseline directory
-    pids = [f.path.split(os.sep)[-1] for f in os.scandir(baseline_dir) if f.is_dir()]
+    if args.dataset == 'copd':
+        pids = ['copd1', 'copd2', 'copd3', 'copd4', 'copd5', 'copd6', 'copd7', 'copd8', 'copd9', 'copd10']
+    else:
+        raise NotImplementedError('Directory names for dataset {} not known'.format(args.dataset))
 
     tre_dict = {}
     tre_dict['Patient ID'] = []
@@ -42,6 +52,7 @@ if __name__ == '__main__':
 
     affine_done = False
     # Loop over patients
+    max_value = -1
     for pid in pids:
         # Loop over registration configurations
         for idx, rdir in enumerate(args.folders):
@@ -56,6 +67,9 @@ if __name__ == '__main__':
                     affine_done = True
 
             post_reg_tre = np.load(os.path.join(pdir, 'post_reg_error.npy'))
+            if np.amax(post_reg_tre) > max_value:
+                max_value = np.amax(post_reg_tre)
+
             tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
             tre_dict['Registration type'].extend([args.legends[idx] for i in range(post_reg_tre.shape[0])])
             tre_dict['TRE (mm)'].extend(list(post_reg_tre))
@@ -67,7 +81,7 @@ if __name__ == '__main__':
     tre_df = pd.DataFrame.from_dict(tre_dict)
 
     # Use the DF to construct box-plot
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots()
 
 
     sns.boxplot(data=tre_df,
@@ -79,9 +93,9 @@ if __name__ == '__main__':
     if args.title is not None:
         ax.set_title(' '.join(args.title))
 
-    ax.set_ylim((0, 100))
+    ax.set_ylim((0, 50))
 
-    fig.savefig(os.path.join(args.result_dir, args.output_file),
+    fig.savefig(os.path.join(save_dir, args.output_file),
                 bbox_inches='tight')
 
 
