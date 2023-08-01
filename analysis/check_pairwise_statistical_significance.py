@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
+    # Only supports pairwise comparisons
     assert(len(args.result_dirs) == 2)
 
     pids = [f.path.split(os.sep)[-1] for f in os.scandir(args.result_dirs[0]) if f.is_dir()]
