@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from scipy.stats import kruskal
 import pandas as pd
 from tabulate import tabulate
-from scikit_posthocs import posthoc_dunn
+from scikit_posthocs import posthoc_conover
 
 if __name__ == '__main__':
 
@@ -56,17 +56,19 @@ if __name__ == '__main__':
 
         if p < 0.05: # Can reject KH H0
             # Perform Dunn's test
-            result_df = posthoc_dunn(a=samples,
-                                     p_adjust='bonferroni')
+            result_df = posthoc_conover(a=samples,
+                                        p_adjust='bonferroni')
 
             result_np = result_df.to_numpy()
 
-            # Get the lower triangular matrix
-            result_tril = np.tril(result_np)
-            result_tril = np.where(result_tril==0, 1.0, result_tril)
+            if args.verbose is True:
+                print(result_np)
 
+            # Use only the lower triangular part because of symmetry
+            result_np = np.tril(result_np)
+            result_np = np.where(result_np==0, 1, result_np).astype(result_np.dtype)
             # Find the s.s. different pairs
-            idx_tuple = np.nonzero(result_tril < 0.05)
+            idx_tuple = np.nonzero(result_np < 0.05)
 
             n_pairs = idx_tuple[0].shape[0]
 
@@ -81,6 +83,8 @@ if __name__ == '__main__':
             significance_dict['Pairwise differences found'].append(diff_str)
 
         else:
+            if args.verbose is True:
+                print('No difference found between groups for patient {}'.format(pid))
             significance_dict['Pairwise differences found'].append('No')
 
     sig_df = pd.DataFrame.from_dict(significance_dict)

@@ -9,7 +9,7 @@ Check statistical significance of difference in TRE for a pair of registration m
 import os
 import numpy as np
 from argparse import ArgumentParser
-from scipy.stats import wilcoxon
+from scipy.stats import mannwhitneyu
 import pandas as pd
 from tabulate import tabulate
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         tre_2 = np.load(os.path.join(args.result_dirs[1], pid, 'post_reg_error.npy'))
 
         # Compute test statistic and p-value
-        _, p_value = wilcoxon(tre_1, tre_2)
+        _, p_value = mannwhitneyu(tre_1, tre_2)
         significance_dict['p-value'].append(p_value)
 
         if p_value < ALPHA:
