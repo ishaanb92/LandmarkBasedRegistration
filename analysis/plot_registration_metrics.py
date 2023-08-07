@@ -27,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_file', type=str, help='Name of output file', default='comparison.png')
     parser.add_argument('--title', type=str, default=None, nargs='+')
     parser.add_argument('--plot_affine', action='store_true')
+    parser.add_argument('--plot_pre_reg', action='store_true')
     args = parser.parse_args()
 
     assert(isinstance(args.folders, list))
@@ -52,11 +53,16 @@ if __name__ == '__main__':
 
     affine_done = False
     # Loop over patients
-    max_value = -1
     for pid in pids:
         # Loop over registration configurations
         for idx, rdir in enumerate(args.folders):
             pdir = os.path.join(args.result_dir, rdir, pid)
+            if args.plot_pre_reg is True:
+                if idx == 0:
+                    pre_reg_tre = np.load(os.path.join(pdir, 'pre_reg_error.npy'))
+                    tre_dict['Patient ID'].extend([pid for i in range(pre_reg_tre.shape[0])])
+                    tre_dict['Registration type'].extend(['Pre-registration'for i in range(pre_reg_tre.shape[0])])
+                    tre_dict['TRE (mm)'].extend(list(pre_reg_tre))
 
             if args.plot_affine is True:
                 if os.path.exists(os.path.join(pdir, 'post_affine_error.npy')) and affine_done is False:
@@ -67,9 +73,6 @@ if __name__ == '__main__':
                     affine_done = True
 
             post_reg_tre = np.load(os.path.join(pdir, 'post_reg_error.npy'))
-            if np.amax(post_reg_tre) > max_value:
-                max_value = np.amax(post_reg_tre)
-
             tre_dict['Patient ID'].extend([pid for i in range(post_reg_tre.shape[0])])
             tre_dict['Registration type'].extend([args.legends[idx] for i in range(post_reg_tre.shape[0])])
             tre_dict['TRE (mm)'].extend(list(post_reg_tre))

@@ -315,6 +315,10 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
     fixed_image = maybe_convert_tensor_to_numpy(fixed_image)
     moving_image = maybe_convert_tensor_to_numpy(moving_image)
 
+    # Transpose fixed and moving images to Y-X-Z (non-RAS) orientation
+    fixed_image = np.transpose(fixed_image, (1, 0, 2))
+    moving_image = np.transpose(moving_image, (1, 0, 2))
+
     # Predicted landmarks
     pred_landmarks_fixed = maybe_convert_tensor_to_numpy(pred_landmarks_fixed)
     pred_landmarks_moving = maybe_convert_tensor_to_numpy(pred_landmarks_moving)
@@ -435,21 +439,21 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                                                              max_slice,
                                                              min_slice,
                                                              n_pred_landmarks,
-                                                             n_gt_matches))
+                                                             n_manual_landmarks))
 
         moving_image_patch = moving_image[:, :, min_slice:(max_slice+1)]
         i, j, k = moving_image_patch.shape
 
 
         # np.ndarray to "hold" both images (and matches)
-        im = np.zeros((i*k, 2*j),
+        im = np.zeros((i*2, j*k),
                       dtype=np.float32)
 
 
-        im[fixed_image_offset*i:(fixed_image_offset+1)*i, :j] = fixed_image[:, :, slice_idx]
+        im[:i, fixed_image_offset*j:(fixed_image_offset+1)*j] = fixed_image[:, :, slice_idx]
 
         for offset, moving_slice_idx in enumerate(range(min_slice, min(max_slice+1, n_slices))):
-            im[offset*i:(offset+1)*i, j:] = moving_image[:, :, moving_slice_idx]
+            im[i:, offset*j:(offset+1)*j] = moving_image[:, :, moving_slice_idx]
 
         # Convert the image to OpenCV RGB format
         im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
@@ -468,9 +472,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 my = round_float_coords(my)
                 mz = round_float_coords(mz)
 
-                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, pred_color, -1)
-                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, pred_color, -1)
-                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 0, 1), 1) # Red
+                cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, pred_color, -1)
+                cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, pred_color, -1)
+                cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, i + my), (0, 0, 1), 1) # Red
 
         # Draw GT correspondences
         if slice_manual_landmarks_fixed is not None:
@@ -486,9 +490,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 my = round_float_coords(my)
                 mz = round_float_coords(mz)
 
-                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, manual_color, -1)
-                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, manual_color, -1)
-                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 1, 0), 1) # Green
+                cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, manual_color, -1)
+                cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, manual_color, -1)
+                cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, my+i), (0, 1, 0), 1) # Green
 
         # Draw predicted correspondences after smoothing
         if slice_pred_landmarks_fixed is not None and smoothed_landmarks_moving is not None:
@@ -504,9 +508,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 my = round_float_coords(my)
                 mz = round_float_coords(mz)
 
-                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, pred_color, -1)
-                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, pred_color, -1)
-                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (1, 0, 0), 1) # Blue
+                cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, manual_color, -1)
+                cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, manual_color, -1)
+                cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, my+i), (1, 0, 0), 1) # Blue
 
         # Draw correspondences between predicted landmarks in the fixed image
         # and GT projection
@@ -523,9 +527,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 my = round_float_coords(my)
                 mz = round_float_coords(mz)
 
-                cv2.circle(im, (fy, fixed_image_offset*i + fx), 2, pred_color, -1)
-                cv2.circle(im, (my+j, (mz-min_slice)*i+mx), 2, pred_color, -1)
-                cv2.line(im, (fy, fixed_image_offset*i + fx), (my+j, (mz-min_slice)*i+mx), (0, 1, 1), 1) # Yellow
+                cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, manual_color, -1)
+                cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, manual_color, -1)
+                cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, my+i), (0, 1, 1), 1) # Yellow
 
         cv2.imwrite(os.path.join(out_dir, 'slice_{}.jpg'.format(slice_idx)),
                     (im*255).astype(np.uint8))
