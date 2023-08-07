@@ -133,7 +133,10 @@ if __name__ == '__main__':
         else: # Affine + B-spline registrations present in the same directory
 
             bspline_dir = os.path.join(args.bspline_reg_dir, pid)
-            transform_param_file = os.path.join(bspline_dir, 'TransformParameters.2.txt')
+            if args.initial_transform_included is False:
+                transform_param_file = os.path.join(bspline_dir, 'TransformParameters.2.txt')
+            else: # The initial B-spline transform parameter file points to the affine directory
+                transform_param_file = os.path.join(bspline_dir, 'TransformParameters.1.txt')
 
             tr_if = TransformixInterface(parameters=transform_param_file,
                                          transformix_path=TRANSFORMIX_BIN)
