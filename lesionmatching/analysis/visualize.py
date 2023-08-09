@@ -446,7 +446,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
 
 
         # np.ndarray to "hold" both images (and matches)
-        im = np.zeros((i*2, j*k),
+        im = np.ones((i*2, j*k),
                       dtype=np.float32)
 
 
