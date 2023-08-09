@@ -118,7 +118,7 @@ if __name__ == '__main__':
                     continue
 
         fig, ax = plt.subplots(1, 3,
-                               figsize=(15, 5))
+                               figsize=(12, 5))
 
 
         # Plotting the main metric
@@ -137,8 +137,8 @@ if __name__ == '__main__':
             ax[0].axvline(x=spoint,
                        linestyle='--')
 
-            ax[0].annotate('{} Start'.format(reg_stage),
-                        xy=(spoint, ANNOTATION_Y+offset))
+#            ax[0].annotate('{} Start'.format(reg_stage),
+#                        xy=(spoint, ANNOTATION_Y+offset))
             offset += 1
 
 
@@ -160,8 +160,8 @@ if __name__ == '__main__':
                     ax[1].axvline(x=spoint,
                                   linestyle='--')
 
-                    ax[1].annotate('{} Start'.format(reg_stage),
-                                   xy=(spoint, ANNOTATION_Y_LM+offset))
+#                    ax[1].annotate('{} Start'.format(reg_stage),
+#                                   xy=(spoint, ANNOTATION_Y_LM+offset))
                     offset += 4
 
         # Plotting the main metric
@@ -188,11 +188,14 @@ if __name__ == '__main__':
                 ax[2].axvline(x=spoint,
                            linestyle='--')
 
-                ax[2].annotate('{} Start'.format(reg_stage),
-                            xy=(spoint, ANNOTATION_Y+offset))
+#                ax[2].annotate('{} Start'.format(reg_stage),
+#                            xy=(spoint, ANNOTATION_Y+offset))
                 offset += 1
         # Save the plot
         fig.savefig(os.path.join(pdir, 'reg_loss.png'),
+                    bbox_inches='tight')
+
+        fig.savefig(os.path.join(pdir, 'reg_loss.pdf'),
                     bbox_inches='tight')
 
         plt.close()
