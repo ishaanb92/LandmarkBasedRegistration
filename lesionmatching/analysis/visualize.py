@@ -291,7 +291,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                                            smoothed_landmarks_moving=None,
                                            gt_projection_landmarks_moving=None,
                                            out_dir=None,
-                                           verbose=False):
+                                           verbose=False,
+                                           show_gt_matches=True,
+                                           show_gt_projection=True):
 
     """
     To gain better insight into TRE trends, visualize the overlay of manual and predicted landmarks pairs
@@ -477,22 +479,23 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, i + my), (0, 0, 1), 1) # Red
 
         # Draw GT correspondences
-        if slice_manual_landmarks_fixed is not None:
-            for row_idx in range(slice_manual_landmarks_fixed.shape[0]):
-                fx, fy, fz = slice_manual_landmarks_fixed[row_idx]
-                mx, my, mz = patch_manual_landmarks_moving[row_idx]
+        if show_gt_matches is True:
+            if slice_manual_landmarks_fixed is not None:
+                for row_idx in range(slice_manual_landmarks_fixed.shape[0]):
+                    fx, fy, fz = slice_manual_landmarks_fixed[row_idx]
+                    mx, my, mz = patch_manual_landmarks_moving[row_idx]
 
-                fx = round_float_coords(fx)
-                fy = round_float_coords(fy)
-                fz = round_float_coords(fz)
+                    fx = round_float_coords(fx)
+                    fy = round_float_coords(fy)
+                    fz = round_float_coords(fz)
 
-                mx = round_float_coords(mx)
-                my = round_float_coords(my)
-                mz = round_float_coords(mz)
+                    mx = round_float_coords(mx)
+                    my = round_float_coords(my)
+                    mz = round_float_coords(mz)
 
-                cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, manual_color, -1)
-                cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, manual_color, -1)
-                cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, my+i), (0, 1, 0), 1) # Green
+                    cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, manual_color, -1)
+                    cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, manual_color, -1)
+                    cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, my+i), (0, 1, 0), 1) # Green
 
         # Draw predicted correspondences after smoothing
         if slice_pred_landmarks_fixed is not None and smoothed_landmarks_moving is not None:
@@ -514,22 +517,23 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
 
         # Draw correspondences between predicted landmarks in the fixed image
         # and GT projection
-        if slice_pred_landmarks_fixed is not None and gt_projection_landmarks_moving is not None:
-            for row_idx in range(slice_pred_landmarks_fixed.shape[0]):
-                fx, fy, fz = slice_pred_landmarks_fixed[row_idx]
-                mx, my, mz = patch_gt_projection_landmarks_moving[row_idx]
+        if show_gt_projection is True:
+            if slice_pred_landmarks_fixed is not None and gt_projection_landmarks_moving is not None:
+                for row_idx in range(slice_pred_landmarks_fixed.shape[0]):
+                    fx, fy, fz = slice_pred_landmarks_fixed[row_idx]
+                    mx, my, mz = patch_gt_projection_landmarks_moving[row_idx]
 
-                fx = round_float_coords(fx)
-                fy = round_float_coords(fy)
-                fz = round_float_coords(fz)
+                    fx = round_float_coords(fx)
+                    fy = round_float_coords(fy)
+                    fz = round_float_coords(fz)
 
-                mx = round_float_coords(mx)
-                my = round_float_coords(my)
-                mz = round_float_coords(mz)
+                    mx = round_float_coords(mx)
+                    my = round_float_coords(my)
+                    mz = round_float_coords(mz)
 
-                cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, manual_color, -1)
-                cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, manual_color, -1)
-                cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, my+i), (0, 1, 1), 1) # Yellow
+                    cv2.circle(im, (fixed_image_offset*j + fx, fy), 2, manual_color, -1)
+                    cv2.circle(im, ((mz-min_slice)*j + mx, my+i), 2, manual_color, -1)
+                    cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, my+i), (0, 1, 1), 1) # Yellow
 
         cv2.imwrite(os.path.join(out_dir, 'slice_{}.jpg'.format(slice_idx)),
                     (im*255).astype(np.uint8))

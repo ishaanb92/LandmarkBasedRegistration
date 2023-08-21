@@ -31,6 +31,8 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', type=str, default=None)
     parser.add_argument('--smoothing', type=float, default=0)
     parser.add_argument('--use_threshold', action='store_true')
+    parser.add_argument('--show_gt_matches', action='store_true')
+    parser.add_argument('--show_gt_projection', action='store_true')
     args = parser.parse_args()
 
     pat_dirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
@@ -166,7 +168,9 @@ if __name__ == '__main__':
                                                smoothed_landmarks_moving=moving_image_landmarks_smoothed_voxels,
                                                gt_projection_landmarks_moving=gt_projection_landmarks,
                                                out_dir=out_dir,
-                                               verbose=False)
+                                               verbose=False,
+                                               show_gt_matches=args.show_gt_matches,
+                                               show_gt_projection=args.show_gt_projection)
         # 5. Save errors
         # 5-1 Localization Error: d(X_m, T(X_f))
         euclidean_error_pred_gt = compute_euclidean_distance_between_points(moving_image_landmarks_world,
