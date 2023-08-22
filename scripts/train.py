@@ -185,7 +185,7 @@ def train(args):
         coarse_grid_resolution = (3, 3, 3)
         fine_displacements = (2, 4, 4)
         fine_grid_resolution = (6, 6, 6)
-        pixel_thresh = (2, 4, 4)
+        pixel_thresh = (1, 2, 2)
     elif args.dataset == 'dirlab':
         disp_pdf = joblib.load(os.path.join(args.displacement_dir,
                                             'bspline_motion_pdf.pkl'))
@@ -433,10 +433,10 @@ def train(args):
 
                     # Transform liver mask
                     mask_hat = F.grid_sample(input=mask,
-                                                   grid=batch_deformation_grid,
-                                                   align_corners=True,
-                                                   mode="nearest",
-                                                   padding_mode="border")
+                                             grid=batch_deformation_grid,
+                                             align_corners=True,
+                                             mode="nearest",
+                                             padding_mode="border")
 
                     assert(images.shape == images_hat.shape)
 
