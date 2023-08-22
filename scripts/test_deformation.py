@@ -49,10 +49,12 @@ if __name__ == '__main__':
                                                                     patch_size=(128, 128, 64),
                                                                     seed=args.seed)
 
-        coarse_displacements = (4, 8, 8)
-        fine_displacements = (2, 4, 4)
+
         coarse_grid_resolution = (3, 3, 3)
+        coarse_displacements = (6, 4, 4)
+
         fine_grid_resolution = (6, 6, 6)
+        fine_displacements = (2, 2, 2)
 
     elif args.dataset == 'dirlab':
         train_patients = joblib.load('train_patients_dirlab.pkl')

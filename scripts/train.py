@@ -181,10 +181,12 @@ def train(args):
 
 
     if args.dataset == 'umc':
-        coarse_displacements = (4, 8, 8)
         coarse_grid_resolution = (3, 3, 3)
-        fine_displacements = (2, 4, 4)
+        coarse_displacements = (6, 4, 4)
+
         fine_grid_resolution = (6, 6, 6)
+        fine_displacements = (2, 2, 2)
+
         pixel_thresh = (1, 2, 2)
     elif args.dataset == 'dirlab':
         disp_pdf = joblib.load(os.path.join(args.displacement_dir,
