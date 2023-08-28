@@ -17,6 +17,7 @@ from monai.data.utils import no_collation
 import numpy as np
 import nibabel as nib
 from lesionmatching.data.dirlab import *
+from lesionmatching.util_scripts.utils import create_datetime_object_from_str
 
 def create_data_dicts_liver_seg(patient_dir_list=None, n_channels=6, channel_id=3):
 
@@ -77,17 +78,44 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
     for p_dir in patient_dir_list:
         p_id = p_dir.split(os.sep)[-1]
         scan_dirs  = [f.path for f in os.scandir(p_dir) if f.is_dir()]
+
+        # Figure out which idx is baseline and which is follow-up
+        s_id_0 = scan_dirs[0].split(os.sep)[-1]
+        s_id_1 = scan_dirs[1].split(os.sep)[-1]
+        timestamp_0 = create_datetime_object_from_str(s_id_0)
+        timestamp_1 = create_datetime_object_from_str(s_id_1)
+        if timestamp_0 > timestamp_1: # Scan0 occurs after Scan1
+            baseline_idx = 1
+            followup_idx = 0
+        else:
+            baseline_idx=0
+            followup_idx=1
+
         data_dict = {}
         data_dict['patient_id'] = p_id
         for idx, s_dir in enumerate(scan_dirs):
             s_id = s_dir.split(os.sep)[-1]
-            data_dict['image_{}'.format(idx+1)] = os.path.join(s_dir, 'DCE_vessel_image.nii')
-            data_dict['liver_mask_{}'.format(idx+1)] = os.path.join(s_dir, 'LiverMask.nii')
-            data_dict['vessel_mask_{}'.format(idx+1)] = os.path.join(s_dir, 'vessel_mask.nii')
+            if idx == baseline_idx:
+                suffix = 'baseline'
+            elif idx ==  followup_idx:
+                suffix = 'followup'
+            else:
+                raise ValueError('Scan dir idx {} is not 0 or 1. Check'.format(idx))
+
+            data_dict['image_{}'.format(suffix)] = os.path.join(s_dir, 'DCE_vessel_image.nii')
+            data_dict['liver_mask_{}'.format(suffix)] = os.path.join(s_dir, 'LiverMask.nii')
+            data_dict['vessel_mask_{}'.format(suffix)] = os.path.join(s_dir, 'vessel_mask.nii')
             if os.path.exists(os.path.join(s_dir, 'vessel_mask.nii')) is False:
                 print('Vessel mask does not exist for Patient {}, scan-ID : {}'.format(p_id, s_dir))
-                data_dict['vessel_mask_{}'.format(idx+1)] = os.path.join(s_dir, 'LiverMask.nii')
-            data_dict['scan_id_{}'.format(idx)] = s_id
+                data_dict['vessel_mask_{}'.format(suffix)] = os.path.join(s_dir, 'LiverMask.nii')
+            data_dict['scan_id_{}'.format(suffix)] = s_id
+
+            # FIXME: Ugly hack but I can't work with MONAI metadata
+            liver_mask = sitk.ReadImage(os.path.join(s_dir, 'LiverMask.nii'))
+            itk_metadata_dict = {'spacing':liver_mask.GetSpacing(),
+                                 'origin': liver_mask.GetOrigin(),
+                                 'direction':liver_mask.GetDirection()}
+            data_dict['itk_metadata_dict_{}'.format(suffix)] = itk_metadata_dict
 
         data_dicts.append(data_dict)
 
@@ -312,41 +340,27 @@ def create_dataloader_lesion_matching(data_dicts=None,
     return loader, transforms
 
 
-# With "real" paired data
+# With "real" paired data -- No resampling
 def create_dataloader_lesion_matching_inference(data_dicts=None, batch_size=4, num_workers=4):
 
-    transforms = Compose([LoadImaged(keys=["image_1",  "liver_mask_1", "vessel_mask_1",
-                                           "image_2",  "liver_mask_2", "vessel_mask_2"]),
+    transforms = Compose([LoadImaged(keys=["image_baseline",  "liver_mask_baseline", "vessel_mask_baseline",
+                                           "image_followup",  "liver_mask_followup", "vessel_mask_followup"],
+                                     reader="ITKReader"),
 
                           # Add fake channel to the liver_mask
-                          EnsureChannelFirstd(keys=["image_1", "liver_mask_1", "vessel_mask_1",
-                                            "image_2",  "liver_mask_2", "vessel_mask_2"]),
+                          EnsureChannelFirstd(keys=["image_baseline", "liver_mask_baseline", "vessel_mask_baseline",
+                                            "image_followup",  "liver_mask_followup", "vessel_mask_followup"]),
 
-                          Orientationd(keys=["image_1", "liver_mask_1", "vessel_mask_1",
-                                             "image_2",  "liver_mask_2", "vessel_mask_2"], axcodes="RAS"),
+                          Orientationd(keys=["image_baseline", "liver_mask_baseline", "vessel_mask_baseline",
+                                             "image_followup",  "liver_mask_followup", "vessel_mask_followup"], axcodes="RAS"),
 
-                          # Isotropic spacing
-                          Spacingd(keys=["image_1", "liver_mask_1", "vessel_mask_1",
-                                         "image_2",  "liver_mask_2", "vessel_mask_2"],
-                                   pixdim=(1.543, 1.543, 1.543),
-                                   mode=("bilinear", "nearest", "nearest",
-                                         "bilinear", "nearest", "nearest")),
-
-                          # Extract 128x128x64 3-D patches
-                          RandCropByPosNegLabeld(keys=["image_1", "liver_mask_1", "vessel_mask_1",
-                                                       "image_2", "liver_mask_2", "vessel_mask_2"],
-                                                 label_key="liver_mask_1",
-                                                 spatial_size=(128, 128, 64),
-                                                 pos=1.0,
-                                                 neg=0.0),
-
-                          NormalizeIntensityd(keys=["image_1", "image_2"],
+                          NormalizeIntensityd(keys=["image_baseline", "image_followup"],
                                               nonzero=True,
                                               channel_wise=True),
 
 
-                          EnsureTyped(keys=["image_1", "liver_mask_1", "vessel_mask_1",
-                                            "image_2", "liver_mask_2", "vessel_mask_2"])
+                          EnsureTyped(keys=["image_baseline", "liver_mask_baseline", "vessel_mask_baseline",
+                                            "image_followup", "liver_mask_followup", "vessel_mask_followup"])
                           ])
 
 
@@ -357,7 +371,7 @@ def create_dataloader_lesion_matching_inference(data_dicts=None, batch_size=4, n
 
     loader = DataLoader(ds,
                         batch_size=batch_size,
-                        shuffle=train,
+                        shuffle=False,
                         num_workers=num_workers)
 
     return loader, transforms

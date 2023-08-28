@@ -339,8 +339,8 @@ class LesionMatchingModel(nn.Module):
                         return None, None, None, None
                 else:
                     if N > 0:
-                        warnings.warn('The number of key-points requested ({}) is \
-                                       less than the number of keypoints above threshold ({})'.format(num_pts,
+                        warnings.warn('The number of key-points requested ({}) is'\
+                                       'less than the number of keypoints above threshold ({})'.format(num_pts,
                                                                                              N))
                         kpts = torch.zeros(size=(b, N, 5),
                                            dtype=kpt_map.dtype).to(kpt_map.device)
