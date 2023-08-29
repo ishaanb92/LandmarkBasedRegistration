@@ -6,64 +6,60 @@ Script to register a dataset of (paired) images
 @email: ishaan@isi.uu.nl
 
 """
-from lesionmatching.util_scripts.register_images import *
-from lesionmatching.util_scripts.utils import create_datetime_object_from_str
+from lesionmatching.util_scripts.utils import create_datetime_object_from_str, add_library_path
 import os
 import shutil
 from argparse import ArgumentParser
 import joblib
+from elastix.elastix_interface import *
 
 
 N_DCE_CHANNELS = 6
 N_DWI_CHANNELS = 3
 
+ELASTIX_BIN = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/bin/elastix'
+ELASTIX_LIB = '/user/ishaan/elastix_binaries/elastix-5.0.1-linux/lib'
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--data_list_dir', type=str, help='Folder containing .pkl files with patient directories')
-    parser.add_argument('--out_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
-    parser.add_argument('--p', type=str, help='Parameter file path(s)', nargs='+', default=None)
-    parser.add_argument('--multichannel', action='store_true', help='Use flag for (pairwise) multichannel registration')
-    parser.add_argument('--mode', type=str, default='all')
-    parser.add_argument('--input', type=str, default='dce')
+    parser.add_argument('--registration_out_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
+    parser.add_argument('--params', type=str, help='Parameter file path(s)', nargs='+', default=None)
+    parser.add_argument('--data_mode', type=str, default='test')
+    parser.add_argument('--landmarks_dir', type=str, default=None)
+    parser.add_argument('--use_mask', action='store_true')
+    parser.add_argument('--input_mode', type=str, default='dl')
 
     args = parser.parse_args()
 
-    if args.mode == 'all':
+    if args.data_mode == 'all':
         pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
         pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
         pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl')))
-    elif args.mode == 'test':
+    elif args.data_mode == 'test':
         pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl'))
-    elif args.mode == 'train':
+    elif args.data_mode == 'train':
         pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
         pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
 
+    # DCE-based registration
+    image_names = []
+    if args.input_mode == 'mean': # Mean DCE image
+        image_names.append('DCE_mean.nii')
+    elif args.input_mode == 'dl': # Image used in the DL-model
+        image_names.append('DCE_vessel_image.nii')
+    elif args.input_mode == 'multichannel':
+        for chidx in range(N_DCE_CHANNELS):
+            image_names.append('DCE_channel_{}.nii'.format(chidx))
 
-    if args.input == 'mask':
-        image_name = ['LiverMask_dilated.nii']
-    elif args.input == 'dce':
-        if args.multichannel is False:
-            image_name = ['DCE_mean.nii']
-        else:
-            image_name = []
-            for channel in range(N_DCE_CHANNELS):
-                image_name.append('DCE_channel_{}.nii'.format(channel))
-    elif args.input == 'dwi':
-        if args.multichannel is False:
-            image_name = ['DWI_reg_mean.nii']
-        else:
-            image_name = []
-            for channel in range(N_DCE_CHANNELS):
-                image_name.append('DWI_channel_{}.nii'.format(channel))
+    if os.path.exists(args.registration_out_dir) is True:
+        shutil.rmtree(args.registration_out_dir)
 
-    if os.path.exists(args.out_dir) is True:
-        shutil.rmtree(args.out_dir)
-
-    os.makedirs(args.out_dir)
+    os.makedirs(args.registration_out_dir)
 
     add_library_path(ELASTIX_LIB)
+    el = ElastixInterface(elastix_path=ELASTIX_BIN)
 
     # Loop over all the patients in the dataset
     for pat_dir in pat_dirs:
@@ -83,7 +79,7 @@ if __name__ == '__main__':
         moving_image_path = []
 
         files_present = True
-        for iname in image_name:
+        for iname in image_names:
             fpath = os.path.join(pat_dir, scan_dirs[fixed_image_idx], iname)
             mpath = os.path.join(pat_dir, scan_dirs[moving_image_idx], iname)
             if os.path.exists(fpath) is False or os.path.exists(mpath) is False:
@@ -98,7 +94,7 @@ if __name__ == '__main__':
             continue
 
         # Use liver mask to guide registration for image-based registration
-        if args.input == 'dce' or args.input == 'dwi':
+        if args.use_mask is True:
             fixed_image_mask = os.path.join(pat_dir,
                                             scan_dirs[fixed_image_idx],
                                             'LiverMask_dilated.nii')
@@ -110,15 +106,31 @@ if __name__ == '__main__':
             fixed_image_mask = None
             moving_image_mask = None
 
-        # Create output directory
-        out_dir = os.path.join(args.out_dir, '{}'.format(p_id))
-        os.makedirs(out_dir)
+        if args.landmarks_dir is not None:
+            fixed_landmarks = os.path.join(args.landmarks_dir,
+                                           p_id,
+                                           'fixed_landmarks_elx.txt')
 
+            moving_landmarks = os.path.join(args.landmarks_dir,
+                                            p_id,
+                                            'moving_landmarks_elx.txt')
+        else:
+            fixed_landmarks = None
+            moving_landmarks = None
+
+        # Create output directory
+        reg_out_dir = os.path.join(args.registration_out_dir, '{}'.format(p_id))
+        os.makedirs(reg_out_dir)
+
+        initial_transform = None # TODO
         # Register the images
-        register_image_pair(fixed_image=fixed_image_path,
-                            moving_image=moving_image_path,
-                            fixed_image_mask=fixed_image_mask,
-                            moving_image_mask=moving_image_mask,
-                            param_file_list=args.p,
-                            out_dir=out_dir)
+        el.register(fixed_image=fixed_image_path,
+                    moving_image=moving_image_path,
+                    fixed_mask=fixed_image_mask,
+                    moving_mask=moving_image_mask,
+                    fixed_points=fixed_landmarks,
+                    moving_points=moving_landmarks,
+                    parameters=args.params,
+                    initial_transform=initial_transform,
+                    output_dir=reg_out_dir)
 
