@@ -60,7 +60,10 @@ if __name__ == '__main__':
             continue
 
         # Load graph
-        dgraph = joblib.load(os.path.join(pat_dir, 'corr_graph.pkl'))
+        try:
+            dgraph = joblib.load(os.path.join(pat_dir, 'corr_graph.pkl'))
+        except:
+            continue
 
         # Check if the constructed graph is bipartite!
         assert(bipartite.is_bipartite(dgraph))

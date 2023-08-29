@@ -45,7 +45,8 @@ class Lesion():
         return self.label
 
 
-
+# TODO: Replace non-zero overlap with distance between centers + threshold
+# as the matching criteria
 def create_correspondence_graph_from_list(pred_lesions,
                                           gt_lesions,
                                           seg,

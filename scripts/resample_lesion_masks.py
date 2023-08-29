@@ -1,7 +1,8 @@
 """
 
 Use the transformation parameters obtain from image/liver mask registration
-to resample lesion masks using transformix
+to resample lesion masks using transformix. Lesion masks of the moving image (follow-up)
+need to be resampled on the fixed image domain so that matching can take place.
 
 @author: Ishaan Bhat
 @email: ishaan@isi.uu.nl
@@ -27,26 +28,27 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
 
-    parser.add_argument('--data_list_dir', type=str, help='Folder containing .pkl files with patient directories')
-    parser.add_argument('--reg_dir', type=str, help='Path to directory to dump elastix results', default='registraion_results')
+    parser.add_argument('--data_dir', type=str, help='Folder containing patient images and masks')
+    parser.add_argument('--reg_dir', type=str, help='Folder containing registration results', default='registraion_results')
     parser.add_argument('--mode', type=str, default='image')
 
     args = parser.parse_args()
 
 
-    pat_dirs = joblib.load(os.path.join(args.data_list_dir, 'train_patients_umc.pkl'))
-    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'val_patients_umc.pkl')))
-    pat_dirs.extend(joblib.load(os.path.join(args.data_list_dir, 'test_patients_umc.pkl')))
 
     add_library_path(ELASTIX_LIB)
 
     review_patients = []
     failed_registrations = []
     missing_lesion_masks = []
-    for pat_dir in pat_dirs:
 
-        pat_id = pat_dir.split(os.sep)[-1]
+    pat_reg_dirs = [f.path for f in os.scandir(args.reg_dir) if f.is_dir()]
 
+    for pat_reg_dir in pat_reg_dirs:
+
+        pat_id = pat_reg_dir.split(os.sep)[-1]
+
+        pat_dir = os.path.join(args.data_dir, pat_id)
         scan_dirs  = [f.name for f in os.scandir(pat_dir) if f.is_dir()]
         dt_obj_0 = create_datetime_object_from_str(scan_dirs[0])
         dt_obj_1 = create_datetime_object_from_str(scan_dirs[1])
@@ -66,16 +68,6 @@ if __name__ == '__main__':
             missing_lesion_masks.append(pat_id)
             continue
 
-
-        reg_dir = os.path.join(args.reg_dir, pat_id)
-
-        # The registration result for a patient may be absent
-        # because it may have been deleted in a previous run
-        # (because of a failed registraion, missing lesionmask etc.)
-        if os.path.exists(reg_dir) is False:
-            print('Registration directory not found for Patient {}'.format(pat_id))
-            continue
-
         # Copy the fixed and moving lesion masks to the registration output directory
         fixed_lesion_mask_itk = sitk.ReadImage(fixed_lesion_mask_path)
         moving_lesion_mask_itk = sitk.ReadImage(moving_lesion_mask_path)
@@ -90,32 +82,32 @@ if __name__ == '__main__':
 
         # Save the lesion masks in the registration dir
         sitk.WriteImage(fixed_lesion_mask_itk,
-                        os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
+                        os.path.join(pat_reg_dir, 'fixed_lesion_mask.nii.gz'))
 
         sitk.WriteImage(moving_lesion_mask_itk,
-                        os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
+                        os.path.join(pat_reg_dir, 'moving_lesion_mask.nii.gz'))
 
         if args.mode == 'image':
             # Edit transform parameters to make resampling order 0
             for t_stage in range(3): # Rigid, affine, non-rigid
-                t_file_path = os.path.join(reg_dir, 'TransformParameters.{}.txt'.format(t_stage))
+                t_file_path = os.path.join(pat_reg_dir, 'TransformParameters.{}.txt'.format(t_stage))
 
                 # Edit transform paramater files to change resampling to order 0
-                t_file_path_new = os.path.join(reg_dir, 'TransformParameters_mask.{}.txt'.format(t_stage))
+                t_file_path_new = os.path.join(pat_reg_dir, 'TransformParameters_mask.{}.txt'.format(t_stage))
                 t_file_editor = TransformParameterFileEditor(transform_parameter_file_path=t_file_path,
                                                              output_file_name=t_file_path_new)
                 t_file_editor.modify_transform_parameter_file()
 
-            transform_file_path = os.path.join(reg_dir, 'TransformParameters_mask.2.txt')
+            transform_file_path = os.path.join(pat_reg_dir, 'TransformParameters_mask.2.txt')
         elif args.mode == 'mask':
-            transform_file_path = os.path.join(reg_dir, 'TransformParameters.2.txt')
+            transform_file_path = os.path.join(pat_reg_dir, 'TransformParameters.2.txt')
 
         # Transformix interface used to resample (moving) lesion masks
         tr = TransformixInterface(parameters=transform_file_path,
                                   transformix_path=TRANSFORMIX_BIN)
 
         # Before we proceed, check if folding has occured!
-        jac_det_path = tr.jacobian_determinant(output_dir=reg_dir)
+        jac_det_path = tr.jacobian_determinant(output_dir=pat_reg_dir)
         jac_det_itk = sitk.ReadImage(jac_det_path)
         jac_det_np = sitk.GetArrayFromImage(jac_det_itk)
 
@@ -128,41 +120,41 @@ if __name__ == '__main__':
             folding_map_itk.SetOrigin(jac_det_itk.GetOrigin())
             folding_map_itk.SetSpacing(jac_det_itk.GetSpacing())
             folding_map_itk.SetDirection(jac_det_itk.GetDirection())
-            sitk.WriteImage(folding_map_itk, os.path.join(reg_dir, 'folding_map.nii.gz'))
+            sitk.WriteImage(folding_map_itk, os.path.join(pat_reg_dir, 'folding_map.nii.gz'))
             failed_registrations.append(pat_id)
 
 
         # Save each lesion as a separate mask
         try:
-            n_fixed_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'fixed_lesion_mask.nii.gz'))
+            n_fixed_lesions = create_separate_lesion_masks(os.path.join(pat_reg_dir, 'fixed_lesion_mask.nii.gz'))
             if n_fixed_lesions < 0:
                 print('Error encountered while processing fixed lesion mask for Patient {}. Skipping'.format(pat_id))
                 review_patients.append(pat_id)
-                handle_lesion_separation_error(pat_dir=reg_dir)
+                handle_lesion_separation_error(pat_dir=pat_reg_dir)
                 continue
         except RuntimeError:
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
             review_patients.append(pat_id)
-            handle_lesion_separation_error(pat_dir=reg_dir)
+            handle_lesion_separation_error(pat_dir=pat_reg_dir)
             continue
 
         try:
-            n_moving_lesions = create_separate_lesion_masks(os.path.join(reg_dir, 'moving_lesion_mask.nii.gz'))
+            n_moving_lesions = create_separate_lesion_masks(os.path.join(pat_reg_dir, 'moving_lesion_mask.nii.gz'))
             if n_moving_lesions < 0:
                 print('Error encountered while processing moving lesion mask for Patient {}. Skipping'.format(pat_id))
                 review_patients.append(pat_id)
-                handle_lesion_separation_error(pat_dir=reg_dir)
+                handle_lesion_separation_error(pat_dir=pat_reg_dir)
                 continue
         except RuntimeError:
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
             review_patients.append(pat_id)
-            handle_lesion_separation_error(pat_dir=reg_dir)
+            handle_lesion_separation_error(pat_dir=pat_reg_dir)
             continue
 
         # Resample each lesion in the moving image separately
         for m_lesion_idx in range(n_moving_lesions):
 
-            moving_lesion_dir = os.path.join(reg_dir,
+            moving_lesion_dir = os.path.join(pat_reg_dir,
                                              'moving_lesion_{}'.format(m_lesion_idx))
 
             lesion_fpath = os.path.join(moving_lesion_dir,
