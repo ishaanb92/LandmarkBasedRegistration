@@ -101,8 +101,11 @@ def train(args):
     print('Number of patients in validation set: {}'.format(len(val_patients)))
 
     if args.dataset == 'umc':
-        train_dicts = create_data_dicts_lesion_matching(train_patients)
-        val_dicts = create_data_dicts_lesion_matching(val_patients)
+        train_dicts = create_data_dicts_lesion_matching(train_patients,
+                                                        input_mode=args.input_mode)
+
+        val_dicts = create_data_dicts_lesion_matching(val_patients,
+                                                      input_mode=args.input_mode)
         # Patch-based training
         train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
                                                             train=True,
@@ -591,6 +594,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_dir', type=str, required=True)
     parser.add_argument('--displacement_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
+    parser.add_argument('--input_mode', type=str, default='vessel')
     parser.add_argument('--loss_type', type=str, default='aux', help='Choices: hinge, ce, aux')
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)

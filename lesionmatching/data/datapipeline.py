@@ -46,7 +46,8 @@ def create_data_dicts_liver_seg(patient_dir_list=None, n_channels=6, channel_id=
 
 
 # Data dicts for synthetic transforms (eg: training/evaluation w.r.t repeatability)
-def create_data_dicts_lesion_matching(patient_dir_list=None):
+def create_data_dicts_lesion_matching(patient_dir_list=None,
+                                      input_mode='vessel'):
 
     data_dicts = []
 
@@ -56,7 +57,12 @@ def create_data_dicts_lesion_matching(patient_dir_list=None):
         for s_dir in scan_dirs:
             s_id = s_dir.split(os.sep)[-1]
             data_dict = {}
-            data_dict['image'] = os.path.join(s_dir, 'DCE_vessel_image.nii')
+            if input_mode == 'vessel':
+                data_dict['image'] = os.path.join(s_dir, 'DCE_vessel_image.nii')
+            elif input_mode == 'mean':
+                data_dict['image'] = os.path.join(s_dir, 'DCE_mean.nii')
+            else:
+                raise RuntimeError('{} is an invalid data mode'.format(input_mode))
             data_dict['liver_mask'] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['vessel_mask'] = os.path.join(s_dir, 'vessel_mask.nii')
 
@@ -71,7 +77,8 @@ def create_data_dicts_lesion_matching(patient_dir_list=None):
     return data_dicts
 
 # Data dicts for "real" paired data
-def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
+def create_data_dicts_lesion_matching_inference(patient_dir_list=None,
+                                                input_mode='vessel'):
 
     data_dicts = []
 
@@ -101,8 +108,15 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None):
                 suffix = 'followup'
             else:
                 raise ValueError('Scan dir idx {} is not 0 or 1. Check'.format(idx))
+            if input_mode == 'vessel':
+                data_dict['image_{}'.format(suffix)] = os.path.join(s_dir,
+                                                                    'DCE_vessel_image.nii')
+            elif input_mode == 'mean':
+                data_dict['image_{}'.format(suffix)] = os.path.join(s_dir,
+                                                                    'DCE_mean.nii')
+            else:
+                raise RuntimeError('{} is an invalid data mode'.format(input_mode))
 
-            data_dict['image_{}'.format(suffix)] = os.path.join(s_dir, 'DCE_vessel_image.nii')
             data_dict['liver_mask_{}'.format(suffix)] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['vessel_mask_{}'.format(suffix)] = os.path.join(s_dir, 'vessel_mask.nii')
             if os.path.exists(os.path.join(s_dir, 'vessel_mask.nii')) is False:

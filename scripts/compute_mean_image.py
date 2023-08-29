@@ -9,12 +9,13 @@ Script to compute the mean DWI MR image for a patient
 
 
 DATA_DIR = '/home/ishaan/UMC_Data/follow_up_scans'
+IMG_TYPE = 'DCE'
 
 import os
 import numpy as np
 import SimpleITK as sitk
 
-def compute_mean_dwi_image(img, label):
+def compute_mean_image(img, label):
 
     assert(isinstance(img, sitk.Image))
     assert(isinstance(label, sitk.Image))
@@ -43,16 +44,24 @@ if __name__ == '__main__':
         for s_dir in scan_dirs:
             print('Processing: {}'.format(s_dir))
             try:
-                dwi_img = sitk.ReadImage(os.path.join(s_dir, 'DWI_reg.nii'))
+                if IMG_TYPE == 'DCE':
+                    img = sitk.ReadImage(os.path.join(s_dir, 'e-THRIVE_reg.nii'))
+                elif IMG_TYPE == 'DWI':
+                    img = sitk.ReadImage(os.path.join(s_dir, 'DWI_reg.nii'))
             except RuntimeError:
-                print('DWI image not found in {}'.format(s_dir))
+                print('Image not found in {}'.format(s_dir))
                 continue
 
             label = sitk.ReadImage(os.path.join(s_dir, 'LiverMask.nii'))
-            mean_dwi_img = compute_mean_dwi_image(img=dwi_img,
-                                                  label=label)
-            sitk.WriteImage(mean_dwi_img,
-                            os.path.join(s_dir, 'DWI_reg_mean.nii'))
+            mean_img = compute_mean_image(img=img,
+                                          label=label)
+
+            if IMG_TYPE == 'DCE':
+                sitk.WriteImage(mean_img,
+                                os.path.join(s_dir, 'DCE_mean.nii'))
+            elif IMG_TYPE == 'DWI':
+                sitk.WriteImage(mean_img,
+                                os.path.join(s_dir, 'DWI_reg_mean.nii'))
 
 
 
