@@ -223,11 +223,15 @@ def create_dataloader_dir_lab(data_dicts=None,
 def create_dataloader_dir_lab_paired(data_dicts:dict=None,
                                      batch_size:int=1,
                                      num_workers:int=4,
-                                     rescaling_stats:dict=None):
+                                     rescaling_stats:dict=None,
+                                     patch_size=(128, 128, 96),
+                                     overlap=0.0):
 
 
-    ds = DIRLabPaired(data_dicts=data_dicts,
-                      rescaling_stats=rescaling_stats)
+    ds = DIRLabPairedPatchWise(data_dicts=data_dicts,
+                               rescaling_stats=rescaling_stats,
+                               patch_size=patch_size,
+                               overlap=overlap)
 
     loader = DataLoader(ds,
                         batch_size=batch_size,
