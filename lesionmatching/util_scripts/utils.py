@@ -757,7 +757,69 @@ def save_landmark_predictions_in_elastix_format(landmarks_fixed,
                                                 metadata_moving,
                                                 save_dir):
 
-    # Step 1. Using ITK metadata, convert voxel coordinates to world coordinates
+    if matches is not None:
+        # Step 1. Using ITK metadata, convert voxel coordinates to world coordinates
+        landmarks_fixed = maybe_convert_tensor_to_numpy(landmarks_fixed)
+        landmarks_moving = maybe_convert_tensor_to_numpy(landmarks_moving)
+        matches = maybe_convert_tensor_to_numpy(matches)
+
+        # Each row in the landmarks matrix is a [z, y, x] vector
+        # Elastix needs an [x, y, z] vector!!!
+        landmarks_fixed_xyz = np.zeros_like(landmarks_fixed)
+        landmarks_fixed_xyz[:, 0] = landmarks_fixed[:, 2]
+        landmarks_fixed_xyz[:, 1] = landmarks_fixed[:, 1]
+        landmarks_fixed_xyz[:, 2] = landmarks_fixed[:, 0]
+
+        landmarks_moving_xyz = np.zeros_like(landmarks_moving)
+        landmarks_moving_xyz[:, 0] = landmarks_moving[:, 2]
+        landmarks_moving_xyz[:, 1] = landmarks_moving[:, 1]
+        landmarks_moving_xyz[:, 2] = landmarks_moving[:, 0]
+
+        landmarks_fixed_world = map_voxel_index_to_world_coord(landmarks_fixed_xyz,
+                                                               spacing=metadata_fixed['spacing'],
+                                                               origin=metadata_fixed['origin'])
+
+        landmarks_moving_world = map_voxel_index_to_world_coord(landmarks_moving_xyz,
+                                                                spacing=metadata_moving['spacing'],
+                                                                origin=metadata_moving['origin'])
+
+
+        # Step 2. Create two "aligned" 2-D arrays s.t. row i of each of the arrays
+        # contain landmarks corresponding to the ith pair
+        # if match[i, j] == 1 => landmark_moving_world[i] <-> landmark_fixed_world[j]
+        match_indices = np.nonzero(matches)
+        landmarks_moving_valid_matches = landmarks_moving_world[match_indices[0], :]
+        landmarks_fixed_valid_matches = landmarks_fixed_world[match_indices[1], :]
+
+    else: # No matches => arrays are already aligned
+        landmarks_fixed_valid_matches = map_voxel_index_to_world_coord(landmarks_fixed,
+                                                                       spacing=metadata_fixed['spacing'],
+                                                                       origin=metadata_fixed['origin'])
+
+        landmarks_moving_valid_matches = map_voxel_index_to_world_coord(landmarks_moving,
+                                                                        spacing=metadata_moving['spacing'],
+                                                                        origin=metadata_moving['origin'])
+
+
+    # Step 3. Create .txt file that conforms to elastix convention (see manual)
+    create_landmarks_file(landmarks_fixed_valid_matches,
+                          world=True,
+                          fname=os.path.join(save_dir, 'fixed_landmarks_elx.txt'))
+
+    create_landmarks_file(landmarks_moving_valid_matches,
+                          world=True,
+                          fname=os.path.join(save_dir, 'moving_landmarks_elx.txt'))
+
+
+def create_corresponding_landmark_arrays(landmarks_fixed,
+                                         landmarks_moving,
+                                         matches,
+                                         origin):
+    """
+    Used in patch-based processing
+
+    """
+
     landmarks_fixed = maybe_convert_tensor_to_numpy(landmarks_fixed)
     landmarks_moving = maybe_convert_tensor_to_numpy(landmarks_moving)
     matches = maybe_convert_tensor_to_numpy(matches)
@@ -774,31 +836,24 @@ def save_landmark_predictions_in_elastix_format(landmarks_fixed,
     landmarks_moving_xyz[:, 1] = landmarks_moving[:, 1]
     landmarks_moving_xyz[:, 2] = landmarks_moving[:, 0]
 
-    landmarks_fixed_world = map_voxel_index_to_world_coord(landmarks_fixed_xyz,
-                                                           spacing=metadata_fixed['spacing'],
-                                                           origin=metadata_fixed['origin'])
-
-    landmarks_moving_world = map_voxel_index_to_world_coord(landmarks_moving_xyz,
-                                                            spacing=metadata_moving['spacing'],
-                                                            origin=metadata_moving['origin'])
-
-
-    # Step 2. Create two "aligned" 2-D arrays s.t. row i of each of the arrays
-    # contain landmarks corresponding to the ith pair
-    # if match[i, j] == 1 => landmark_moving_world[i] <-> landmark_fixed_world[j]
     match_indices = np.nonzero(matches)
-    landmarks_moving_valid_matches = landmarks_moving_world[match_indices[0], :]
-    landmarks_fixed_valid_matches = landmarks_fixed_world[match_indices[1], :]
 
-    # Step 3. Create .txt file that conforms to elastix convention (see manual)
-    create_landmarks_file(landmarks_fixed_valid_matches,
-                          world=True,
-                          fname=os.path.join(save_dir, 'fixed_landmarks_elx.txt'))
+    # No matches in this pair of patches
+    if match_indices[0].shape[0] == 0:
+        return None, None
 
-    create_landmarks_file(landmarks_moving_valid_matches,
-                          world=True,
-                          fname=os.path.join(save_dir, 'moving_landmarks_elx.txt'))
+    landmarks_moving_valid_matches = landmarks_moving_xyz[match_indices[0], :]
+    landmarks_fixed_valid_matches = landmarks_fixed_xyz[match_indices[1], :]
 
+    # Add the origin to move from patch to image coordinate system
+    origin = np.array(origin)
+    landmarks_moving_valid_matches = np.add(landmarks_moving_valid_matches,
+                                            np.expand_dims(origin, axis=0))
+
+    landmarks_fixed_valid_matches = np.add(landmarks_fixed_valid_matches,
+                                            np.expand_dims(origin, axis=0))
+
+    return landmarks_fixed_valid_matches, landmarks_moving_valid_matches
 
 def get_affine_transform_parameters(fpath):
     """

@@ -30,7 +30,7 @@ from math import ceil
 from math import floor
 
 COPD_DIR = '/home/ishaan/COPDGene/mha'
-NUM_WORKERS=8
+NUM_WORKERS=4
 
 def test(args):
 
@@ -116,7 +116,9 @@ def test(args):
             data_loader = create_dataloader_dir_lab_paired(data_dicts=data_dicts,
                                                            batch_size=args.batch_size,
                                                            num_workers=NUM_WORKERS,
-                                                           rescaling_stats=rescaling_stats)
+                                                           rescaling_stats=rescaling_stats,
+                                                           patch_size=(128, 128, 96),
+                                                           overlap=0.0)
 
 
     # Define the model
@@ -637,7 +639,9 @@ def test(args):
                                             affine=batch_data['image_followup_meta_dict']['affine'][batch_id],
                                             metadata_dict=batch_data['image_followup_meta_dict'],
                                             filename=os.path.join(dump_dir, 'followup.nii.gz'))
+
                 elif args.dataset == 'dirlab' or args.dataset == 'copd':
+                    patient_id = batch_data['patient_id'][0]
                     images, images_hat, mask, mask_hat = (batch_data['moving_image'], batch_data['fixed_image'],\
                                                           batch_data['moving_lung_mask'], batch_data['fixed_lung_mask'])
 
@@ -650,140 +654,134 @@ def test(args):
                     assert(images.shape == images_hat.shape)
 
                     b, c, i, j, k = images.shape
+                    n_patches = len(batch_data['patch_dict']['origins'])
+                    fixed_landmarks_np = None
+                    moving_landmarks_np = None
 
-                    # Pad images and masks to make dims divisible by 8
-                    # See: https://docs.monai.io/en/stable/inferers.html#monai.inferers.sliding_window_inference
-                    if i%8 != 0 and j%8 !=0:
-                        excess_pixels_xy = 8 - (i%8)
-                    else:
-                        excess_pixels_xy = 0
+                    for idx, (patch_origin, patch_end) in \
+                    enumerate(zip(batch_data['patch_dict']['origins'], batch_data['patch_dict']['ends'])):
+                        x_start = patch_origin[0]
+                        x_end = patch_end[0]
+                        y_start = patch_origin[1]
+                        y_end = patch_end[1]
+                        z_start = patch_origin[2]
+                        z_end = patch_end[2]
 
-                    if k%8 != 0:
-                        excess_pixels_z = 8 - (k%8)
-                    else:
-                        excess_pixels_z = 0
+                        # Convert (dummy) tensors to scalars
+                        origin_list = (patch_origin[0].item(), patch_origin[1].item(), patch_origin[2].item())
 
-                    images = F.pad(images,
-                                   pad=(0, excess_pixels_z,
-                                        0, excess_pixels_xy,
-                                        0, excess_pixels_xy),
-                                   mode='constant')
+                        patch = images[:, :, x_start:x_end, y_start:y_end, z_start:z_end]
+                        patch_hat = images_hat[:, :, x_start:x_end, y_start:y_end, z_start:z_end]
+                        mask_patch = mask[:, :, x_start:x_end, y_start:y_end, z_start:z_end]
+                        mask_patch_hat = mask_hat[:, :, x_start:x_end, y_start:y_end, z_start:z_end]
 
-                    images_hat = F.pad(images_hat,
-                                   pad=(0, excess_pixels_z,
-                                        0, excess_pixels_xy,
-                                        0, excess_pixels_xy),
-                                   mode='constant')
+                        _, _, px, py, pz = patch.shape
+                        excess_x = 128-px
+                        excess_y = 128-py
+                        excess_z = 128-pz
+                        patch = F.pad(patch,
+                                      pad=(0, excess_z,
+                                           0, excess_y,
+                                           0, excess_x),
+                                       mode='constant')
 
-                    if args.soft_masking is False:
-                        mask = F.pad(mask,
-                                     pad=(0, excess_pixels_z,
-                                          0, excess_pixels_xy,
-                                          0, excess_pixels_xy),
-                                    mode='constant')
+                        patch_hat = F.pad(patch_hat,
+                                         pad=(0, excess_z,
+                                              0, excess_y,
+                                              0, excess_x),
+                                         mode='constant')
 
-                        mask_hat = F.pad(mask_hat,
-                                     pad=(0, excess_pixels_z,
-                                          0, excess_pixels_xy,
-                                          0, excess_pixels_xy),
-                                    mode='constant')
+                        patches_cat = torch.cat([patch, patch_hat], dim=1)
 
-                    images_cat = torch.cat([images, images_hat], dim=1)
 
-                    b, c, i, j, k = images.shape
+                        print('Processing {}/{} patches'.format(idx+1, n_patches))
 
-                    # U-Net outputs via patch-based inference
-                    unet_outputs = sliding_window_inference(inputs=images_cat.to(device),
-                                                            roi_size=roi_size,
-                                                            sw_device=device,
-                                                            device='cpu',
-                                                            sw_batch_size=1,
-                                                            predictor=model.get_unet_outputs,
-                                                            overlap=0.25,
-                                                            progress=True)
+                        unet_outputs = model.get_unet_outputs(patches_cat.to(device))
 
-                    kpts_logits_1 = unet_outputs['kpts_logits_1']
-                    kpts_logits_2 = unet_outputs['kpts_logits_2']
-                    features_1_low = unet_outputs['features_1_low']
-                    features_1_high = unet_outputs['features_1_high']
-                    features_2_low = unet_outputs['features_2_low']
-                    features_2_high = unet_outputs['features_2_high']
+                        kpts_logits_1 = unet_outputs['kpts_logits_1']
+                        kpts_logits_2 = unet_outputs['kpts_logits_2']
+                        features_1_low = unet_outputs['features_1_low']
+                        features_1_high = unet_outputs['features_1_high']
+                        features_2_low = unet_outputs['features_2_low']
+                        features_2_high = unet_outputs['features_2_high']
 
 
 
-                    features_1 = (features_1_low.to(device), features_1_high.to(device))
-                    features_2 = (features_2_low.to(device), features_2_high.to(device))
+                        features_1 = (features_1_low.to(device), features_1_high.to(device))
+                        features_2 = (features_2_low.to(device), features_2_high.to(device))
+                        try:
+                            if args.soft_masking is False:
+                                outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                                          kpts_2=kpts_logits_2.to(device),
+                                                          features_1=features_1,
+                                                          features_2=features_2,
+                                                          conf_thresh=args.conf_threshold,
+                                                          num_pts=args.kpts_per_batch,
+                                                          mask=mask_patch.to(device),
+                                                          mask2=mask_patch_hat.to(device),
+                                                          soft_masking=False)
+                            else:
+                                outputs = model.inference(kpts_1=kpts_logits_1.to(device),
+                                                          kpts_2=kpts_logits_2.to(device),
+                                                          features_1=features_1,
+                                                          features_2=features_2,
+                                                          conf_thresh=args.conf_threshold,
+                                                          num_pts=args.kpts_per_batch,
+                                                          mask=None,
+                                                          mask2=None,
+                                                          soft_masking=True)
 
-                    print(torch.max(torch.max(kpts_logits_1)))
-                    print(torch.max(torch.max(kpts_logits_2)))
+                        except RuntimeError as e:
+                            print(e)
+                            continue
+                        patch_matches = outputs['matches'][0]
+                        patch_landmarks_fixed = outputs['landmarks_2'][0]
+                        patch_landmarks_moving = outputs['landmarks_1'][0]
 
-                    try:
-                        if args.soft_masking is False:
-                            outputs = model.inference(kpts_1=kpts_logits_1.to(device),
-                                                      kpts_2=kpts_logits_2.to(device),
-                                                      features_1=features_1,
-                                                      features_2=features_2,
-                                                      conf_thresh=args.conf_threshold,
-                                                      num_pts=args.kpts_per_batch,
-                                                      mask=mask.to(device),
-                                                      mask2=mask_hat.to(device),
-                                                      soft_masking=False)
+                        patch_landmarks_fixed_corrected, patch_landmarks_moving_corrected = \
+                                create_corresponding_landmark_arrays(landmarks_fixed=patch_landmarks_fixed,
+                                                                     landmarks_moving=patch_landmarks_moving,
+                                                                     matches=patch_matches,
+                                                                     origin=origin_list)
+
+                        if patch_landmarks_moving_corrected is None: # No pairs found
+                            continue
+
+                        if fixed_landmarks_np is None:
+                            fixed_landmarks_np = patch_landmarks_fixed_corrected
                         else:
-                            outputs = model.inference(kpts_1=kpts_logits_1.to(device),
-                                                      kpts_2=kpts_logits_2.to(device),
-                                                      features_1=features_1,
-                                                      features_2=features_2,
-                                                      conf_thresh=args.conf_threshold,
-                                                      num_pts=args.kpts_per_batch,
-                                                      mask=None,
-                                                      mask2=None,
-                                                      soft_masking=True)
+                            fixed_landmarks_np = np.concatenate((fixed_landmarks_np,
+                                                                 patch_landmarks_fixed_corrected),
+                                                                axis=0)
 
-                    except RuntimeError as e:
-                        print(e)
-                        continue
+                        if moving_landmarks_np is None:
+                            moving_landmarks_np = patch_landmarks_moving_corrected
+                        else:
+                            moving_landmarks_np = np.concatenate((moving_landmarks_np,
+                                                                 patch_landmarks_moving_corrected),
+                                                                 axis=0)
 
-                    # How many matches predicted between paired (affinely registered) images?
-                    for batch_id in range(b):
-                        matches = maybe_convert_tensor_to_numpy(outputs['matches'][batch_id, ...])
-                        print('Patient {} :: Number of predicted corresponding landmarks = {}'.format(batch_data['patient_id'][batch_id],
-                                                                                                      np.nonzero(matches)[0].shape[0]))
 
-                        match_probabilities = maybe_convert_tensor_to_numpy(outputs['match_probabilities'][batch_id, ...])
 
-                        patient_id = batch_data['patient_id'][batch_id]
-                        dump_dir = os.path.join(save_dir, patient_id)
-                        os.makedirs(dump_dir)
+                    print('Patient {} :: Number of predicted corresponding landmarks = {}'.format(batch_data['patient_id'][0],
+                                                                                                  fixed_landmarks_np.shape[0]))
 
-                        np.save(file=os.path.join(dump_dir, 'predicted_matches'),
-                                arr=matches)
+                    # Save the landmarks in an elastix compliant fashion (in world coordinates)
+                    dump_dir = os.path.join(save_dir, patient_id)
+                    os.makedirs(dump_dir)
+                    save_landmark_predictions_in_elastix_format(landmarks_fixed=fixed_landmarks_np,
+                                                                landmarks_moving=moving_landmarks_np,
+                                                                metadata_fixed=fixed_metadata_list[0],
+                                                                metadata_moving=moving_metadata_list[0],
+                                                                matches=None,
+                                                                save_dir=dump_dir)
+                    save_ras_as_itk(img=images[0, ...].float(),
+                                    metadata=moving_metadata_list[0],
+                                    fname=os.path.join(dump_dir, 'moving_image.mha'))
 
-                        np.save(file=os.path.join(dump_dir, 'match_probabilities'),
-                                arr=match_probabilities)
-
-                        # Landmarks are saved in k-j-i order!
-                        np.save(file=os.path.join(dump_dir, 'landmarks_fixed'),
-                                arr=maybe_convert_tensor_to_numpy(outputs['landmarks_2'][batch_id, ...]))
-
-                        np.save(file=os.path.join(dump_dir, 'landmarks_moving'),
-                                arr=maybe_convert_tensor_to_numpy(outputs['landmarks_1'][batch_id, ...]))
-
-                        # Save corr. landmarks as elastix-compatible .txt files (in i-j-k order)
-                        save_landmark_predictions_in_elastix_format(landmarks_fixed=outputs['landmarks_2'][batch_id, ...],
-                                                                    landmarks_moving=outputs['landmarks_1'][batch_id, ...],
-                                                                    metadata_fixed=fixed_metadata_list[batch_id],
-                                                                    metadata_moving=moving_metadata_list[batch_id],
-                                                                    matches=matches,
-                                                                    save_dir=dump_dir)
-
-                        # Save images
-                        save_ras_as_itk(img=images[batch_id, ...].float(),
-                                        metadata=moving_metadata_list[batch_id],
-                                        fname=os.path.join(dump_dir, 'moving_image.mha'))
-
-                        save_ras_as_itk(img=images_hat[batch_id, ...].float(),
-                                        metadata=fixed_metadata_list[batch_id],
-                                        fname=os.path.join(dump_dir, 'fixed_image.mha'))
+                    save_ras_as_itk(img=images_hat[0, ...].float(),
+                                    metadata=fixed_metadata_list[0],
+                                    fname=os.path.join(dump_dir, 'fixed_image.mha'))
 
 if __name__ == '__main__':
 
