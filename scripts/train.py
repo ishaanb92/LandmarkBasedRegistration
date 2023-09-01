@@ -192,11 +192,17 @@ def train(args):
 
         pixel_thresh = (1, 2, 2)
     elif args.dataset == 'dirlab':
-        disp_pdf = joblib.load(os.path.join(args.displacement_dir,
-                                            'bspline_motion_pdf.pkl'))
+        if args.displacement_dir is not None:
+            disp_pdf = joblib.load(os.path.join(args.displacement_dir,
+                                                'bspline_motion_pdf.pkl'))
 
-        affine_df = pd.read_pickle(os.path.join(args.displacement_dir,
-                                                'affine_transform_parameters.pkl'))
+            affine_df = pd.read_pickle(os.path.join(args.displacement_dir,
+                                                    'affine_transform_parameters.pkl'))
+        else:
+            coarse_displacements = (29, 19.84, 9.92)
+            fine_displacements = (7.25, 9.92, 9.92)
+            coarse_grid_resolution = (2, 2, 2)
+
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
         pixel_thresh = (1, 2, 2)
@@ -258,14 +264,24 @@ def train(args):
                                                                                     coarse_grid_resolution=coarse_grid_resolution,
                                                                                     fine_grid_resolution=fine_grid_resolution)
                 elif args.dataset == 'dirlab':
-                    batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
-                                                                                             non_rigid=True,
-                                                                                             coarse=True,
-                                                                                             fine=True,
-                                                                                             disp_pdf=disp_pdf,
-                                                                                             affine_df=affine_df,
-                                                                                             coarse_grid_resolution=coarse_grid_resolution,
-                                                                                             fine_grid_resolution=fine_grid_resolution)
+                    if args.displacement_dir is not None:
+                        batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                                                 non_rigid=True,
+                                                                                                 coarse=True,
+                                                                                                 fine=True,
+                                                                                                 disp_pdf=disp_pdf,
+                                                                                                 affine_df=affine_df,
+                                                                                                 coarse_grid_resolution=coarse_grid_resolution,
+                                                                                                 fine_grid_resolution=fine_grid_resolution)
+                    else:
+                        batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
+                                                                                        non_rigid=True,
+                                                                                        coarse=True,
+                                                                                        fine=True,
+                                                                                        coarse_displacements=coarse_displacements,
+                                                                                        fine_displacements=fine_displacements,
+                                                                                        coarse_grid_resolution=coarse_grid_resolution,
+                                                                                        fine_grid_resolution=fine_grid_resolution)
                 if batch_deformation_grid is not None:
                     images_hat = F.grid_sample(input=images,
                                                grid=batch_deformation_grid,
@@ -290,7 +306,7 @@ def train(args):
                             # Based on Efficient Supervised Learning from Artificial Deformations
                             images_hat = dry_sponge_augmentation(images_hat,
                                                                  jac_det)
-                        else:
+                        else: # TODO: Try gamma augmentation (Used by Koen)
                             pass
 
                 else:
@@ -415,15 +431,26 @@ def train(args):
                                                                                         coarse_grid_resolution=coarse_grid_resolution,
                                                                                         fine_grid_resolution=fine_grid_resolution)
                     elif args.dataset == 'dirlab':
-                        batch_deformation_grid, jac_det = \
-                            create_batch_deformation_grid_from_pdf(shape=images.shape,
-                                                                   non_rigid=True,
-                                                                   coarse=True,
-                                                                   fine=True,
-                                                                   disp_pdf=disp_pdf,
-                                                                   affine_df=affine_df,
-                                                                   coarse_grid_resolution=coarse_grid_resolution,
-                                                                   fine_grid_resolution=fine_grid_resolution)
+                        if args.displacement_dir is not None:
+                            batch_deformation_grid, jac_det = \
+                                create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                       non_rigid=True,
+                                                                       coarse=True,
+                                                                       fine=True,
+                                                                       disp_pdf=disp_pdf,
+                                                                       affine_df=affine_df,
+                                                                       coarse_grid_resolution=coarse_grid_resolution,
+                                                                       fine_grid_resolution=fine_grid_resolution)
+                        else:
+                            batch_deformation_grid, jac_det = \
+                                create_batch_deformation_grid(shape=images.shape,
+                                                              non_rigid=True,
+                                                              coarse=True,
+                                                              fine=True,
+                                                              coarse_displacements=coarse_displacements,
+                                                              fine_displacements=fine_displacements,
+                                                              coarse_grid_resolution=coarse_grid_resolution,
+                                                              fine_grid_resolution=fine_grid_resolution)
 
 
                     if batch_deformation_grid is None:
