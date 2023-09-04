@@ -38,7 +38,7 @@ if __name__ == '__main__':
     print('{} patients need to be reviewed'.format(len(review_patients)))
 
     failed_registrations = joblib.load(os.path.join(args.reg_dir, 'failed_registrations.pkl'))
-    print('Registration failed for {} patients'.format(len(failed_registrations)))
+    print('Registration failed for {} patients :: {}'.format(len(failed_registrations), failed_registrations))
 
     missing_lesion_masks = joblib.load(os.path.join(args.reg_dir, 'missing_lesion_masks.pkl'))
     print('Patients with (at least one) lesion mask(s) missing = {}'.format(len(missing_lesion_masks)))

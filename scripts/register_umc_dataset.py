@@ -123,8 +123,9 @@ if __name__ == '__main__':
         os.makedirs(reg_out_dir)
 
         # Copy the fixed and moving images/masks to the registration directories
-        shutil.copyfile(fixed_image_path, os.path.join(reg_out_dir, 'fixed_image.nii'))
-        shutil.copyfile(moving_image_path, os.path.join(reg_out_dir, 'moving_image.nii'))
+        for idx, (fimage, mimage) in enumerate(zip(fixed_image_path, moving_image_path)):
+            shutil.copyfile(fimage, os.path.join(reg_out_dir, 'fixed_image_{}.nii'.format(idx)))
+            shutil.copyfile(mimage, os.path.join(reg_out_dir, 'moving_image_{}.nii'.format(idx)))
 
         if fixed_image_mask is not None:
             shutil.copyfile(fixed_image_mask, os.path.join(reg_out_dir, 'fixed_liver_mask.nii'))
