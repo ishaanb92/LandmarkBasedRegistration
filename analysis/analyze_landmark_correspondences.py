@@ -152,11 +152,12 @@ if __name__ == '__main__':
 
         if args.out_dir is not None:
             out_dir = os.path.join(args.out_dir, pid)
-            if os.path.exists(out_dir) is True:
-                shutil.rmtree(out_dir)
-            os.makedirs(out_dir)
         else:
             out_dir = os.path.join(pdir, 'overlay')
+
+        if os.path.exists(out_dir) is True:
+            shutil.rmtree(out_dir)
+        os.makedirs(out_dir)
 
         # 4. Overlay GT and predicted landmarks correspondences
         overlay_predicted_and_manual_landmarks(fixed_image=fixed_image_np,

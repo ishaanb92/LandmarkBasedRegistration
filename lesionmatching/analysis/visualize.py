@@ -378,6 +378,12 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 gt_projection_moving_slices = patch_gt_projection_landmarks_moving[:, 2]
                 gt_projection_max_slice = np.amax(gt_projection_moving_slices)
                 gt_projection_min_slice = np.amin(gt_projection_moving_slices)
+                # FIXME: GT projection does not work for copd9 because the TPS transform maps to a -ve slice
+                if gt_projection_max_slice > n_slices or gt_projection_min_slice < 0:
+                    gt_projection_max_slice = -1
+                    gt_projection_min_slice = 1000
+                    patch_gt_projection_landmarks_moving = None
+                    gt_projection_moving_slices = None
             else:
                 gt_projection_max_slice = -1
                 gt_projection_min_slice = 1000
@@ -386,7 +392,6 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
 
             pred_max_slice = max(pred_max_slice, smoothed_max_slice, gt_projection_max_slice)
             pred_min_slice = min(pred_min_slice, smoothed_min_slice, gt_projection_min_slice)
-
         else:
             pred_max_slice = -1
             pred_min_slice = 10000
@@ -414,9 +419,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
         if n_manual_landmarks == 0 and n_pred_landmarks == 0:
             continue
 
+
         min_slice = round_float_coords(min(pred_min_slice, manual_min_slice))
         max_slice = round_float_coords(max(pred_max_slice, manual_max_slice))
-
 
         # Create the neighbourhood
         if slice_idx < min_slice:
@@ -517,7 +522,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
 
         # Draw correspondences between predicted landmarks in the fixed image
         # and GT projection
-        if show_gt_projection is True:
+        if show_gt_projection is True and patch_gt_projection_landmarks_moving is not None:
             if slice_pred_landmarks_fixed is not None and gt_projection_landmarks_moving is not None:
                 for row_idx in range(slice_pred_landmarks_fixed.shape[0]):
                     fx, fy, fz = slice_pred_landmarks_fixed[row_idx]
