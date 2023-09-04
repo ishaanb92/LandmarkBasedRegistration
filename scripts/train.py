@@ -325,6 +325,10 @@ def train(args):
                                          mode="nearest",
                                          padding_mode="border")
 
+                if args.disable_mask is True:
+                    mask = torch.ones_like(images)
+                    mask_hat = torch.ones_like(images_hat)
+
                 # Check for empty liver masks and other issues!
                 skip_batch = False
                 for bid in range(mask.shape[0]):
@@ -639,6 +643,7 @@ if __name__ == '__main__':
     parser.add_argument('--renew', action='store_true')
     parser.add_argument('--dry_sponge', action='store_true')
     parser.add_argument('--soft_masking', action='store_true')
+    parser.add_argument('--disable_mask', action='store_true')
 
     args = parser.parse_args()
 
