@@ -102,7 +102,9 @@ def test(args):
 
     else: # "Real" data
         if args.dataset == 'umc':
-            data_dicts = create_data_dicts_lesion_matching_inference(patients)
+            data_dicts = create_data_dicts_lesion_matching_inference(patients,
+                                                                     input_mode=args.input_mode)
+
             data_loader, _ = create_dataloader_lesion_matching_inference(data_dicts=data_dicts,
                                                                          batch_size=args.batch_size,
                                                                          num_workers=NUM_WORKERS)
@@ -789,6 +791,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--checkpoint_dir', type=str, required=True)
+    parser.add_argument('--input_mode', type=str, default='vessel')
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--out_dir', type=str, default='saved_outputs')
