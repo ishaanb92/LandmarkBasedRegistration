@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
         pat_id = pat_dir.split(os.sep)[-1]
 
-        if pat_id in review_patients or pat_id in failed_registrations or pat_id in missing_lesion_masks:
+        if pat_id in missing_lesion_masks:
             continue
 
         # Load graph
