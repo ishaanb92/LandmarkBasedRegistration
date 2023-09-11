@@ -21,6 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('--deformation_dir', type=str, required=True)
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--affine_reg_dir', type=str, default=None)
+    parser.add_argument('--dataset', type=str, default='dirlab')
     args = parser.parse_args()
 
     pdirs = [f.path for f in os.scandir(args.deformation_dir) if f.is_dir()]
@@ -44,12 +45,20 @@ if __name__ == '__main__':
 
         print('Estimating displacements for patient {}'.format(pid))
 
-        fixed_image_itk = sitk.ReadImage(os.path.join(pdir,
-                                                      'fixed_image.mha'))
+        if args.dataset == 'dirlab':
+            fixed_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                          '{}_T00_iso.mha'.format(pid)))
+        elif args.dataset == 'copd':
+            fixed_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                          '{}_iBHCT_iso.mha'.format(pid)))
 
         # Fixed image mask
-        fixed_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_data_dir,
-                                                                'lung_mask_T00_dl_iso.mha'))
+        if args.dataset == 'dirlab':
+            fixed_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                                    'lung_mask_T00_dl_iso.mha'))
+        elif args.dataset == 'copd':
+            fixed_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                                    'lung_mask_iBHCT_dl_iso.mha'))
 
         fixed_image_lung_mask_np = convert_itk_to_ras_numpy(fixed_image_lung_mask_itk)
 
@@ -59,47 +68,60 @@ if __name__ == '__main__':
                                                                      'moving_lung_mask_affine',
                                                                      'result.mha'))
         else:
-            moving_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_data_dir,
-                                                                    'lung_mask_T50_dl_iso.mha'))
+            if args.dataset == 'dirlab':
+                moving_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                                        'lung_mask_T50_dl_iso.mha'))
+            else:
+                moving_image_lung_mask_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                                        'lung_mask_eBHCT_dl_iso.mha'))
 
         moving_image_lung_mask_np = convert_itk_to_ras_numpy(moving_image_lung_mask_itk)
+
 
         # FIXME: This is ugly and hacky. Saving the padded mask after test.py completes is a
         # cleaner fix.
         # Pad masks to match saved image dims (padded for compliance with MONAI inferers)
-        i, j, k = fixed_image_lung_mask_np.shape
+        if args.dataset == 'dirlab':
+            i, j, k = fixed_image_lung_mask_np.shape
 
-        if i%8 != 0 and j%8 !=0:
-            excess_pixels_xy = 8 - (i%8)
-        else:
-            excess_pixels_xy = 0
+            if i%8 != 0 and j%8 !=0:
+                excess_pixels_xy = 8 - (i%8)
+            else:
+                excess_pixels_xy = 0
 
-        if k%8 != 0:
-            excess_pixels_z = 8 - (k%8)
-        else:
-            excess_pixels_z = 0
+            if k%8 != 0:
+                excess_pixels_z = 8 - (k%8)
+            else:
+                excess_pixels_z = 0
 
-        fixed_image_lung_mask_np = np.pad(fixed_image_lung_mask_np,
-                                          ((0, excess_pixels_xy),
-                                           (0, excess_pixels_xy),
-                                           (0, excess_pixels_z)))
+            fixed_image_lung_mask_np = np.pad(fixed_image_lung_mask_np,
+                                              ((0, excess_pixels_xy),
+                                               (0, excess_pixels_xy),
+                                               (0, excess_pixels_z)))
 
-        moving_image_lung_mask_np = np.pad(moving_image_lung_mask_np,
-                                           ((0, excess_pixels_xy),
-                                           (0, excess_pixels_xy),
-                                           (0, excess_pixels_z)))
+            moving_image_lung_mask_np = np.pad(moving_image_lung_mask_np,
+                                               ((0, excess_pixels_xy),
+                                               (0, excess_pixels_xy),
+                                               (0, excess_pixels_z)))
 
         # Construct super-mask using a logical OR between fixed and moving masks
         # because we are only interested in displacements of voxels inside the lung
-        relevant_displacement_mask = np.where(fixed_image_lung_mask_np+moving_image_lung_mask_np>=1,
-                                              1,
-                                              0).astype(np.float32)
+#        relevant_displacement_mask = np.where(fixed_image_lung_mask_np+moving_image_lung_mask_np>=1,
+#                                              1,
+#                                              0).astype(np.float32)
 
+        relevant_displacement_mask = fixed_image_lung_mask_np
         n_lung_voxels = np.nonzero(relevant_displacement_mask)[0].shape[0]
 
-        # 1. Read the TPS transformed grid
-        tps_grid = np.load(os.path.join(pdir,
-                                        'tps_transformed_grid_gt.npy'))
+        # 1. Read the TPS transformed grid (NOTE: The TPS captures only deformable changes)
+        if args.dataset == 'dirlab':
+            tps_grid = np.load(os.path.join(pdir,
+                                            'tps_transformed_grid_gt_only_bspline.npy'))
+        elif args.dataset == 'copd':
+            #NOTE: Trying to model only the deformable motion using a thin-plate splines results in transformation with extremely large Jacobians.
+            # Therefore, we model a thin-plate spline using the manual landmarks in the original fixed and moving domains => This captures both affine and deformable motion
+            tps_grid = np.load(os.path.join(pdir,
+                                            'tps_transformed_grid_gt_all.npy'))
         ndim, X, Y, Z = tps_grid.shape
 
         grid = np.array(np.meshgrid(np.linspace(0, 1, X),
@@ -115,14 +137,15 @@ if __name__ == '__main__':
         # 3. Scale the displacement grid from [0, 1] to image dims
         fixed_image_dims = np.array(fixed_image_itk.GetSize())[:, None, None, None]
 
-        disp_grid_scaled = np.multiply(disp_grid,
-                                       fixed_image_dims)
+#        disp_grid_scaled = np.multiply(disp_grid,
+#                                       fixed_image_dims)
 
+        # NOTE: Disable scaling of displacement, will be easier to model equivalent deformations in patches
+        disp_grid_scaled = disp_grid
         # FIXME: Skip voxel units -> mm conversion because of 1mm isotropic spacing
         X_disp = disp_grid_scaled[0, ...]
         Y_disp = disp_grid_scaled[1, ...]
         Z_disp = disp_grid_scaled[2, ...]
-
 
         euc_disp = np.sqrt(np.power(X_disp, 2) + np.power(Y_disp, 2) + np.power(Z_disp, 2))
 
