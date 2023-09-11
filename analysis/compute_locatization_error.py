@@ -50,10 +50,19 @@ if __name__ == '__main__':
 
     ax.set_xlabel('Localization Error (mm)')
     ax.set_ylabel('Count')
+    ax.vlines(x=[np.percentile(loc_errors, 25),
+                np.percentile(loc_errors, 50),
+                np.percentile(loc_errors, 75)],
+              ymin=0,
+              ymax=1,
+             colors='r',
+             linestyles='dashed',
+             transform=ax.get_xaxis_transform()
+             )
 
     max_error_95p = np.percentile(loc_errors, 95)
 
-    ax.set_xlim((0, (max_error_95p)))
+    ax.set_xlim((0, 100))
 
     fig.savefig(os.path.join(args.landmarks_dir,
                              'localization_error_histplot.pdf'),
