@@ -189,7 +189,7 @@ def train(args):
                                                grid=batch_deformation_grid,
                                                align_corners=True,
                                                mode="bilinear",
-                                               padding_mode="border")
+                                               padding_mode="zeros")
                 else:
                     continue
 
@@ -197,7 +197,7 @@ def train(args):
                                          grid=batch_deformation_grid,
                                          align_corners=True,
                                          mode="nearest",
-                                         padding_mode="border")
+                                         padding_mode="zeros")
 
                 # Check for empty liver masks and other issues!
                 skip_batch = False
