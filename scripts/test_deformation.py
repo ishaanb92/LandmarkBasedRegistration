@@ -22,6 +22,8 @@ from monai.utils.misc import set_determinism
 import random
 import pandas as pd
 
+COPD_DIR = '/home/ishaan/COPDGene/mha'
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -79,15 +81,43 @@ if __name__ == '__main__':
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
 
+    elif args.dataset == 'copd':
+        train_patients = [f.path for f in os.scandir(COPD_DIR) if f.is_dir()]
+
+        train_dict = create_data_dicts_dir_lab(train_patients[3:4],
+                                               dataset='copd')
+
+        data_loader = create_dataloader_dir_lab(data_dicts=train_dict,
+                                                test=False,
+                                                batch_size=1,
+                                                patch_size=(128, 128, 96),
+                                                num_workers=1)
+
+        disp_pdf = joblib.load(os.path.join(args.displacement_dir,
+                                            'bspline_motion_pdf_copd.pkl'))
+
+        affine_df = pd.read_pickle(os.path.join(args.displacement_dir,
+                                                'affine_transform_parameters_copd.pkl'))
+#        affine_df = None
+
+        coarse_grid_resolution = (2, 2, 2)
+        fine_grid_resolution = (3, 3, 3)
+
+
+
     print('Length of dataloader = {}'.format(len(data_loader)))
 
     if args.dataset == 'dirlab':
         save_dir = 'dirlab_viz'
+    elif args.dataset  == 'copd':
+        save_dir = 'copd_viz'
+    elif args.dataset == 'umc':
+        save_dir = 'umc_viz'
 
-        if os.path.exists(save_dir) is True:
-            shutil.rmtree(save_dir)
+    if os.path.exists(save_dir) is True:
+        shutil.rmtree(save_dir)
 
-        os.makedirs(save_dir)
+    os.makedirs(save_dir)
 
     for b_id, batch_data_list in enumerate(data_loader):
         print('Processing batch {}'.format(b_id+1))
@@ -100,7 +130,7 @@ if __name__ == '__main__':
 
             assert(isinstance(images, monai.data.meta_tensor.MetaTensor))
 
-            if args.dataset == 'dirlab':
+            if args.dataset == 'dirlab' or args.dataset == 'copd':
                 metadata_list = detensorize_metadata(metadata=batch_data['metadata'],
                                                      batchsz=images.shape[0])
 
@@ -116,7 +146,7 @@ if __name__ == '__main__':
                                                                           fine_displacements=fine_displacements,
                                                                           coarse_grid_resolution=coarse_grid_resolution,
                                                                           fine_grid_resolution=fine_grid_resolution)
-            elif args.dataset == 'dirlab':
+            elif args.dataset == 'dirlab' or args.dataset == 'copd':
                 batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
                                                                                          non_rigid=True,
                                                                                          coarse=True,
@@ -130,7 +160,7 @@ if __name__ == '__main__':
                                                 grid=batch_deformation_grid,
                                                 align_corners=True,
                                                 mode="bilinear",
-                                                padding_mode="border")
+                                                padding_mode="zeros")
 
             for batch_idx in range(images.shape[0]):
                 # Sanity checks
@@ -170,7 +200,7 @@ if __name__ == '__main__':
                                    dimage_fname)
 
                 # Handle metadata for DIR-Lab (DICOM/ITK)
-                elif args.dataset == 'dirlab':
+                elif args.dataset == 'dirlab' or args.dataset == 'copd':
                     print('Saving elem {} from batch {}'.format(batch_idx+1, b_id+1))
                     save_ras_as_itk(img=images[batch_idx, ...],
                                     metadata=metadata_list[batch_idx],
