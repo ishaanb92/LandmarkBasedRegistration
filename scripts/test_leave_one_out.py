@@ -94,6 +94,7 @@ def test(args):
 
         model = load_dict['model']
         out_dir = os.path.join(args.out_dir, pid)
+        os.makedirs(out_dir)
         model.to(device)
 
         # Perform inference
@@ -228,21 +229,19 @@ def test(args):
                                                                                               fixed_landmarks_np.shape[0]))
 
                 # Save the landmarks in an elastix compliant fashion (in world coordinates)
-                dump_dir = os.path.join(out_dir, patient_id)
-                os.makedirs(dump_dir)
                 save_landmark_predictions_in_elastix_format(landmarks_fixed=fixed_landmarks_np,
                                                             landmarks_moving=moving_landmarks_np,
                                                             metadata_fixed=fixed_metadata_list[0],
                                                             metadata_moving=moving_metadata_list[0],
                                                             matches=None,
-                                                            save_dir=dump_dir)
+                                                            save_dir=out_dir)
                 save_ras_as_itk(img=images[0, ...].float(),
                                 metadata=moving_metadata_list[0],
-                                fname=os.path.join(dump_dir, 'moving_image.mha'))
+                                fname=os.path.join(out_dir, 'moving_image.mha'))
 
                 save_ras_as_itk(img=images_hat[0, ...].float(),
                                 metadata=fixed_metadata_list[0],
-                                fname=os.path.join(dump_dir, 'fixed_image.mha'))
+                                fname=os.path.join(out_dir, 'fixed_image.mha'))
 
 
 

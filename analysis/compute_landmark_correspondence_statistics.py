@@ -77,15 +77,15 @@ if __name__ == '__main__':
         max_landmark_coordinates_fixed = np.max(fixed_image_landmarks_voxel, axis=0)
         max_landmark_coordinates_moving = np.max(moving_image_landmarks_voxel, axis=0)
 
-        if max_landmark_coordinates_fixed[0] > fixed_mask_np.shape[0] \
-                or max_landmark_coordinates_fixed[1] > fixed_mask_np.shape[1] \
-                or max_landmark_coordinates_fixed[2] > fixed_mask_np.shape[2]:
+        if max_landmark_coordinates_fixed[0] >= fixed_mask_np.shape[0] \
+                or max_landmark_coordinates_fixed[1] >= fixed_mask_np.shape[1] \
+                or max_landmark_coordinates_fixed[2] >= fixed_mask_np.shape[2]:
             print('Landmarks (fixed) predicted outside image domain for patient {}'.format(pid))
             error_found = True
 
-        if max_landmark_coordinates_moving[0] > moving_mask_np.shape[0] \
-                or max_landmark_coordinates_moving[1] > moving_mask_np.shape[1] \
-                or max_landmark_coordinates_moving[2] > moving_mask_np.shape[2]:
+        if max_landmark_coordinates_moving[0] >= moving_mask_np.shape[0] \
+                or max_landmark_coordinates_moving[1] >= moving_mask_np.shape[1] \
+                or max_landmark_coordinates_moving[2] >= moving_mask_np.shape[2]:
             print('Landmarks (moving) predicted outside image domain for patient {}'.format(pid))
             error_found = True
 

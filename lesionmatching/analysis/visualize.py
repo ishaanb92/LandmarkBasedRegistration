@@ -397,6 +397,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
             pred_min_slice = 10000
             slice_pred_landmarks_fixed = None
             patch_pred_landmarks_moving = None
+            patch_gt_projection_landmarks_moving = None
 
         # Manual landmarks
         manual_landmarks_fixed_rows = np.where(manual_landmarks_fixed[:, 2] == slice_idx)[0]
