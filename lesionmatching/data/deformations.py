@@ -158,9 +158,9 @@ def create_bspline_transform_from_pdf(shape=None,
                                            grid_resolution[2]))
 
     # 3. Rescale displacement to [0, 1] range
-    random_grid[0, ...] = random_grid[0, ...]*(1/x)
-    random_grid[1, ...] = random_grid[1, ...]*(1/y)
-    random_grid[2, ...] = random_grid[2, ...]*(1/z)
+#    random_grid[0, ...] = random_grid[0, ...]*(1/x)
+#    random_grid[1, ...] = random_grid[1, ...]*(1/y)
+#    random_grid[2, ...] = random_grid[2, ...]*(1/z)
 
     bspline_transform = gryds.BSplineTransformation(grid=random_grid,
                                                     order=3)

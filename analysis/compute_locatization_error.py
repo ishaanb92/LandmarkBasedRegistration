@@ -7,6 +7,8 @@ Script to plot localization error for landmark models
 import os
 import numpy as np
 from argparse import ArgumentParser
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 if __name__ == '__main__':
 
@@ -17,7 +19,6 @@ if __name__ == '__main__':
 
     pdirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
 
-    # TODO: Plot localization errors for multiple configs together
     for idx, pdir in enumerate(pdirs):
 
         if idx == 0:
@@ -37,3 +38,32 @@ if __name__ == '__main__':
 
     print('Localization error (in mm) :: Median = {}, IQR = {}'.format(median,
                                                                        iqr))
+
+    # Plot histogram of localization errors
+    fig, ax = plt.subplots()
+
+    sns.histplot(data=loc_errors,
+                 ax=ax,
+                 stat='count')
+
+    max_error = np.amax(loc_errors)
+
+    ax.set_xlabel('Localization Error (mm)')
+    ax.set_ylabel('Count')
+    ax.vlines(x=[np.percentile(loc_errors, 25),
+                np.percentile(loc_errors, 50),
+                np.percentile(loc_errors, 75)],
+              ymin=0,
+              ymax=1,
+             colors='r',
+             linestyles='dashed',
+             transform=ax.get_xaxis_transform()
+             )
+
+    max_error_95p = np.percentile(loc_errors, 95)
+
+    ax.set_xlim((0, 100))
+
+    fig.savefig(os.path.join(args.landmarks_dir,
+                             'localization_error_histplot.pdf'),
+                bbox_inches='tight')

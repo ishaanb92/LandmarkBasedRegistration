@@ -440,6 +440,9 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
             print('The affine transformation has transformed this landmark outside image domain. Skip')
             continue
 
+        if min_slice < 0:
+            continue
+
         if verbose is True:
             print('Fixed slice idx: {}, Max slice : {}, Min slice: {},\
                   pred landmarks {}, gt landmarks {}'.format(slice_idx,

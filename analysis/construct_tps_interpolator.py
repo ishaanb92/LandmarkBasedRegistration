@@ -32,8 +32,11 @@ if __name__ == '__main__':
 
     if args.dataset == 'copd':
         points_dir = '/home/ishaan/COPDGene/points'
+        data_dir = '/home/ishaan/COPDGene/mha'
     elif args.dataset == 'dirlab':
         points_dir = '/home/ishaan/DIR-Lab/points'
+        data_dir = '/home/ishaan/DIR-Lab/mha'
+
 
     pdirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
 
@@ -48,11 +51,21 @@ if __name__ == '__main__':
 
         pid = pdir.split(os.sep)[-1]
 
-        fixed_image_itk = sitk.ReadImage(os.path.join(pdir,
-                                                      'fixed_image.mha'))
+        patient_data_dir = os.path.join(data_dir,
+                                        pid)
 
-        moving_image_itk = sitk.ReadImage(os.path.join(pdir,
-                                                      'moving_image.mha'))
+        if args.dataset == 'dirlab':
+            fixed_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                          '{}_T00_iso.mha'.format(pid)))
+
+            moving_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                          '{}_T50_iso.mha'))
+        elif args.dataset == 'copd':
+            fixed_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                          '{}_iBHCT_iso.mha'.format(pid)))
+
+            moving_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
+                                                          '{}_eBHCT_iso.mha'.format(pid)))
 
         moving_image_np = convert_itk_to_ras_numpy(moving_image_itk)
 
@@ -139,8 +152,12 @@ if __name__ == '__main__':
                     np.save(file=os.path.join(pdir, 'tps_transformed_grid_{}.npy'.format(lmbda)),
                             arr=transformed_grid)
                 elif args.mode == 'gt':
-                    np.save(file=os.path.join(pdir, 'tps_transformed_grid_gt.npy'),
-                            arr=transformed_grid)
+                    if args.affine_reg_dir is None:
+                        np.save(file=os.path.join(points_dir, pid, 'tps_transformed_grid_gt_all.npy'),
+                                arr=transformed_grid)
+                    else:
+                        np.save(file=os.path.join(points_dir, pid, 'tps_transformed_grid_gt_only_bspline.npy'),
+                                arr=transformed_grid)
                 else:
                     raise RuntimeError('{} is not a valid option for mode'.format(args.mode))
                 # Resample moving image based on TPS deformation estimated from point pairs
