@@ -18,7 +18,7 @@ from lesionmatching.util_scripts.image_utils import convert_itk_to_ras_numpy
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--deformation_dir', type=str, required=True)
+    parser.add_argument('--deformation_dir', type=str, required=True, help='Directory with manual landmarks')
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--affine_reg_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, default='dirlab')
@@ -76,39 +76,6 @@ if __name__ == '__main__':
                                                                         'lung_mask_eBHCT_dl_iso.mha'))
 
         moving_image_lung_mask_np = convert_itk_to_ras_numpy(moving_image_lung_mask_itk)
-
-
-        # FIXME: This is ugly and hacky. Saving the padded mask after test.py completes is a
-        # cleaner fix.
-        # Pad masks to match saved image dims (padded for compliance with MONAI inferers)
-        if args.dataset == 'dirlab':
-            i, j, k = fixed_image_lung_mask_np.shape
-
-            if i%8 != 0 and j%8 !=0:
-                excess_pixels_xy = 8 - (i%8)
-            else:
-                excess_pixels_xy = 0
-
-            if k%8 != 0:
-                excess_pixels_z = 8 - (k%8)
-            else:
-                excess_pixels_z = 0
-
-            fixed_image_lung_mask_np = np.pad(fixed_image_lung_mask_np,
-                                              ((0, excess_pixels_xy),
-                                               (0, excess_pixels_xy),
-                                               (0, excess_pixels_z)))
-
-            moving_image_lung_mask_np = np.pad(moving_image_lung_mask_np,
-                                               ((0, excess_pixels_xy),
-                                               (0, excess_pixels_xy),
-                                               (0, excess_pixels_z)))
-
-        # Construct super-mask using a logical OR between fixed and moving masks
-        # because we are only interested in displacements of voxels inside the lung
-#        relevant_displacement_mask = np.where(fixed_image_lung_mask_np+moving_image_lung_mask_np>=1,
-#                                              1,
-#                                              0).astype(np.float32)
 
         relevant_displacement_mask = fixed_image_lung_mask_np
         n_lung_voxels = np.nonzero(relevant_displacement_mask)[0].shape[0]

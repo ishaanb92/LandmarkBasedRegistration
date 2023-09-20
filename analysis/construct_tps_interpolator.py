@@ -59,7 +59,7 @@ if __name__ == '__main__':
                                                           '{}_T00_iso.mha'.format(pid)))
 
             moving_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
-                                                          '{}_T50_iso.mha'))
+                                                          '{}_T50_iso.mha'.format(pid)))
         elif args.dataset == 'copd':
             fixed_image_itk = sitk.ReadImage(os.path.join(patient_data_dir,
                                                           '{}_iBHCT_iso.mha'.format(pid)))
