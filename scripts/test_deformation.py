@@ -8,7 +8,7 @@ Script to test dataset visualization/deformations
 """
 from lesionmatching.data.deformations import *
 from lesionmatching.data.datapipeline import *
-from lesionmatching.util_scripts.image_utils import save_ras_as_itk
+from lesionmatching.util_scripts.image_utils import *
 from lesionmatching.util_scripts.utils import detensorize_metadata
 import numpy as np
 import torch
@@ -30,6 +30,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='umc')
     parser.add_argument('--displacement_dir', type=str, default=None)
     parser.add_argument('--seed', type=int, default=1234)
+    parser.add_argument('--multichannel', action='store_true')
     args = parser.parse_args()
 
     # Set the (global) seeds
@@ -40,23 +41,27 @@ if __name__ == '__main__':
 
     # Load all patient paths
     if args.dataset == 'umc':
+        umc_dataset_stats = joblib.load('umc_dataset_stats.pkl')
         train_patients = joblib.load('train_patients_umc.pkl')
-        train_dict = create_data_dicts_lesion_matching([train_patients[0]])
+        train_dict = create_data_dicts_lesion_matching([train_patients[0]],
+                                                       multichannel=args.multichannel)
 
 
         data_loader, transforms = create_dataloader_lesion_matching(data_dicts=train_dict,
                                                                     train=True,
                                                                     batch_size=1,
                                                                     data_aug=False,
-                                                                    patch_size=(128, 128, 64),
+                                                                    patch_size=(128, 128, 128),
                                                                     seed=args.seed)
 
+        # Patient positioning
+        translation_max = [0, 0, 20]
+        rotation_max = [0, 0, (np.pi*10)/180]
 
-        coarse_grid_resolution = (3, 3, 3)
-        coarse_displacements = (6, 4, 4)
+        # Respiratory motion
+        coarse_grid_resolution = (4, 4, 4)
+        coarse_displacements = (1.2, 12.4, 8.4)
 
-        fine_grid_resolution = (6, 6, 6)
-        fine_displacements = (2, 2, 2)
 
     elif args.dataset == 'dirlab':
         train_patients = joblib.load('train_patients_dirlab.pkl')
@@ -81,6 +86,7 @@ if __name__ == '__main__':
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
 
+
     elif args.dataset == 'copd':
         train_patients = [f.path for f in os.scandir(COPD_DIR) if f.is_dir()]
 
@@ -98,7 +104,6 @@ if __name__ == '__main__':
 
         affine_df = pd.read_pickle(os.path.join(args.displacement_dir,
                                                 'affine_transform_parameters_copd.pkl'))
-#        affine_df = None
 
         coarse_grid_resolution = (2, 2, 2)
         fine_grid_resolution = (3, 3, 3)
@@ -140,12 +145,21 @@ if __name__ == '__main__':
 
             if args.dataset == 'umc':
                 batch_deformation_grid, _ = create_batch_deformation_grid(shape=images.shape,
-                                                                          coarse=True,
-                                                                          fine=True,
                                                                           coarse_displacements=coarse_displacements,
-                                                                          fine_displacements=fine_displacements,
+                                                                          fine_displacements=None,
                                                                           coarse_grid_resolution=coarse_grid_resolution,
-                                                                          fine_grid_resolution=fine_grid_resolution)
+                                                                          fine_grid_resolution=None,
+                                                                          translation_max=translation_max,
+                                                                          rotation_max=rotation_max)
+                if args.multichannel is True:
+                    images = min_max_rescale_umc(images=images,
+                                                 max_value=umc_dataset_stats['max_multichannel'],
+                                                 min_value=umc_dataset_stats['min_multichannel'])
+                else:
+                    images = min_max_rescale_umc(images=images,
+                                                 max_value=umc_dataset_stats['mean_max'],
+                                                 min_value=umc_dataset_stats['mean_min'])
+
             elif args.dataset == 'dirlab' or args.dataset == 'copd':
                 batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
                                                                                          non_rigid=True,
@@ -162,6 +176,14 @@ if __name__ == '__main__':
                                                 mode="bilinear",
                                                 padding_mode="zeros")
 
+
+            if args.dataset == 'umc':
+                images = gamma_transformation(images,
+                                              gamma=[0.5, 1.5])
+
+                deformed_images = gamma_transformation(deformed_images,
+                                                       gamma=[0.5, 1.5])
+
             for batch_idx in range(images.shape[0]):
                 # Sanity checks
                 if torch.max(images[batch_idx, ...]) == torch.min(images[batch_idx, ...]):
@@ -172,19 +194,13 @@ if __name__ == '__main__':
                 # Handle metadata for NifTi
                 if args.dataset == 'umc':
 
-                    save_dir = 'images_viz_{}_{}'.format(b_id, batch_idx)
-
-                    if os.path.exists(save_dir) is True:
-                        shutil.rmtree(save_dir)
-
-                    os.makedirs(save_dir)
-
                     image = images[batch_idx, ...]
                     dimage = deformed_images[batch_idx, ...]
                     image_array = torch.squeeze(image, dim=0).numpy() # Get rid of channel axis
                     dimage_array = torch.squeeze(dimage, dim=0).numpy()
-                    image_fname = os.path.join(save_dir, 'image.nii')
-                    dimage_fname = os.path.join(save_dir, 'deformed_image.nii')
+                    image_fname = os.path.join(save_dir, 'image_{}.nii'.format(batch_idx))
+                    dimage_fname = os.path.join(save_dir, 'deformed_image_{}.nii'.format(batch_idx))
+
                     image_nib = create_nibabel_image(image_array=image_array,
                                                      metadata_dict=image.meta,
                                                      affine=image.meta['affine'])
@@ -192,7 +208,7 @@ if __name__ == '__main__':
                     dimage_nib = create_nibabel_image(image_array=dimage_array,
                                                       metadata_dict=dimage.meta,
                                                       affine=dimage.meta['affine'])
-
+                    print('About to save images')
                     save_nib_image(image_nib,
                                    image_fname)
 

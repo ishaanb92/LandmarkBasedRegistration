@@ -11,6 +11,7 @@ import os
 import shutil
 import glob
 import warnings
+import torch
 
 def calculate_mse(img1, img2):
     """
@@ -439,6 +440,29 @@ def get_min_max_from_image(image:sitk.Image,
 
     return lung_max, lung_min
 
+def min_max_rescale_umc(images:torch.Tensor,
+                        max_value,
+                        min_value):
+
+    channels = images.shape[1]
+
+    if channels == 1:
+        images = (images-min_value)/(max_value-min_value)
+    else:
+
+        max_value = np.expand_dims(max_value, axis=1)
+        max_value = np.expand_dims(max_value, axis=1)
+        max_value = np.expand_dims(max_value, axis=1)
+
+        min_value = np.expand_dims(min_value, axis=1)
+        min_value = np.expand_dims(min_value, axis=1)
+        min_value = np.expand_dims(min_value, axis=1)
+
+        max_value = torch.from_numpy(max_value)
+        min_value = torch.from_numpy(min_value)
+        images = torch.divide((images-min_value), (max_value-min_value))
+
+    return images
 
 def create_separate_lesion_masks(fname):
     """
@@ -587,7 +611,18 @@ def check_and_fix_masks(mask_itk):
 
     return mask_itk
 
+def gamma_transformation(image, gamma):
 
+    if isinstance(gamma, list) or isinstance(gamma, tuple):
+        gamma = np.random.uniform(gamma[0], gamma[1])
 
+    if isinstance(image, torch.Tensor):
+        image = image.numpy()
+        image = np.where(image < 0, 0, image)
+        image = torch.from_numpy(image)
+        image = torch.pow(image, gamma)
+    if isinstance(image, np.ndarray):
+        image = np.where(image < 0, 0, image)
+        image = np.power(image, gamma)
 
-
+    return image

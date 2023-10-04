@@ -46,6 +46,7 @@ class LesionMatchingModel(nn.Module):
 
     def forward(self, x1, x2, mask=None, mask2=None, training=True, soft_masking=False):
 
+
         kpts_1, features_1 = self.cnn(x1)
         kpts_2, features_2 = self.cnn(x2)
 

@@ -157,10 +157,6 @@ def create_bspline_transform_from_pdf(shape=None,
                                            grid_resolution[1],
                                            grid_resolution[2]))
 
-    # 3. Rescale displacement to [0, 1] range
-#    random_grid[0, ...] = random_grid[0, ...]*(1/x)
-#    random_grid[1, ...] = random_grid[1, ...]*(1/y)
-#    random_grid[2, ...] = random_grid[2, ...]*(1/z)
 
     bspline_transform = gryds.BSplineTransformation(grid=random_grid,
                                                     order=3)
@@ -214,15 +210,14 @@ def create_deformation_grid(grid=None,
 
 def create_batch_deformation_grid(shape,
                                   device='cpu',
-                                  dummy=False,
-                                  non_rigid=True,
-                                  coarse=True,
-                                  fine=False,
                                   coarse_displacements=(4, 4, 3),
                                   fine_displacements=(0.75, 0.75, 0.75),
                                   coarse_grid_resolution=(4, 4, 4),
                                   fine_grid_resolution=(8, 8, 8),
-                                  affine_df=None):
+                                  translation_max=None,
+                                  rotation_max=None,
+                                  shear=None,
+                                  scaling=None):
 
     b, c, i, j, k = shape
 
@@ -235,24 +230,40 @@ def create_batch_deformation_grid(shape,
     # Loop over batch and generated a unique deformation grid for each image in the batch
     for batch_idx in range(b):
         transforms = []
-        if dummy is False:
-            if affine_df is not None:
-                raise NotImplementedError
-            if non_rigid is True:
-                if coarse is True:
-                    elastic_transform_coarse = create_bspline_transform(shape=[i, j, k],
-                                                                        displacements=coarse_displacements,
-                                                                        grid_resolution=coarse_grid_resolution)
-                    transforms.append(elastic_transform_coarse)
-                if fine is True:
-                    elastic_transform_fine = create_bspline_transform(shape=[i, j, k],
-                                                                      displacements=fine_displacements,
-                                                                      grid_resolution=fine_grid_resolution)
-                    transforms.append(elastic_transform_fine)
 
-            else: # Translation only
-                translation_transform = create_affine_transform(translation=[0, 0, 0.1])
-                transforms.append(translation_transform)
+        # Affine/Rigid motion
+        if translation_max is not None or rotation_max is not None:
+            tx = np.random.uniform(-translation_max[0], translation_max[0])
+            ty = np.random.uniform(-translation_max[1], translation_max[1])
+            tz = np.random.uniform(-translation_max[2], translation_max[2])
+            translation = [tx, ty, tz]
+            # Scale to [0, 1]
+            scaled_translation = np.divide(np.array(translation),
+                                           np.array([i, j, k]))
+
+            angles = [np.random.uniform(-rotation_max[0], rotation_max[0]),
+                      np.random.uniform(-rotation_max[1], rotation_max[1]),
+                      np.random.uniform(-rotation_max[2], rotation_max[2])]
+
+            affine_transform = create_affine_transform(center=[0.5, 0.5, 0.5],
+                                                       angles=angles,
+                                                       translation=scaled_translation)
+            transforms.append(affine_transform)
+
+        # Deformable motion
+        if coarse_displacements is not None:
+            assert(coarse_grid_resolution is not None)
+            elastic_transform_coarse = create_bspline_transform(shape=[i, j, k],
+                                                                displacements=coarse_displacements,
+                                                                grid_resolution=coarse_grid_resolution)
+            transforms.append(elastic_transform_coarse)
+        if fine_displacements is not None:
+            assert(fine_grid_resolution is not None)
+            elastic_transform_fine = create_bspline_transform(shape=[i, j, k],
+                                                              displacements=fine_displacements,
+                                                              grid_resolution=fine_grid_resolution)
+            transforms.append(elastic_transform_fine)
+
 
         # Create deformation grid by composing transforms
         deformed_grid, jac_det = create_deformation_grid(shape=[i, j, k],

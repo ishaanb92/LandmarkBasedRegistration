@@ -20,6 +20,7 @@ import torch.nn as nn
 from argparse import ArgumentParser
 import shutil
 from lesionmatching.util_scripts.utils import *
+from lesionmatching.util_scripts.image_utils import *
 from lesionmatching.analysis.visualize import *
 from torch.utils.tensorboard import SummaryWriter
 from torchearlystopping.pytorchtools import EarlyStopping
@@ -38,7 +39,7 @@ import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
-TRAINING_PATCH_SIZE = (128, 128, 64)
+TRAINING_PATCH_SIZE = (128, 128, 96)
 TRAINING_PATCH_SIZE_DIRLAB = (128, 128, 96)
 
 def train(args):
@@ -101,11 +102,18 @@ def train(args):
     print('Number of patients in validation set: {}'.format(len(val_patients)))
 
     if args.dataset == 'umc':
+        if args.multichannel is True:
+            n_channels = 6
+        else:
+            n_channels = 1
+
+        umc_dataset_stats = joblib.load('umc_dataset_stats.pkl')
+
         train_dicts = create_data_dicts_lesion_matching(train_patients,
-                                                        input_mode=args.input_mode)
+                                                        multichannel=args.multichannel)
 
         val_dicts = create_data_dicts_lesion_matching(val_patients,
-                                                      input_mode=args.input_mode)
+                                                      multichannel=args.multichannel)
         # Patch-based training
         train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
                                                             train=True,
@@ -125,6 +133,7 @@ def train(args):
                                                           seed=args.seed,
                                                           num_samples=args.num_samples)
     elif args.dataset == 'dirlab':
+        n_channels = 1
         train_dicts = create_data_dicts_dir_lab(train_patients)
         val_dicts = create_data_dicts_dir_lab(val_patients)
 
@@ -145,6 +154,7 @@ def train(args):
 
     model = LesionMatchingModel(K=args.kpts_per_batch,
                                 W=args.window_size,
+                                n_channels=n_channels,
                                 descriptor_length=args.desc_length)
 
 
@@ -184,11 +194,14 @@ def train(args):
 
 
     if args.dataset == 'umc':
-        coarse_grid_resolution = (3, 3, 3)
-        coarse_displacements = (6, 4, 4)
 
-        fine_grid_resolution = (6, 6, 6)
-        fine_displacements = (2, 2, 2)
+        # Patient positioning
+        translation_max = [0, 0, 20]
+        rotation_max = [0, 0, (np.pi*10)/180]
+
+        # Respiratory motion
+        coarse_grid_resolution = (4, 4, 4)
+        coarse_displacements = (1.2, 12.4, 8.4)
 
         pixel_thresh = (1, 2, 2)
     elif args.dataset == 'dirlab':
@@ -199,8 +212,8 @@ def train(args):
             affine_df = pd.read_pickle(os.path.join(args.displacement_dir,
                                                     'affine_transform_parameters.pkl'))
         else:
-            coarse_displacements = (29, 19.84, 9.92)
-            fine_displacements = (7.25, 9.92, 9.92)
+            coarse_displacements = (9.92, 19.84, 29)
+            fine_displacements = (9.92, 9.92, 7.25)
             coarse_grid_resolution = (2, 2, 2)
 
         coarse_grid_resolution = (2, 2, 2)
@@ -228,7 +241,24 @@ def train(args):
 
             for sample_idx, batch_data in enumerate(batch_data_list):
                 if args.dataset == 'umc':
-                    images, mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
+                    images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
+
+                    # Rescale image intensities to [0, 1] based on global statistics
+                    if args.multichannel is True:
+                        images = min_max_rescale_umc(images=images,
+                                                     max_value=umc_dataset_stats['max_multichannel'],
+                                                     min_value=umc_dataset_stats['min_multichannel'])
+                    else:
+                        images = min_max_rescale_umc(images=images,
+                                                     max_value=umc_dataset_stats['mean_max'],
+                                                     min_value=umc_dataset_stats['mean_min'])
+
+                    # Choose which mask we want to use for soft masking
+                    if args.mask_mode == 'liver':
+                        mask = liver_mask
+                    elif args.mask_mode == 'vessel':
+                        mask = vessel_mask
+
                 elif args.dataset == 'dirlab':
                     images, mask = (batch_data['image'], batch_data['lung_mask'])
 
@@ -256,23 +286,27 @@ def train(args):
 
                 if args.dataset == 'umc':
                     batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
-                                                                                    non_rigid=True,
-                                                                                    coarse=True,
-                                                                                    fine=True,
                                                                                     coarse_displacements=coarse_displacements,
-                                                                                    fine_displacements=fine_displacements,
+                                                                                    fine_displacements=None,
                                                                                     coarse_grid_resolution=coarse_grid_resolution,
-                                                                                    fine_grid_resolution=fine_grid_resolution)
+                                                                                    fine_grid_resolution=None,
+                                                                                    translation_max=translation_max,
+                                                                                    rotation_max=rotation_max)
                 elif args.dataset == 'dirlab':
                     if args.displacement_dir is not None:
-                        batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
-                                                                                                 non_rigid=True,
-                                                                                                 coarse=True,
-                                                                                                 fine=True,
-                                                                                                 disp_pdf=disp_pdf,
-                                                                                                 affine_df=affine_df,
-                                                                                                 coarse_grid_resolution=coarse_grid_resolution,
-                                                                                                 fine_grid_resolution=fine_grid_resolution)
+                        batch_deformation_grid, jac_det = \
+                                        create_batch_deformation_grid_from_pdf(shape=images.shape,
+                                                                               non_rigid=True,
+                                                                               coarse=True,
+                                                                               fine=True,
+                                                                               disp_pdf=disp_pdf,
+                                                                               affine_df=affine_df,
+                                                                               coarse_grid_resolution=coarse_grid_resolution,
+                                                                               fine_grid_resolution=fine_grid_resolution)
+
+
+
+
                     else:
                         batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
                                                                                         non_rigid=True,
@@ -287,43 +321,34 @@ def train(args):
                                                grid=batch_deformation_grid,
                                                align_corners=True,
                                                mode="bilinear",
-                                               padding_mode="border")
-                else:
+                                               padding_mode="zeros")
+                else: # Folding has occured
                     continue
 
-                if args.dummy is False:
-                    images_hat = F.grid_sample(input=images,
-                                               grid=batch_deformation_grid,
-                                               align_corners=True,
-                                               mode="bilinear",
-                                               padding_mode="border")
 
-                    if args.dataset == 'umc':
-                        images_hat = shift_intensity(images_hat)
-                    elif args.dataset == 'copd':
-                        if args.dry_sponge is True:
-                            # See : H. Sokooti et al., 3D Convolutional Neural Networks Image Registration
-                            # Based on Efficient Supervised Learning from Artificial Deformations
-                            images_hat = dry_sponge_augmentation(images_hat,
-                                                                 jac_det)
-                        else: # TODO: Try gamma augmentation (Used by Koen)
-                            pass
+                if args.dataset == 'umc':
+                    # Apply gamma transform to both images indepently
+                    images = gamma_transformation(images,
+                                                  gamma=[0.5, 1.5])
 
-                else:
-                    images_hat = F.grid_sample(input=images,
-                                               grid=batch_deformation_grid,
-                                               align_corners=True,
-                                               mode="nearest",
-                                               padding_mode="border")
+                    images_hat = gamma_transformation(images_hat,
+                                                      gamma=[0.5, 1.5])
 
-                    assert(torch.equal(images, images_hat))
+                elif args.dataset == 'copd':
+                    if args.dry_sponge is True:
+                        # See : H. Sokooti et al., 3D Convolutional Neural Networks Image Registration
+                        # Based on Efficient Supervised Learning from Artificial Deformations
+                        images_hat = dry_sponge_augmentation(images_hat,
+                                                             jac_det)
+                    else: # TODO: Try gamma augmentation (Used by Koen)
+                        pass
 
                 # Transform liver mask
                 mask_hat = F.grid_sample(input=mask,
                                          grid=batch_deformation_grid,
                                          align_corners=True,
                                          mode="nearest",
-                                         padding_mode="border")
+                                         padding_mode="zeros")
 
                 if args.disable_mask is True:
                     mask = torch.ones_like(images)
@@ -364,9 +389,6 @@ def train(args):
 
                     if outputs is None: # Too few keypoints found
                         continue
-
-                    if args.dummy is True:
-                        assert(torch.equal(outputs['kpt_sampling_grid'][0], outputs['kpt_sampling_grid'][1]))
 
 
                     gt1, gt2, matches, num_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid'][0],
@@ -427,13 +449,12 @@ def train(args):
 
                     if args.dataset == 'umc':
                         batch_deformation_grid, jac_det = create_batch_deformation_grid(shape=images.shape,
-                                                                                        non_rigid=True,
-                                                                                        coarse=True,
-                                                                                        fine=True,
                                                                                         coarse_displacements=coarse_displacements,
-                                                                                        fine_displacements=fine_displacements,
+                                                                                        fine_displacements=None,
                                                                                         coarse_grid_resolution=coarse_grid_resolution,
-                                                                                        fine_grid_resolution=fine_grid_resolution)
+                                                                                        fine_grid_resolution=None,
+                                                                                        translation_max=translation_max,
+                                                                                        rotation_max=rotation_max)
                     elif args.dataset == 'dirlab':
                         if args.displacement_dir is not None:
                             batch_deformation_grid, jac_det = \
@@ -524,10 +545,6 @@ def train(args):
 
                     if outputs is None: # Too few keypoints found
                         continue
-
-                    if args.dummy is True:
-                        assert(torch.equal(outputs['kpt_sampling_grid'][0], outputs['kpt_sampling_grid'][1]))
-
 
                     gt1, gt2, gt_matches, num_gt_matches = create_ground_truth_correspondences(kpts1=outputs['kpt_sampling_grid_1'],
                                                                                                kpts2=outputs['kpt_sampling_grid_2'],
@@ -625,7 +642,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_dir', type=str, required=True)
     parser.add_argument('--displacement_dir', type=str, default=None)
     parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--input_mode', type=str, default='vessel')
+    parser.add_argument('--mask_mode', type=str, default='liver')
     parser.add_argument('--loss_type', type=str, default='aux', help='Choices: hinge, ce, aux')
     parser.add_argument('--gpu_id', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
@@ -637,13 +654,13 @@ if __name__ == '__main__':
     parser.add_argument('--kpts_per_batch', type=int, default=512)
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--data_aug', action='store_true')
-    parser.add_argument('--dummy', action='store_true')
     parser.add_argument('--epochs', type=int, default=250)
     parser.add_argument('--earlystop', action='store_true')
     parser.add_argument('--renew', action='store_true')
     parser.add_argument('--dry_sponge', action='store_true')
     parser.add_argument('--soft_masking', action='store_true')
     parser.add_argument('--disable_mask', action='store_true')
+    parser.add_argument('--multichannel', action='store_true')
 
     args = parser.parse_args()
 

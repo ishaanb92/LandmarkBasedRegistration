@@ -12,7 +12,7 @@ from monai.transforms import *
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 import joblib
 import torch
-from monai.transforms import StdShiftIntensity
+from monai.transforms import StdShiftIntensity, ScaleIntensityRange
 from monai.data.utils import no_collation
 import numpy as np
 import nibabel as nib
@@ -47,7 +47,7 @@ def create_data_dicts_liver_seg(patient_dir_list=None, n_channels=6, channel_id=
 
 # Data dicts for synthetic transforms (eg: training/evaluation w.r.t repeatability)
 def create_data_dicts_lesion_matching(patient_dir_list=None,
-                                      input_mode='vessel'):
+                                      multichannel=False):
 
     data_dicts = []
 
@@ -57,12 +57,14 @@ def create_data_dicts_lesion_matching(patient_dir_list=None,
         for s_dir in scan_dirs:
             s_id = s_dir.split(os.sep)[-1]
             data_dict = {}
-            if input_mode == 'vessel':
-                data_dict['image'] = os.path.join(s_dir, 'DCE_vessel_image.nii')
-            elif input_mode == 'mean':
+
+            if multichannel is False:
                 data_dict['image'] = os.path.join(s_dir, 'DCE_mean.nii')
             else:
-                raise RuntimeError('{} is an invalid data mode'.format(input_mode))
+                data_dict['image'] = []
+                for chidx in range(6):
+                    data_dict['image'].append(os.path.join(s_dir, 'DCE_channel_{}.nii'.format(chidx)))
+
             data_dict['liver_mask'] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['vessel_mask'] = os.path.join(s_dir, 'vessel_mask.nii')
 
@@ -286,11 +288,6 @@ def create_dataloader_lesion_matching(data_dicts=None,
                                             p=0.3),
 
 
-                                  NormalizeIntensityd(keys=["image"],
-                                                      nonzero=True,
-                                                      channel_wise=True),
-
-
                                   EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
                                   ])
         else:
@@ -314,11 +311,6 @@ def create_dataloader_lesion_matching(data_dicts=None,
                                                          pos=1.0,
                                                          neg=0.0,
                                                          num_samples=num_samples),
-
-                                  NormalizeIntensityd(keys=["image"],
-                                                      nonzero=True,
-                                                      channel_wise=True),
-
 
                                   EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
                                   ])
@@ -523,6 +515,7 @@ def shift_intensity(images):
     factor = np.random.uniform(low=0.6, high=1.0)
     images_shifted = StdShiftIntensity(factor=factor)(images)
     return images_shifted
+
 
 def create_nifti_header(metadata_dict):
 
