@@ -444,6 +444,23 @@ def train(args):
                 for sample_val_idx, val_data in enumerate(val_data_list):
                     if args.dataset == 'umc':
                         images, mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
+
+                        # Rescale image intensities to [0, 1] based on global statistics
+                        if args.multichannel is True:
+                            images = min_max_rescale_umc(images=images,
+                                                         max_value=umc_dataset_stats['max_multichannel'],
+                                                         min_value=umc_dataset_stats['min_multichannel'])
+                        else:
+                            images = min_max_rescale_umc(images=images,
+                                                         max_value=umc_dataset_stats['mean_max'],
+                                                         min_value=umc_dataset_stats['mean_min'])
+
+                        # Choose which mask we want to use for soft masking
+                        if args.mask_mode == 'liver':
+                            mask = liver_mask
+                        elif args.mask_mode == 'vessel':
+                            mask = vessel_mask
+
                     elif args.dataset == 'dirlab':
                         images, mask = (val_data['image'], val_data['lung_mask'])
 
@@ -485,7 +502,7 @@ def train(args):
                                                grid=batch_deformation_grid,
                                                align_corners=True,
                                                mode="bilinear",
-                                               padding_mode="border")
+                                               padding_mode="zeros")
 
 
                     # Transform liver mask
@@ -493,7 +510,7 @@ def train(args):
                                              grid=batch_deformation_grid,
                                              align_corners=True,
                                              mode="nearest",
-                                             padding_mode="border")
+                                             padding_mode="zeros")
 
                     assert(images.shape == images_hat.shape)
 
@@ -565,8 +582,15 @@ def train(args):
                                             desc_loss_comp_wt=desc_loss_comp_wt.to(device))
 
                     for batch_id in range(images.shape[0]):
-                        im1 = images[batch_id, ...].squeeze(dim=0)
-                        im2 = images_hat[batch_id, ...].squeeze(dim=0)
+
+                        # Squash fake channel axis/select a channel to create 3-D image before viz
+                        if images.shape[1] == 1:
+                            im1 = images[batch_id, ...].squeeze(dim=0)
+                            im2 = images_hat[batch_id, ...].squeeze(dim=0)
+                        elif images.shape[1] == 6:
+                            im1 = images[batch_id, 3, ...]
+                            im2 = images[batch_id, 3, ...]
+
                         patient_id = val_data['patient_id'][batch_id]
                         if args.dataset == 'umc':
                             scan_id = val_data['scan_id'][batch_id]

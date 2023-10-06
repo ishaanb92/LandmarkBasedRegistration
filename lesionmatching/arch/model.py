@@ -94,8 +94,14 @@ class LesionMatchingModel(nn.Module):
     # THESE FUNCTIONS ARE USED ONLY DURING INFERENCE!!!!
     def get_unet_outputs(self, x):
 
-        x1 = x[:, 0, ...].unsqueeze(dim=1)
-        x2 = x[:, 1, ...].unsqueeze(dim=1)
+        if x.shape[1] == 2:
+            x1 = x[:, 0, ...].unsqueeze(dim=1)
+            x2 = x[:, 1, ...].unsqueeze(dim=1)
+        elif x.shape[1] == 12: # Concatenate 2 x 6 channels
+            x1 = x[:, 0:6, ...]
+            x2 = x[:, 6:, ...]
+        else:
+            raise RuntimeError('Concatenated input with {} channels not supported'.format(x.shape[1]))
 
         # 1. Landmark (candidate) detections (logits)
         kpts_logits_1, features_1 = self.cnn(x1)

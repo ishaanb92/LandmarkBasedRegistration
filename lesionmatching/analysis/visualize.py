@@ -116,8 +116,8 @@ def visualize_keypoints_3d(im1, im2, landmarks1, landmarks2, pred_matches, gt_ma
         gt_matches = maybe_convert_tensor_to_numpy(gt_matches)
 
     # Rescale images to 0, 1 range for display
-    im1 = min_max_scaling(im1)
-    im2 = min_max_scaling(im2)
+#    im1 = min_max_scaling(im1)
+#    im2 = min_max_scaling(im2)
 
     assert(im1.ndim == 3)
     assert(im2.ndim == 3)
