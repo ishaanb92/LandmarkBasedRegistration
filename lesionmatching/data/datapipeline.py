@@ -59,11 +59,11 @@ def create_data_dicts_lesion_matching(patient_dir_list=None,
             data_dict = {}
 
             if multichannel is False:
-                data_dict['image'] = os.path.join(s_dir, 'DCE_mean.nii')
+                data_dict['image'] = os.path.join(s_dir, 'DCE_mean_zscore.nii')
             else:
                 data_dict['image'] = []
                 for chidx in range(6):
-                    data_dict['image'].append(os.path.join(s_dir, 'DCE_channel_{}.nii'.format(chidx)))
+                    data_dict['image'].append(os.path.join(s_dir, 'DCE_channel_{}_zscore.nii'.format(chidx)))
 
             data_dict['liver_mask'] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['vessel_mask'] = os.path.join(s_dir, 'vessel_mask.nii')
@@ -80,7 +80,7 @@ def create_data_dicts_lesion_matching(patient_dir_list=None,
 
 # Data dicts for "real" paired data
 def create_data_dicts_lesion_matching_inference(patient_dir_list=None,
-                                                input_mode='vessel'):
+                                                multichannel=False):
 
     data_dicts = []
 
@@ -110,17 +110,20 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None,
                 suffix = 'followup'
             else:
                 raise ValueError('Scan dir idx {} is not 0 or 1. Check'.format(idx))
-            if input_mode == 'vessel':
-                data_dict['image_{}'.format(suffix)] = os.path.join(s_dir,
-                                                                    'DCE_vessel_image.nii')
+            if multichannel is True:
+                data_dict['image'] = []
+                for chidx in range(6):
+                    data_dict['image_{}'.format(suffix)].append(os.path.join(s_dir,
+                                                                'DCE_channel_{}_zscore.nii'.format(chidx)))
             elif input_mode == 'mean':
                 data_dict['image_{}'.format(suffix)] = os.path.join(s_dir,
-                                                                    'DCE_mean.nii')
+                                                                    'DCE_mean_zscore.nii')
             else:
                 raise RuntimeError('{} is an invalid data mode'.format(input_mode))
 
             data_dict['liver_mask_{}'.format(suffix)] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['vessel_mask_{}'.format(suffix)] = os.path.join(s_dir, 'vessel_mask.nii')
+
             if os.path.exists(os.path.join(s_dir, 'vessel_mask.nii')) is False:
                 print('Vessel mask does not exist for Patient {}, scan-ID : {}'.format(p_id, s_dir))
                 data_dict['vessel_mask_{}'.format(suffix)] = os.path.join(s_dir, 'LiverMask.nii')
@@ -131,6 +134,7 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None,
             itk_metadata_dict = {'spacing':liver_mask.GetSpacing(),
                                  'origin': liver_mask.GetOrigin(),
                                  'direction':liver_mask.GetDirection()}
+
             data_dict['itk_metadata_dict_{}'.format(suffix)] = itk_metadata_dict
 
         data_dicts.append(data_dict)
@@ -247,73 +251,28 @@ def create_dataloader_lesion_matching(data_dicts=None,
                                       train=True,
                                       batch_size=4,
                                       num_workers=4,
-                                      data_aug=True,
                                       patch_size=(128, 128, 64),
                                       seed=1234,
                                       num_samples=1):
 
     if train is True:
-        if data_aug is True:
-            transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
+        transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
 
-                                  # Add fake channel to the liver_mask
-                                  EnsureChannelFirstd(keys=["image", "liver_mask", "vessel_mask"]),
+                              # Add fake channel to the liver_mask
+                              EnsureChannelFirstd(keys=["image", "liver_mask", "vessel_mask"]),
 
-                                  Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
+                              Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
 
-                                  # Isotropic spacing
-                                  Spacingd(keys=["image", "liver_mask", "vessel_mask"],
-                                           pixdim=(1.543, 1.543, 1.543),
-                                           mode=("bilinear", "nearest", "nearest")),
+                              # Extract 128x128x64 3-D patches
+                              RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
+                                                     label_key="liver_mask",
+                                                     spatial_size=patch_size,
+                                                     pos=1.0,
+                                                     neg=0.0,
+                                                     num_samples=num_samples),
 
-                                  # Extract 128x128x64 3-D patches
-                                  RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
-                                                         label_key="liver_mask",
-                                                         spatial_size=patch_size,
-                                                         pos=1.0,
-                                                         neg=0.0,
-                                                         num_samples=num_samples),
-
-                                  RandRotated(keys=["image", "liver_mask", "vessel_mask"],
-                                              range_x=(np.pi/180)*30,
-                                              range_y=(np.pi/180)*15,
-                                              range_z=(np.pi/180)*15,
-                                              mode=["bilinear", "nearest", "nearest"],
-                                              prob=0.5),
-
-                                  RandAxisFlipd(keys=["image", "liver_mask", "vessel_mask"],
-                                               prob=0.7),
-
-                                  RandZoomd(keys=["image", "liver_mask", "vessel_mask"],
-                                            p=0.3),
-
-
-                                  EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
-                                  ])
-        else:
-
-            transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
-
-                                  # Add fake channel to the liver_mask
-                                  EnsureChannelFirstd(keys=["image", "liver_mask", "vessel_mask"]),
-
-                                  Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
-
-                                  # Isotropic spacing
-                                  Spacingd(keys=["image", "liver_mask", "vessel_mask"],
-                                           pixdim=(1.543, 1.543, 1.543),
-                                           mode=("bilinear", "nearest", "nearest")),
-
-                                  # Extract 128x128x64 3-D patches
-                                  RandCropByPosNegLabeld(keys=["image", "liver_mask", "vessel_mask"],
-                                                         label_key="liver_mask",
-                                                         spatial_size=patch_size,
-                                                         pos=1.0,
-                                                         neg=0.0,
-                                                         num_samples=num_samples),
-
-                                  EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
-                                  ])
+                              EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
+                              ])
 
     else:
         transforms = Compose([LoadImaged(keys=["image", "liver_mask", "vessel_mask"]),
@@ -322,14 +281,6 @@ def create_dataloader_lesion_matching(data_dicts=None,
                               EnsureChannelFirstd(keys=["image", "liver_mask", "vessel_mask"]),
 
                               Orientationd(keys=["image", "liver_mask", "vessel_mask"], axcodes="RAS"),
-
-                              Spacingd(keys=["image", "liver_mask", "vessel_mask"],
-                                       pixdim=(1.543, 1.543, 1.543),
-                                       mode=("bilinear", "nearest", "nearest")),
-
-                              NormalizeIntensityd(keys=["image"],
-                                                  nonzero=True,
-                                                  channel_wise=True),
 
                               EnsureTyped(keys=["image", "liver_mask", "vessel_mask"])
                               ])
@@ -363,11 +314,6 @@ def create_dataloader_lesion_matching_inference(data_dicts=None, batch_size=4, n
 
                           Orientationd(keys=["image_baseline", "liver_mask_baseline", "vessel_mask_baseline",
                                              "image_followup",  "liver_mask_followup", "vessel_mask_followup"], axcodes="RAS"),
-
-                          NormalizeIntensityd(keys=["image_baseline", "image_followup"],
-                                              nonzero=True,
-                                              channel_wise=True),
-
 
                           EnsureTyped(keys=["image_baseline", "liver_mask_baseline", "vessel_mask_baseline",
                                             "image_followup", "liver_mask_followup", "vessel_mask_followup"])

@@ -62,7 +62,6 @@ if __name__ == '__main__':
         coarse_grid_resolution = (4, 4, 4)
         coarse_displacements = (1.2, 12.4, 8.4)
 
-
     elif args.dataset == 'dirlab':
         train_patients = joblib.load('train_patients_dirlab.pkl')
 
@@ -109,7 +108,6 @@ if __name__ == '__main__':
         fine_grid_resolution = (3, 3, 3)
 
 
-
     print('Length of dataloader = {}'.format(len(data_loader)))
 
     if args.dataset == 'dirlab':
@@ -151,14 +149,6 @@ if __name__ == '__main__':
                                                                           fine_grid_resolution=None,
                                                                           translation_max=translation_max,
                                                                           rotation_max=rotation_max)
-                if args.multichannel is True:
-                    images = min_max_rescale_umc(images=images,
-                                                 max_value=umc_dataset_stats['max_multichannel'],
-                                                 min_value=umc_dataset_stats['min_multichannel'])
-                else:
-                    images = min_max_rescale_umc(images=images,
-                                                 max_value=umc_dataset_stats['mean_max'],
-                                                 min_value=umc_dataset_stats['mean_min'])
 
             elif args.dataset == 'dirlab' or args.dataset == 'copd':
                 batch_deformation_grid, jac_det = create_batch_deformation_grid_from_pdf(shape=images.shape,
@@ -177,13 +167,6 @@ if __name__ == '__main__':
                                                 padding_mode="zeros")
 
 
-            if args.dataset == 'umc':
-                images = gamma_transformation(images,
-                                              gamma=[0.5, 1.5])
-
-                deformed_images = gamma_transformation(deformed_images,
-                                                       gamma=[0.5, 1.5])
-
             for batch_idx in range(images.shape[0]):
                 # Sanity checks
                 if torch.max(images[batch_idx, ...]) == torch.min(images[batch_idx, ...]):
@@ -198,8 +181,8 @@ if __name__ == '__main__':
                     dimage = deformed_images[batch_idx, ...]
                     image_array = torch.squeeze(image, dim=0).numpy() # Get rid of channel axis
                     dimage_array = torch.squeeze(dimage, dim=0).numpy()
-                    image_fname = os.path.join(save_dir, 'image_{}.nii'.format(batch_idx))
-                    dimage_fname = os.path.join(save_dir, 'deformed_image_{}.nii'.format(batch_idx))
+                    image_fname = os.path.join(save_dir, 'image_{}.nii'.format(b_id*images.shape[0]+batch_idx))
+                    dimage_fname = os.path.join(save_dir, 'deformed_image_{}.nii'.format(b_id*images.shape[0]+batch_idx))
 
                     image_nib = create_nibabel_image(image_array=image_array,
                                                      metadata_dict=image.meta,

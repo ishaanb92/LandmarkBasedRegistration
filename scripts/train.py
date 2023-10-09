@@ -107,8 +107,6 @@ def train(args):
         else:
             n_channels = 1
 
-        umc_dataset_stats = joblib.load('umc_dataset_stats.pkl')
-
         train_dicts = create_data_dicts_lesion_matching(train_patients,
                                                         multichannel=args.multichannel)
 
@@ -117,7 +115,6 @@ def train(args):
         # Patch-based training
         train_loader, _ = create_dataloader_lesion_matching(data_dicts=train_dicts,
                                                             train=True,
-                                                            data_aug=args.data_aug,
                                                             batch_size=args.batch_size,
                                                             num_workers=4,
                                                             patch_size=TRAINING_PATCH_SIZE,
@@ -126,7 +123,6 @@ def train(args):
 
         val_loader, _ = create_dataloader_lesion_matching(data_dicts=val_dicts,
                                                           train=True,
-                                                          data_aug=False,
                                                           batch_size=args.batch_size,
                                                           num_workers=4,
                                                           patch_size=TRAINING_PATCH_SIZE,
@@ -243,16 +239,6 @@ def train(args):
                 if args.dataset == 'umc':
                     images, liver_mask, vessel_mask = (batch_data['image'], batch_data['liver_mask'], batch_data['vessel_mask'])
 
-                    # Rescale image intensities to [0, 1] based on global statistics
-                    if args.multichannel is True:
-                        images = min_max_rescale_umc(images=images,
-                                                     max_value=umc_dataset_stats['max_multichannel'],
-                                                     min_value=umc_dataset_stats['min_multichannel'])
-                    else:
-                        images = min_max_rescale_umc(images=images,
-                                                     max_value=umc_dataset_stats['mean_max'],
-                                                     min_value=umc_dataset_stats['mean_min'])
-
                     # Choose which mask we want to use for soft masking
                     if args.mask_mode == 'liver':
                         mask = liver_mask
@@ -325,16 +311,7 @@ def train(args):
                 else: # Folding has occured
                     continue
 
-
-                if args.dataset == 'umc':
-                    # Apply gamma transform to both images indepently
-                    images = gamma_transformation(images,
-                                                  gamma=[0.5, 1.5])
-
-                    images_hat = gamma_transformation(images_hat,
-                                                      gamma=[0.5, 1.5])
-
-                elif args.dataset == 'copd':
+                if args.dataset == 'copd':
                     if args.dry_sponge is True:
                         # See : H. Sokooti et al., 3D Convolutional Neural Networks Image Registration
                         # Based on Efficient Supervised Learning from Artificial Deformations
@@ -444,16 +421,6 @@ def train(args):
                 for sample_val_idx, val_data in enumerate(val_data_list):
                     if args.dataset == 'umc':
                         images, mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
-
-                        # Rescale image intensities to [0, 1] based on global statistics
-                        if args.multichannel is True:
-                            images = min_max_rescale_umc(images=images,
-                                                         max_value=umc_dataset_stats['max_multichannel'],
-                                                         min_value=umc_dataset_stats['min_multichannel'])
-                        else:
-                            images = min_max_rescale_umc(images=images,
-                                                         max_value=umc_dataset_stats['mean_max'],
-                                                         min_value=umc_dataset_stats['mean_min'])
 
                         # Choose which mask we want to use for soft masking
                         if args.mask_mode == 'liver':
