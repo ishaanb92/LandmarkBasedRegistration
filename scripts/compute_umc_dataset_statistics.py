@@ -28,6 +28,7 @@ if __name__ == '__main__':
                                      dtype=np.float32)
 
 
+    z_min = 100000
 
     for pidx, p_dir in enumerate(train_patients):
         p_id = p_dir.split(os.sep)[-1]
@@ -38,6 +39,11 @@ if __name__ == '__main__':
                                                          'LiverMask_dilated.nii'))
 
             liver_mask_np = sitk.GetArrayFromImage(liver_mask_itk)
+
+            z, _, _ = liver_mask_np.shape
+
+            if z < z_min:
+                z_min = z
 
             # Mean image
             mean_dce_itk = sitk.ReadImage(os.path.join(s_dir,
@@ -66,6 +72,8 @@ if __name__ == '__main__':
     min_mean_image = np.amin(min_mean_image_arr)
     max_multichannel = np.amax(max_multichannel_arr, axis=0) # (6, )
     min_multichannel = np.amin(min_multichannel_arr, axis=0) # (6, )
+
+    print('Smallest size along slice axis : {}'.format(z_min))
 
     dataset_stats = {'mean_max':max_mean_image,
                      'mean_min':min_mean_image,
