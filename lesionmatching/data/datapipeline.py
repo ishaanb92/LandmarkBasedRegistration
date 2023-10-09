@@ -65,12 +65,12 @@ def create_data_dicts_lesion_matching(patient_dir_list=None,
                 for chidx in range(6):
                     data_dict['image'].append(os.path.join(s_dir, 'DCE_channel_{}_zscore.nii'.format(chidx)))
 
-            data_dict['liver_mask'] = os.path.join(s_dir, 'LiverMask.nii')
-            data_dict['vessel_mask'] = os.path.join(s_dir, 'vessel_mask.nii')
+            data_dict['liver_mask'] = os.path.join(s_dir, 'Liver_mask_padded.nii')
+            data_dict['vessel_mask'] = os.path.join(s_dir, 'vessel_mask_padded.nii')
 
             if os.path.exists(os.path.join(s_dir, 'vessel_mask.nii')) is False:
                 print('Vessel mask does not exist for Patient {}, scan-ID : {}'.format(p_id, s_dir))
-                data_dict['vessel_mask'] = os.path.join(s_dir, 'LiverMask.nii')
+                data_dict['vessel_mask'] = os.path.join(s_dir, 'Liver_mask_padded.nii')
 
             data_dict['patient_id'] = p_id
             data_dict['scan_id'] = s_id
@@ -110,16 +110,15 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None,
                 suffix = 'followup'
             else:
                 raise ValueError('Scan dir idx {} is not 0 or 1. Check'.format(idx))
+
             if multichannel is True:
                 data_dict['image'] = []
                 for chidx in range(6):
                     data_dict['image_{}'.format(suffix)].append(os.path.join(s_dir,
                                                                 'DCE_channel_{}_zscore.nii'.format(chidx)))
-            elif input_mode == 'mean':
+            else:
                 data_dict['image_{}'.format(suffix)] = os.path.join(s_dir,
                                                                     'DCE_mean_zscore.nii')
-            else:
-                raise RuntimeError('{} is an invalid data mode'.format(input_mode))
 
             data_dict['liver_mask_{}'.format(suffix)] = os.path.join(s_dir, 'LiverMask.nii')
             data_dict['vessel_mask_{}'.format(suffix)] = os.path.join(s_dir, 'vessel_mask.nii')

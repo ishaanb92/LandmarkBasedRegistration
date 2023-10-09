@@ -12,6 +12,7 @@ import shutil
 import glob
 import warnings
 import torch
+import itertools
 
 def calculate_mse(img1, img2):
     """
@@ -626,3 +627,65 @@ def gamma_transformation(image, gamma):
         image = np.power(image, gamma)
 
     return image
+
+
+def compute_patch_starts(axis_patch_size=128,
+                         axis_shape=256,
+                         overlap=0.0):
+
+    starts = []
+    init = int(0)
+    starts.append(init)
+    start = init
+    while True:
+        start = start + (1-overlap)*axis_patch_size
+        if start >= axis_shape:
+            break
+        starts.append(int(start))
+
+    return starts
+
+def compute_patch_ends(shape,
+                       patch_origins,
+                       patch_size=(128, 128, 96)):
+    patch_ends = []
+    for origin in patch_origins:
+        end = []
+        for idx, axis_origin in enumerate(origin):
+            end.append(int(min(shape[idx], axis_origin+patch_size[idx])))
+        patch_ends.append(end)
+
+    return patch_ends
+
+
+def construct_patch_slices(shape=(256, 256, 100),
+                           patch_size=(128, 128, 96),
+                           overlap=0.0):
+
+    # Step 1 : Construct tuples of patch starts
+
+    # X-axis
+    x_starts = compute_patch_starts(axis_patch_size=patch_size[0],
+                                         axis_shape=shape[0],
+                                         overlap=overlap)
+    # Y-axis
+    y_starts = compute_patch_starts(axis_patch_size=patch_size[1],
+                                         axis_shape=shape[1],
+                                         overlap=overlap)
+
+    # Z-axis
+    z_starts = compute_patch_starts(axis_patch_size=patch_size[2],
+                                    axis_shape=shape[2],
+                                    overlap=overlap)
+
+    # Cartesian product of X, Y, Z start points to get 3-D coordinates of patch origins
+    patch_origins = list(itertools.product(x_starts, y_starts, z_starts))
+
+    patch_ends = compute_patch_ends(patch_origins=patch_origins,
+                                    shape=shape,
+                                    patch_size=patch_size)
+
+    patch_dict = {'origins':patch_origins,
+                  'ends':patch_ends}
+
+    return patch_dict
