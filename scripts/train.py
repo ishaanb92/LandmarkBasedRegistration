@@ -420,7 +420,7 @@ def train(args):
                     val_data_list = [val_data_list]
                 for sample_val_idx, val_data in enumerate(val_data_list):
                     if args.dataset == 'umc':
-                        images, mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
+                        images, liver_mask, vessel_mask = (val_data['image'], val_data['liver_mask'], val_data['vessel_mask'])
 
                         # Choose which mask we want to use for soft masking
                         if args.mask_mode == 'liver':

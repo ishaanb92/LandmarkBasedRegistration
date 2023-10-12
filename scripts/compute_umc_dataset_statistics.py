@@ -40,6 +40,9 @@ if __name__ == '__main__':
 
             liver_mask_np = sitk.GetArrayFromImage(liver_mask_itk)
 
+            assert(np.amax(liver_mask_np) == 1)
+            assert(np.amin(liver_mask_np) == 0)
+
             z, _, _ = liver_mask_np.shape
 
             if z < z_min:

@@ -120,7 +120,7 @@ def test(args):
                                                            num_workers=NUM_WORKERS,
                                                            rescaling_stats=rescaling_stats,
                                                            patch_size=(128, 128, 96),
-                                                           overlap=0.0)
+                                                           overlap=args.overlap)
 
 
     # Define the model
@@ -491,7 +491,7 @@ def test(args):
 
                     # Create patches
                     patch_dict = construct_patch_slices(shape=(i, j, k),
-                                                        overlap=0.0,
+                                                        overlap=args.overlap,
                                                         patch_size=(128, 128, 96))
 
                     n_patches = len(patch_dict['origins'])
@@ -622,6 +622,7 @@ def test(args):
                                                                                                   fixed_landmarks_np.shape[0]))
 
                     # Save the landmarks in an elastix compliant fashion (in world coordinates)
+                    patient_id = batch_data['patient_id'][0]
                     dump_dir = os.path.join(save_dir, patient_id)
                     os.makedirs(dump_dir)
                     save_landmark_predictions_in_elastix_format(landmarks_fixed=fixed_landmarks_np,
@@ -802,6 +803,7 @@ if __name__ == '__main__':
     parser.add_argument('--dummy', action='store_true')
     parser.add_argument('--window_size', type=int, default=8)
     parser.add_argument('--conf_threshold', type=float, default=0.5)
+    parser.add_argument('--overlap', type=float, default=0.0)
     parser.add_argument('--desc_length', type=int, default=-1)
     parser.add_argument('--multichannel', action='store_true')
 
