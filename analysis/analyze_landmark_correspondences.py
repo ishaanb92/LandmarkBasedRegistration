@@ -26,7 +26,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--landmarks_dir', type=str)
     parser.add_argument('--dataset', type=str, default='copd')
-    parser.add_argument('--points_dir', type=str, default='/home/ishaan/COPDGene/points')
+    parser.add_argument('--points_dir', type=str, default=None)
     parser.add_argument('--affine_reg_dir', type=str, help='Affine registration directory contains GT moving image landmarks')
     parser.add_argument('--out_dir', type=str, default=None)
     parser.add_argument('--smoothing', type=float, default=0)
@@ -46,7 +46,10 @@ if __name__ == '__main__':
         else:
             affine_pdir = None
 
-        points_pdir = os.path.join(args.points_dir, pid)
+        if args.points_dir is not None:
+            points_pdir = os.path.join(args.points_dir, pid)
+        else:
+            points_pdir = None
 
         # 1. Read fixed and (affine-transformed) moving images
 
@@ -112,43 +115,50 @@ if __name__ == '__main__':
                                                         np.expand_dims(np.array(fixed_image_itk.GetSize()),
                                                                        axis=0))
 
-        tps_func = joblib.load(os.path.join(points_pdir,
-                                            'tps_gt.pkl'))
+        if args.show_gt_projection is True:
+            tps_func = joblib.load(os.path.join(points_pdir,
+                                                'tps_gt.pkl'))
 
-        gt_projection_landmarks_scaled = tps_func(fixed_image_landmarks_voxels_scaled)
+            gt_projection_landmarks_scaled = tps_func(fixed_image_landmarks_voxels_scaled)
 
-        gt_projection_landmarks = np.multiply(gt_projection_landmarks_scaled,
-                                              np.expand_dims(np.array(moving_image_itk.GetSize()),
-                                                             axis=0))
+            gt_projection_landmarks = np.multiply(gt_projection_landmarks_scaled,
+                                                  np.expand_dims(np.array(moving_image_itk.GetSize()),
+                                                                 axis=0))
 
-        gt_projection_landmarks_world = map_voxel_index_to_world_coord(gt_projection_landmarks,
-                                                                       spacing=moving_image_itk.GetSpacing(),
-                                                                       origin=moving_image_itk.GetOrigin())
+            gt_projection_landmarks_world = map_voxel_index_to_world_coord(gt_projection_landmarks,
+                                                                           spacing=moving_image_itk.GetSpacing(),
+                                                                           origin=moving_image_itk.GetOrigin())
+        else:
+            gt_projection_landmarks_world = None
+            gt_projection_landmarks = None
 
 
         # 3-a. Read and fixed and (affine-transformed) moving GT landmarks .txt files
-        if args.dataset == 'copd':
-            gt_fixed_image_landmarks_world = parse_points_file(os.path.join(points_pdir,
-                                                                            '{}_300_iBH_world_r1_elx.txt'.format(pid)))
-        elif args.dataset == 'dirlab':
-            raise NotImplementedError
+        if args.show_gt_matches is True:
+            if args.dataset == 'copd':
+                gt_fixed_image_landmarks_world = parse_points_file(os.path.join(points_pdir,
+                                                                                '{}_300_iBH_world_r1_elx.txt'.format(pid)))
+            elif args.dataset == 'dirlab':
+                raise NotImplementedError
 
-        if affine_pdir is not None:
-            gt_moving_image_landmarks_world = parse_points_file(os.path.join(affine_pdir,
-                                                                             'transformed_moving_landmarks_elx.txt'))
+            if affine_pdir is not None:
+                gt_moving_image_landmarks_world = parse_points_file(os.path.join(affine_pdir,
+                                                                                 'transformed_moving_landmarks_elx.txt'))
+            else:
+                gt_moving_image_landmarks_world = parse_points_file(os.path.join(points_pdir,
+                                                                                 '{}_300_eBH_world_r1_elx.txt'.format(pid)))
+
+            # 3-b. Convert world coordinates to voxels
+            gt_fixed_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=gt_fixed_image_landmarks_world,
+                                                                             spacing=fixed_image_itk.GetSpacing(),
+                                                                             origin=fixed_image_itk.GetOrigin())
+
+            gt_moving_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=gt_moving_image_landmarks_world,
+                                                                              spacing=moving_image_itk.GetSpacing(),
+                                                                              origin=moving_image_itk.GetOrigin())
         else:
-            gt_moving_image_landmarks_world = parse_points_file(os.path.join(points_pdir,
-                                                                             '{}_300_eBH_world_r1_elx.txt'.format(pid)))
-
-
-        # 3-b. Convert world coordinates to voxels
-        gt_fixed_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=gt_fixed_image_landmarks_world,
-                                                                         spacing=fixed_image_itk.GetSpacing(),
-                                                                         origin=fixed_image_itk.GetOrigin())
-
-        gt_moving_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=gt_moving_image_landmarks_world,
-                                                                          spacing=moving_image_itk.GetSpacing(),
-                                                                          origin=moving_image_itk.GetOrigin())
+            gt_fixed_image_landmarks_voxels = None
+            gt_moving_image_landmarks_voxels = None
 
         if args.out_dir is not None:
             out_dir = os.path.join(args.out_dir, pid)
@@ -169,23 +179,23 @@ if __name__ == '__main__':
                                                smoothed_landmarks_moving=moving_image_landmarks_smoothed_voxels,
                                                gt_projection_landmarks_moving=gt_projection_landmarks,
                                                out_dir=out_dir,
-                                               verbose=False,
-                                               show_gt_matches=args.show_gt_matches,
-                                               show_gt_projection=args.show_gt_projection)
+                                               verbose=False)
+
         # 5. Save errors
         # 5-1 Localization Error: d(X_m, T(X_f))
-        euclidean_error_pred_gt = compute_euclidean_distance_between_points(moving_image_landmarks_world,
-                                                                            gt_projection_landmarks_world)
-        np.save(file=os.path.join(pdir,
-                                  'euclidean_error_pred_gt_proj.npy'),
-                arr=euclidean_error_pred_gt)
+        if gt_projection_landmarks_world is not None:
+            euclidean_error_pred_gt = compute_euclidean_distance_between_points(moving_image_landmarks_world,
+                                                                                gt_projection_landmarks_world)
+            np.save(file=os.path.join(pdir,
+                                      'euclidean_error_pred_gt_proj.npy'),
+                    arr=euclidean_error_pred_gt)
 
-        dim_wise_erros_pred_gt = np.abs(np.subtract(moving_image_landmarks_world,
-                                                    gt_projection_landmarks_world))
+            dim_wise_erros_pred_gt = np.abs(np.subtract(moving_image_landmarks_world,
+                                                        gt_projection_landmarks_world))
 
-        np.save(file=os.path.join(pdir,
-                                  'dimwise_error_pred_gt_proj.npy'),
-                arr=dim_wise_erros_pred_gt)
+            np.save(file=os.path.join(pdir,
+                                      'dimwise_error_pred_gt_proj.npy'),
+                    arr=dim_wise_erros_pred_gt)
 
         # 5-2 Error(smoothed, GT projection)
         if moving_image_landmarks_smoothed_world is not None:

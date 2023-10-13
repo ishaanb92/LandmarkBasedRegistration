@@ -291,10 +291,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                                            smoothed_landmarks_moving=None,
                                            gt_projection_landmarks_moving=None,
                                            out_dir=None,
-                                           verbose=False,
-                                           show_gt_matches=True,
-                                           show_gt_projection=True):
-
+                                           verbose=False):
     """
     To gain better insight into TRE trends, visualize the overlay of manual and predicted landmarks pairs
 
@@ -321,13 +318,21 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
     fixed_image = np.transpose(fixed_image, (1, 0, 2))
     moving_image = np.transpose(moving_image, (1, 0, 2))
 
+    if np.min(fixed_image) < 0 and np.min(moving_image) < 0:
+        fixed_image = ((fixed_image - np.min(fixed_image))/(np.max(fixed_image) - np.min(fixed_image)))
+        moving_image = ((moving_image - np.min(moving_image))/(np.max(moving_image) - np.min(moving_image)))
+
     # Predicted landmarks
     pred_landmarks_fixed = maybe_convert_tensor_to_numpy(pred_landmarks_fixed)
     pred_landmarks_moving = maybe_convert_tensor_to_numpy(pred_landmarks_moving)
 
     # Manual landmarks
-    manual_landmarks_fixed = maybe_convert_tensor_to_numpy(manual_landmarks_fixed)
-    manual_landmarks_moving = maybe_convert_tensor_to_numpy(manual_landmarks_moving)
+    if manual_landmarks_fixed is not None and manual_landmarks_moving is not None:
+        manual_landmarks_fixed = maybe_convert_tensor_to_numpy(manual_landmarks_fixed)
+        manual_landmarks_moving = maybe_convert_tensor_to_numpy(manual_landmarks_moving)
+    else:
+        manual_landmarks_fixed = None
+        manual_landmarks_moving = None
 
     # Smoothed predicted moving landmarks
     if smoothed_landmarks_moving is not None:
@@ -400,26 +405,33 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
             patch_gt_projection_landmarks_moving = None
 
         # Manual landmarks
-        manual_landmarks_fixed_rows = np.where(manual_landmarks_fixed[:, 2] == slice_idx)[0]
-        n_manual_landmarks = manual_landmarks_fixed_rows.shape[0]
+        if manual_landmarks_fixed is not None and manual_landmarks_moving is not None:
+            manual_landmarks_fixed_rows = np.where(manual_landmarks_fixed[:, 2] == slice_idx)[0]
+            n_manual_landmarks = manual_landmarks_fixed_rows.shape[0]
 
-        if n_manual_landmarks != 0:
-            # Fixed image landmarks on current slice
-            slice_manual_landmarks_fixed = manual_landmarks_fixed[manual_landmarks_fixed_rows, :]
-            # Use the same rows because matching landmarks are in corr. rows by definition!!
-            patch_manual_landmarks_moving = manual_landmarks_moving[manual_landmarks_fixed_rows, :]
-            manual_moving_slices = patch_manual_landmarks_moving[:, 2]
-            manual_max_slice = np.amax(manual_moving_slices)
-            manual_min_slice = np.amin(manual_moving_slices)
+            if n_manual_landmarks != 0:
+                # Fixed image landmarks on current slice
+                slice_manual_landmarks_fixed = manual_landmarks_fixed[manual_landmarks_fixed_rows, :]
+                # Use the same rows because matching landmarks are in corr. rows by definition!!
+                patch_manual_landmarks_moving = manual_landmarks_moving[manual_landmarks_fixed_rows, :]
+                manual_moving_slices = patch_manual_landmarks_moving[:, 2]
+                manual_max_slice = np.amax(manual_moving_slices)
+                manual_min_slice = np.amin(manual_moving_slices)
+            else:
+                manual_max_slice = 10000
+                manual_min_slice = -1
+                slice_manual_landmarks_fixed = None
+                patch_manual_landmarks_moving = None
+
+            if n_manual_landmarks == 0 and n_pred_landmarks == 0:
+                continue
         else:
             manual_max_slice = -1
             manual_min_slice = 10000
-            slice_manual_landmarks_fixed = None
-            patch_manual_landmarks_moving = None
+            n_manual_landmarks = 0
 
         if n_manual_landmarks == 0 and n_pred_landmarks == 0:
             continue
-
 
         min_slice = round_float_coords(min(pred_min_slice, manual_min_slice))
         max_slice = round_float_coords(max(pred_max_slice, manual_max_slice))
@@ -445,8 +457,8 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
             continue
 
         if verbose is True:
-            print('Fixed slice idx: {}, Max slice : {}, Min slice: {},\
-                  pred landmarks {}, gt landmarks {}'.format(slice_idx,
+            print('Fixed slice idx: {}, Max slice : {}, Min slice: {},'\
+                  ' pred landmarks {}, gt landmarks {}'.format(slice_idx,
                                                              max_slice,
                                                              min_slice,
                                                              n_pred_landmarks,
@@ -454,7 +466,6 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
 
         moving_image_patch = moving_image[:, :, min_slice:(max_slice+1)]
         i, j, k = moving_image_patch.shape
-
 
         # np.ndarray to "hold" both images (and matches)
         im = np.ones((i*2, j*k),
@@ -488,7 +499,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
                 cv2.line(im, (fixed_image_offset*j + fx, fy), ((mz-min_slice)*j + mx, i + my), (0, 0, 1), 1) # Red
 
         # Draw GT correspondences
-        if show_gt_matches is True:
+        if manual_landmarks_fixed is not None and manual_landmarks_moving is not None:
             if slice_manual_landmarks_fixed is not None:
                 for row_idx in range(slice_manual_landmarks_fixed.shape[0]):
                     fx, fy, fz = slice_manual_landmarks_fixed[row_idx]
@@ -526,8 +537,7 @@ def overlay_predicted_and_manual_landmarks(fixed_image,
 
         # Draw correspondences between predicted landmarks in the fixed image
         # and GT projection
-        if show_gt_projection is True and patch_gt_projection_landmarks_moving is not None:
-            if slice_pred_landmarks_fixed is not None and gt_projection_landmarks_moving is not None:
+        if slice_pred_landmarks_fixed is not None and gt_projection_landmarks_moving is not None:
                 for row_idx in range(slice_pred_landmarks_fixed.shape[0]):
                     fx, fy, fz = slice_pred_landmarks_fixed[row_idx]
                     mx, my, mz = patch_gt_projection_landmarks_moving[row_idx]
