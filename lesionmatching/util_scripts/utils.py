@@ -823,11 +823,11 @@ def save_landmark_predictions_in_elastix_format(landmarks_fixed,
                               world=True,
                               fname=os.path.join(save_dir, 'moving_landmarks_world.txt'))
     else:
-        create_landmarks_file(landmarks_fixed,
+        create_landmarks_file(landmarks_fixed_valid_matches,
                               world=False,
                               fname=os.path.join(save_dir, 'fixed_landmarks_voxels.txt'))
 
-        create_landmarks_file(landmarks_moving,
+        create_landmarks_file(landmarks_moving_valid_matches,
                               world=False,
                               fname=os.path.join(save_dir, 'moving_landmarks_voxels.txt'))
 

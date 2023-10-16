@@ -623,6 +623,10 @@ def test(args):
                                                                  axis=0)
 
 
+                    if fixed_landmarks_np is None:
+                        print('Patient {} :: No landmark correspondences found!'.format(batch_data['patient_id'][0]))
+                        continue
+
                     print('Patient {} :: Number of predicted corresponding landmarks = {}'.format(batch_data['patient_id'][0],
                                                                                                   fixed_landmarks_np.shape[0]))
 
@@ -635,15 +639,16 @@ def test(args):
                                                                 metadata_fixed=fixed_metadata_list[0],
                                                                 metadata_moving=moving_metadata_list[0],
                                                                 matches=None,
-                                                                save_dir=dump_dir)
+                                                                save_dir=dump_dir,
+                                                                world=False)
 
                     save_ras_as_itk(img=images[0, ...].float(),
                                     metadata=moving_metadata_list[0],
-                                    fname=os.path.join(dump_dir, 'moving_image.mha'))
+                                    fname=os.path.join(dump_dir, 'moving_image.nii.gz'))
 
                     save_ras_as_itk(img=images_hat[0, ...].float(),
                                     metadata=fixed_metadata_list[0],
-                                    fname=os.path.join(dump_dir, 'fixed_image.mha'))
+                                    fname=os.path.join(dump_dir, 'fixed_image.nii.gz'))
 
 
                 elif args.dataset == 'dirlab' or args.dataset == 'copd':
@@ -781,7 +786,7 @@ def test(args):
                                                                 metadata_moving=moving_metadata_list[0],
                                                                 matches=None,
                                                                 save_dir=dump_dir,
-                                                                world=False)
+                                                                world=True)
                     save_ras_as_itk(img=images[0, ...].float(),
                                     metadata=moving_metadata_list[0],
                                     fname=os.path.join(dump_dir, 'moving_image.mha'))
