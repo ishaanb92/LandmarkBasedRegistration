@@ -108,6 +108,10 @@ def test(args):
             data_loader, _ = create_dataloader_lesion_matching_inference(data_dicts=data_dicts,
                                                                          batch_size=args.batch_size,
                                                                          num_workers=NUM_WORKERS)
+            if args.multichannel is True:
+                n_channels = 6
+            else:
+                n_channels = 1
         elif args.dataset == 'dirlab' or args.dataset == 'copd':
 
             data_dicts = create_data_dicts_dir_lab_paired(patients,
@@ -121,12 +125,13 @@ def test(args):
                                                            rescaling_stats=rescaling_stats,
                                                            patch_size=(128, 128, 96),
                                                            overlap=args.overlap)
-
+            n_channels = 1
 
     # Define the model
     model = LesionMatchingModel(W=args.window_size,
                                 K=args.kpts_per_batch,
-                                descriptor_length=args.desc_length)
+                                descriptor_length=args.desc_length,
+                                n_channels=n_channels)
 
     # Load the model
     load_dict = load_model(model=model,

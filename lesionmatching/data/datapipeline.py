@@ -112,10 +112,10 @@ def create_data_dicts_lesion_matching_inference(patient_dir_list=None,
                 raise ValueError('Scan dir idx {} is not 0 or 1. Check'.format(idx))
 
             if multichannel is True:
-                data_dict['image'] = []
+                data_dict['image_{}'.format(suffix)] = []
                 for chidx in range(6):
                     data_dict['image_{}'.format(suffix)].append(os.path.join(s_dir,
-                                                                'DCE_channel_{}_zscore.nii'.format(chidx)))
+                                                                             'DCE_channel_{}_zscore.nii'.format(chidx)))
             else:
                 data_dict['image_{}'.format(suffix)] = os.path.join(s_dir,
                                                                     'DCE_mean_zscore.nii')
