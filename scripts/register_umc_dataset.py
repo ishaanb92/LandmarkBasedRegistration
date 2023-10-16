@@ -29,7 +29,8 @@ if __name__ == '__main__':
     parser.add_argument('--data_mode', type=str, default='test')
     parser.add_argument('--landmarks_dir', type=str, default=None)
     parser.add_argument('--use_mask', action='store_true')
-    parser.add_argument('--input_mode', type=str, default='dl')
+    parser.add_argument('--world', action='store_true')
+    parser.add_argument('--multichannel', action='store_true')
 
     args = parser.parse_args()
 
@@ -45,11 +46,9 @@ if __name__ == '__main__':
 
     # DCE-based registration
     image_names = []
-    if args.input_mode == 'mean': # Mean DCE image
+    if args.multichannel is False: # Mean DCE image
         image_names.append('DCE_mean.nii')
-    elif args.input_mode == 'dl': # Image used in the DL-model
-        image_names.append('DCE_vessel_image.nii')
-    elif args.input_mode == 'multichannel':
+    else:
         for chidx in range(N_DCE_CHANNELS):
             image_names.append('DCE_channel_{}.nii'.format(chidx))
 
@@ -107,13 +106,22 @@ if __name__ == '__main__':
             moving_image_mask = None
 
         if args.landmarks_dir is not None:
-            fixed_landmarks = os.path.join(args.landmarks_dir,
-                                           p_id,
-                                           'fixed_landmarks_elx.txt')
+            if args.world is True:
+                fixed_landmarks = os.path.join(args.landmarks_dir,
+                                               p_id,
+                                               'fixed_landmarks_world.txt')
 
-            moving_landmarks = os.path.join(args.landmarks_dir,
-                                            p_id,
-                                            'moving_landmarks_elx.txt')
+                moving_landmarks = os.path.join(args.landmarks_dir,
+                                                p_id,
+                                                'moving_landmarks_world.txt')
+            else:
+                fixed_landmarks = os.path.join(args.landmarks_dir,
+                                               p_id,
+                                               'fixed_landmarks_voxels.txt')
+
+                moving_landmarks = os.path.join(args.landmarks_dir,
+                                                p_id,
+                                                'moving_landmarks_voxels.txt')
         else:
             fixed_landmarks = None
             moving_landmarks = None

@@ -775,7 +775,8 @@ def test(args):
                                                                 metadata_fixed=fixed_metadata_list[0],
                                                                 metadata_moving=moving_metadata_list[0],
                                                                 matches=None,
-                                                                save_dir=dump_dir)
+                                                                save_dir=dump_dir,
+                                                                world=False)
                     save_ras_as_itk(img=images[0, ...].float(),
                                     metadata=moving_metadata_list[0],
                                     fname=os.path.join(dump_dir, 'moving_image.mha'))
