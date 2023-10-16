@@ -132,7 +132,8 @@ if __name__ == '__main__':
                 review_patients.append(pat_id)
                 handle_lesion_separation_error(pat_dir=pat_reg_dir)
                 continue
-        except RuntimeError:
+        except RuntimeError as e:
+            print(e)
             print('Lesion annotations for patient {} need to reviewed'.format(pat_id))
             review_patients.append(pat_id)
             handle_lesion_separation_error(pat_dir=pat_reg_dir)

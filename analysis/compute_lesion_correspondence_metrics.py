@@ -35,7 +35,7 @@ if __name__ == '__main__':
     print('Number of patients = {}'.format(len(pat_dirs)))
 
     review_patients = joblib.load(os.path.join(args.reg_dir, 'patients_to_review.pkl'))
-    print('{} patients need to be reviewed'.format(len(review_patients)))
+    print('{} patients need to be reviewed :: {}'.format(len(review_patients), review_patients))
 
     failed_registrations = joblib.load(os.path.join(args.reg_dir, 'failed_registrations.pkl'))
     print('Registration failed for {} patients :: {}'.format(len(failed_registrations), failed_registrations))

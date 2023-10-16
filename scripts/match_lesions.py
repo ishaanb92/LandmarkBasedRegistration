@@ -86,32 +86,32 @@ if __name__ == '__main__':
         # a list of Lesion objects to create a graph
         # Create a list of lesions in the moving image
 
-        fixed_lesion_slices = get_lesion_slices(dir_list=f_lesion_dirs_ordered,
-                                                fixed=True)
+        fixed_lesions = get_lesion_slices(dir_list=f_lesion_dirs_ordered,
+                                          fixed=True)
 
-        moving_lesion_slices = get_lesion_slices(dir_list=m_lesion_dirs_ordered,
-                                                 fixed=False)
+        moving_lesions = get_lesion_slices(dir_list=m_lesion_dirs_ordered,
+                                           fixed=False)
 
-        if fixed_lesion_slices is None or moving_lesion_slices is None:
+        if fixed_lesions is None or moving_lesions is None:
             # Some problem, add patient ID to the review list
             review_patients.append(pat_id)
-            handle_lesion_separation_error(pat_dir=pat_dir)
+            #handle_lesion_separation_error(pat_dir=pat_dir)
             continue
 
-        fixed_lesions = []
-        for idx, f_lesion_slice in enumerate(fixed_lesion_slices):
-            fixed_lesions.append(Lesion(coordinates=f_lesion_slice,
-                                        idx=idx,
-                                        prefix='Fixed'))
+        fixed_lesion_nodes = []
+        for idx, f_lesion_slice in enumerate(fixed_lesions):
+            fixed_lesion_nodes.append(Lesion(lesion=f_lesion_slice,
+                                             idx=idx,
+                                             prefix='Fixed'))
 
-        moving_lesions = []
-        for idx, m_lesion_slice in enumerate(moving_lesion_slices):
-            moving_lesions.append(Lesion(coordinates=m_lesion_slice,
-                                        idx=idx,
-                                        prefix='Moving'))
+        moving_lesion_nodes = []
+        for idx, m_lesion_slice in enumerate(moving_lesions):
+            moving_lesion_nodes.append(Lesion(lesion=m_lesion_slice,
+                                              idx=idx,
+                                              prefix='Moving'))
 
-        dgraph = create_correspondence_graph_from_list(pred_lesions=moving_lesions,
-                                                       gt_lesions=fixed_lesions,
+        dgraph = create_correspondence_graph_from_list(pred_lesions=moving_lesion_nodes,
+                                                       gt_lesions=fixed_lesion_nodes,
                                                        seg=moving_lesion_mask_resampled,
                                                        gt=fixed_lesion_mask_np,
                                                        min_overlap=0.5,

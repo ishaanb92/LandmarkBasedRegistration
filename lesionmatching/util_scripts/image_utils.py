@@ -1,5 +1,6 @@
 from scipy.ndimage.interpolation import zoom
-from scipy.ndimage import label, find_objects, generate_binary_structure, center_of_mass, binary_opening, binary_closing
+from scipy.ndimage import find_objects, generate_binary_structure, center_of_mass, binary_opening, binary_closing
+from skimage.measure import label
 import numpy as np
 import sys
 import nibabel as nib
@@ -285,23 +286,6 @@ def find_number_of_objects(mask):
     return num_objects, list_of_centers
 
 
-def return_lesion_coordinates(mask):
-    """
-    Function to return volumes where lesion (objects) in mask are present
-    These coordinates define the minimum parallelopied that contains the object
-
-    """
-    assert(isinstance(mask, np.ndarray))
-
-    if mask.ndim != 3:
-        raise RuntimeError('Mask dimensions = {} with shape {}'.format(mask.ndim, mask.shape))
-
-    struct_element = generate_binary_structure(rank=mask.ndim, connectivity=4)
-    labelled_mask, num_objects = label(input=mask, structure=struct_element)
-
-    lesion_slices = find_objects(input=labelled_mask)
-    return lesion_slices, num_objects
-
 
 # Post-Processing Functions
 def post_process_predicted_mask(pred_mask=None):
@@ -382,14 +366,33 @@ def save_ras_as_itk(img=None,
         img = img.numpy()
 
     if img.ndim == 4:
-        img = np.squeeze(img, axis=0)
+        if img.shape[0] == 1: # Fake channel
+            img = np.squeeze(img, axis=0)
+            # Get from RAS -> Std numpy axes ordering (ZYX)
+            img = np.transpose(img, (2, 1, 0))
+            img_itk = sitk.GetImageFromArray(img)
+            img_itk.SetOrigin(metadata['origin'])
+            img_itk.SetSpacing(metadata['spacing'])
+            img_itk.SetDirection(metadata['direction'])
+        else: # Real channels
+            n_channels = img.shape[0]
+            series = []
+            for chidx in range(n_channels):
+                img_3d = img[chidx, ...]
+                img_3d = np.transpose(img_3d, (2, 1, 0))
+                img_3d_itk = sitk.GetImageFromArray(img_3d)
+                img_3d_itk.SetOrigin(metadata['origin'])
+                img_3d_itk.SetSpacing(metadata['spacing'])
+                img_3d_itk.SetDirection(metadata['direction'])
+                series.append(img_3d_itk)
+            img_itk = sitk.JoinSeries(series)
+    else:
+        img = np.transpose(img, (2, 1, 0))
+        img_itk = sitk.GetImageFromArray(img)
+        img_itk.SetOrigin(metadata['origin'])
+        img_itk.SetSpacing(metadata['spacing'])
+        img_itk.SetDirection(metadata['direction'])
 
-    # Get from RAS -> Std numpy axes ordering (ZYX)
-    img = np.transpose(img, (2, 1, 0))
-    img_itk = sitk.GetImageFromArray(img)
-    img_itk.SetOrigin(metadata['origin'])
-    img_itk.SetSpacing(metadata['spacing'])
-    img_itk.SetDirection(metadata['direction'])
 
     sitk.WriteImage(img_itk,
                     fname)
@@ -465,6 +468,17 @@ def min_max_rescale_umc(images:torch.Tensor,
 
     return images
 
+
+def find_individual_lesions(mask):
+
+    assert(isinstance(mask, np.ndarray))
+
+    label_mask, n_lesions = label(mask,
+                                  return_num=True)
+
+    return label_mask, n_lesions
+
+
 def create_separate_lesion_masks(fname):
     """
     For ease of creating ground truth matches, we split the lesion annotation into separate
@@ -481,18 +495,14 @@ def create_separate_lesion_masks(fname):
 
     reg_dir = os.sep.join(fname.split(os.sep)[0:-1])
 
-    lesion_slices, n_lesions = return_lesion_coordinates(lesion_mask_np)
+    label_mask, n_lesions = find_individual_lesions(lesion_mask_np)
 
-    for idx, lesion_slice in enumerate(lesion_slices):
+    print('Number of lesions found = {}'.format(n_lesions))
+
+    for idx, lesion_id in enumerate(range(1, n_lesions+1)):
 
         # Create a new mask for a single lesion
-        single_lesion_mask = np.zeros_like(lesion_mask_np)
-        single_lesion_mask[lesion_slice] += lesion_mask_np[lesion_slice]
-
-        # For lesions clumped very close to each other, a single slice may contain
-        # (a part of) another lesion. Therefore, in case a single slice contains more than
-        # one lesion, we retain only the largest (by volume) lesion
-        single_lesion_mask = find_largest_lesion(single_lesion_mask)
+        single_lesion_mask = np.where(label_mask==lesion_id, 1, 0).astype(np.uint8)
 
         single_lesion_mask_itk = sitk.GetImageFromArray(single_lesion_mask)
 
@@ -531,14 +541,18 @@ def handle_lesion_separation_error(pat_dir):
 
 def find_largest_lesion(mask):
 
-    lesion_slices, n_lesions = return_lesion_coordinates(mask)
+    lesion_slices, n_lesions = find_individual_lesions(mask)
+
     if n_lesions == 1:
         return mask
     else:
-        sizes = [np.sum(mask[l_slice]) for l_slice in lesion_slices]
-        largest_lesion_slice = lesion_slices[sizes.index(max(sizes))]
-        new_mask = np.zeros_like(mask)
-        new_mask[largest_lesion_slice] += mask[largest_lesion_slice]
+        # https://stackoverflow.com/questions/47540926/get-the-largest-connected-component-of-segmentation-image/56223071#56223071
+        labels = label(mask)
+        unique, counts = np.unique(labels, return_counts=True)
+        list_seg = list(zip(unique, counts))[1:] # 0 is BG
+        largest = max(list_seg, key=lambda x:x[1])[0]
+        new_mask = np.where(labels == largest, 1, 0).astype(np.uint8)
+
         return new_mask
 
 def merge_lesions_masks(dir_list=None):
@@ -551,7 +565,6 @@ def merge_lesions_masks(dir_list=None):
             lesion_mask_np += sitk.GetArrayFromImage(lesion_mask_itk)
 
     lesion_mask_np = np.where(lesion_mask_np > 1, 1, lesion_mask_np)
-    _, n_lesions = return_lesion_coordinates(lesion_mask_np)
 
     return lesion_mask_np
 
@@ -563,21 +576,21 @@ def get_lesion_slices(dir_list=None, fixed=True):
     else:
         fname = 'result.nii'
 
-    slices = []
+    ind_lesions = []
 
     for idx, lesion_dir in enumerate(dir_list):
         single_lesion_mask_itk = sitk.ReadImage(os.path.join(lesion_dir, fname))
         single_lesion_mask_np = sitk.GetArrayFromImage(single_lesion_mask_itk)
-        lesion_slices, n_lesions = return_lesion_coordinates(single_lesion_mask_np)
-        if n_lesions > 1:
+        lesion_label, n_lesions = find_individual_lesions(single_lesion_mask_np)
+        if n_lesions > 1: # Lesion could be split after resampling (Choose the largest structure)
             warning_str =  "Weird, there should be only one lesion present, but there are {}."\
                             " ID = {}, fixed = {}. Skip this patient".format(n_lesions, idx, fixed)
             warnings.warn(warning_str, RuntimeWarning)
-            return None
+            lesion_label = find_largest_lesion(lesion_label)
 
-        slices.append(lesion_slices[0])
+        ind_lesions.append(lesion_label.astype(np.uint8))
 
-    return slices
+    return ind_lesions
 
 
 def check_and_fix_masks(mask_itk):
