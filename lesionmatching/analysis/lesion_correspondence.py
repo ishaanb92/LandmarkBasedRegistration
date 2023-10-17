@@ -19,14 +19,18 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 class Lesion():
 
-    def __init__(self, lesion:np.ndarray, idx:int=-1, prefix:str='Baseline'):
+    def __init__(self, lesion:np.ndarray, idx:int=-1, prefix:str='Baseline', center=None):
 
         self.lesion = lesion
 
         self.idx = idx
+
         self.name = '{}_lesion_{}'.format(prefix, idx)
 
         self.label = -1
+
+
+        self.center = np.asarray(center)
 
     def get_lesion(self):
         return self.lesion
@@ -36,6 +40,9 @@ class Lesion():
 
     def get_idx(self):
         return self.idx
+
+    def get_center(self):
+        return self.center
 
     # Use this method only for predicted lesion!!
     def set_label(self, label):
@@ -67,13 +74,15 @@ def create_correspondence_graph_from_list(pred_lesions,
     for p_idx, pred_lesion in enumerate(pred_lesions):
         seg_lesion_volume = pred_lesion.get_lesion()
         # Iterate over GT lesions
+        seg_lesion_center = pred_lesion.get_center()
         for g_idx, gt_lesion in enumerate(gt_lesions):
             gt_lesion_volume = gt_lesion.get_lesion()
-            # Compute overlap
-            # Compute intersection (only the numerator of the dice score to save exec time!)
-            dice = np.sum(np.multiply(seg_lesion_volume, gt_lesion_volume))
-            if dice > min_overlap:
-                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, dice)])
+            gt_lesion_center = gt_lesion.get_center()
+            distance = np.sqrt(np.dot((seg_lesion_center-gt_lesion_center),
+                                      (seg_lesion_center-gt_lesion_center)))
+            # Compute distance between lesion centers
+            if distance < 10:
+                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, 1/(distance+1e-5))])
                 if verbose is True:
                     print('Follow-up lesion {} matches baseline lesion {}'.format(p_idx, g_idx))
             else: # False positive
@@ -82,13 +91,15 @@ def create_correspondence_graph_from_list(pred_lesions,
     # Create backward edges (partition 1 -> partition 0)
     for g_idx, gt_lesion in enumerate(gt_lesions):
         gt_lesion_volume = gt_lesion.get_lesion()
+        gt_lesion_center = gt_lesion.get_center()
         # Iterate over pred lesions
         for p_idx, pred_lesion in enumerate(pred_lesions):
             seg_lesion_volume = pred_lesion.get_lesion()
-            # Compute overlap (only the numerator of the dice score)
-            dice = np.sum(np.multiply(seg_lesion_volume, gt_lesion_volume))
-            if dice > 0:
-                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, dice)])
+            seg_lesion_center = pred_lesion.get_center()
+            distance = np.sqrt(np.dot((seg_lesion_center-gt_lesion_center),
+                                      (seg_lesion_center-gt_lesion_center)))
+            if distance < 10:
+                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, 1/(distance+1e-5))])
                 if verbose is True:
                     print('Baseline lesion {} matches follow-up lesion {}'.format(p_idx, g_idx))
             else:

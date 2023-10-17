@@ -17,7 +17,9 @@ import glob
 import shutil
 from lesionmatching.util_scripts.image_utils import *
 import joblib
+#import radiomics
 
+RADIOMICS_PARAMS = './paramFile/radiomics_params.yaml'
 
 if __name__ == '__main__':
 
@@ -86,11 +88,15 @@ if __name__ == '__main__':
         # a list of Lesion objects to create a graph
         # Create a list of lesions in the moving image
 
+#        radiomics_feature_extractor = radiomics.featureextractor.RadiomicsFeatureExtractor(RADIOMICS_PARAMS)
+        radiomics_feature_extractor = None
         fixed_lesions = get_lesion_slices(dir_list=f_lesion_dirs_ordered,
-                                          fixed=True)
+                                          fixed=True,
+                                          radiomics_feature_extractor=radiomics_feature_extractor)
 
         moving_lesions = get_lesion_slices(dir_list=m_lesion_dirs_ordered,
-                                           fixed=False)
+                                           fixed=False,
+                                           radiomics_feature_extractor=radiomics_feature_extractor)
 
         if fixed_lesions is None or moving_lesions is None:
             # Some problem, add patient ID to the review list
@@ -100,13 +106,15 @@ if __name__ == '__main__':
 
         fixed_lesion_nodes = []
         for idx, f_lesion_slice in enumerate(fixed_lesions):
-            fixed_lesion_nodes.append(Lesion(lesion=f_lesion_slice,
+            fixed_lesion_nodes.append(Lesion(lesion=f_lesion_slice[0],
+                                             center=f_lesion_slice[1],
                                              idx=idx,
                                              prefix='Fixed'))
 
         moving_lesion_nodes = []
         for idx, m_lesion_slice in enumerate(moving_lesions):
-            moving_lesion_nodes.append(Lesion(lesion=m_lesion_slice,
+            moving_lesion_nodes.append(Lesion(lesion=m_lesion_slice[0],
+                                              center=m_lesion_slice[1],
                                               idx=idx,
                                               prefix='Moving'))
 

@@ -14,6 +14,7 @@ import glob
 import warnings
 import torch
 import itertools
+from math import floor
 
 def calculate_mse(img1, img2):
     """
@@ -569,7 +570,7 @@ def merge_lesions_masks(dir_list=None):
     return lesion_mask_np
 
 
-def get_lesion_slices(dir_list=None, fixed=True):
+def get_lesion_slices(dir_list=None, fixed=True, radiomics_feature_extractor=None):
 
     if fixed is True:
         fname = 'lesion.nii.gz'
@@ -587,8 +588,22 @@ def get_lesion_slices(dir_list=None, fixed=True):
                             " ID = {}, fixed = {}. Consider only the largest structure".format(n_lesions, idx, fixed)
             warnings.warn(warning_str, RuntimeWarning)
             lesion_label = find_largest_lesion(lesion_label)
+        # Get the lesion center and diameter
+        lesion_center_voxels = center_of_mass(lesion_label)
+        lesion_center_voxels_round = (floor(lesion_center_voxels[0]+0.5),
+                                      floor(lesion_center_voxels[1]+0.5),
+                                      floor(lesion_center_voxels[2]+0.5))
 
-        ind_lesions.append(lesion_label.astype(np.uint8))
+        lesion_center_physical = single_lesion_mask_itk.TransformIndexToPhysicalPoint(lesion_center_voxels_round)
+
+        # Compute diameter
+        if radiomics_feature_extractor is not None:
+            features_dict = radiomics_feature_extractor.execute(imageFilePath=os.path.join(lesion_dir, fname),
+                                                                maskFilePath=os.path.join(lesion_dir, fname),
+                                                                voxelBased=False,
+                                                                label=1)
+
+        ind_lesions.append((lesion_label.astype(np.uint8), lesion_center_physical))
 
     return ind_lesions
 
