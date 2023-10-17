@@ -583,8 +583,8 @@ def get_lesion_slices(dir_list=None, fixed=True):
         single_lesion_mask_np = sitk.GetArrayFromImage(single_lesion_mask_itk)
         lesion_label, n_lesions = find_individual_lesions(single_lesion_mask_np)
         if n_lesions > 1: # Lesion could be split after resampling (Choose the largest structure)
-            warning_str =  "Weird, there should be only one lesion present, but there are {}."\
-                            " ID = {}, fixed = {}. Skip this patient".format(n_lesions, idx, fixed)
+            warning_str =  "There should be only one lesion present, but there are {}."\
+                            " ID = {}, fixed = {}. Consider only the largest structure".format(n_lesions, idx, fixed)
             warnings.warn(warning_str, RuntimeWarning)
             lesion_label = find_largest_lesion(lesion_label)
 

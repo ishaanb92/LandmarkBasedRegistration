@@ -122,6 +122,9 @@ if __name__ == '__main__':
                 moving_landmarks = os.path.join(args.landmarks_dir,
                                                 p_id,
                                                 'moving_landmarks_voxels.txt')
+
+            if os.path.exists(fixed_landmarks) is False or os.path.exists(moving_landmarks) is False:
+                continue # Skip this patient if no landmarks found!
         else:
             fixed_landmarks = None
             moving_landmarks = None
