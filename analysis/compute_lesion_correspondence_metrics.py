@@ -19,6 +19,7 @@ import networkx as nx
 from networkx.algorithms import bipartite
 import pandas as pd
 import json
+from tabulate import tabulate
 
 if __name__ == '__main__':
 
@@ -52,12 +53,21 @@ if __name__ == '__main__':
     unmatched_lesions_fixed = 0
     unmatched_lesions_moving = 0
 
+    metric_dict = {}
+    metric_dict['Patient ID'] = []
+    metric_dict['Correct Matches'] = []
+    metric_dict['Incorrect Matches'] = []
+    metric_dict['Missed Matches'] = []
+    metric_dict['True Negatives'] = []
+
     for pat_dir in pat_dirs:
 
         pat_id = pat_dir.split(os.sep)[-1]
 
         if pat_id in missing_lesion_masks:
             continue
+
+        metric_dict['Patient ID'].append(pat_id)
 
         # Load graph
         try:
@@ -88,28 +98,25 @@ if __name__ == '__main__':
         unmatched_lesions_moving += find_unmatched_lesions_in_moving_images(dgraph,
                                                                             min_overlap=0.0)
 
-        if args.verbose is True:
-            print('Patient {} :: GT matches = {} Unmatched lesion (GT) = {} True positive = {} False positives = {} '\
-                   'False negatives = {}  True negatives = {}'.format(pat_id,
-                                                                     count_dict['TM'],
-                                                                     count_dict['UM'],
-                                                                     count_dict['TP'],
-                                                                     count_dict['FP'],
-                                                                     count_dict['FN'],
-                                                                     count_dict['TN']))
-        true_matches += count_dict['TM']
-        unmatched_lesions_fixed += count_dict['UM']
-        true_positives += count_dict['TP']
-        false_positives += count_dict['FP']
-        false_negatives += count_dict['FN']
-        true_negatives += count_dict['TN']
+        metric_dict['Correct Matches'].append(count_dict['TP'])
+        metric_dict['Incorrect Matches'].append(count_dict['FP'])
+        metric_dict['Missed Matches'].append(count_dict['FN'])
+        metric_dict['True Negatives'].append(count_dict['TN'])
 
-    print('True matches found via visual inspection = {}'.format(true_matches))
-    print('Unmatched lesions in the fixed lesion mask = {}'.format(unmatched_lesions_fixed))
-    print('Unmatched lesions in the moving lesion mask = {}'.format(unmatched_lesions_moving))
-    print('True positive matches = {}'.format(true_positives))
-    print('False matches predicted = {}'.format(false_positives))
-    print('Matches missed = {}'.format(false_negatives))
+
+    # Create pandas DF
+    metric_df = pd.DataFrame.from_dict(metric_dict)
+    print(tabulate(metric_df,
+                   headers='keys',
+                   tablefmt='psql'))
+
+    metric_df.to_pickle(os.path.join(args.reg_dir,
+                                     'matching_metrics.pkl'))
+
+    true_positives = metric_df['Correct Matches'].sum()
+    false_positives = metric_df['Incorrect Matches'].sum()
+    false_negatives = metric_df['Missed Matches'].sum()
+    true_negatives = metric_df['True Negatives'].sum()
 
     sensitivity = true_positives/(true_positives + false_negatives)
     specificity = true_negatives/(true_negatives + false_positives)
