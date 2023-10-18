@@ -17,9 +17,9 @@ import glob
 import shutil
 from lesionmatching.util_scripts.image_utils import *
 import joblib
-#import radiomics
+import radiomics
 
-RADIOMICS_PARAMS = './paramFile/radiomics_params.yaml'
+RADIOMICS_PARAMS = './paramFiles/radiomics_params.yaml'
 
 if __name__ == '__main__':
 
@@ -42,8 +42,7 @@ if __name__ == '__main__':
     print('Patients with (at least one) lesion mask(s) missing = {}'.format(len(missing_lesion_masks)))
 
     # How many patients are we missing?
-    missing_patients = failed_registrations
-    missing_patients.extend(review_patients)
+    missing_patients = review_patients
     missing_patients.extend(missing_lesion_masks)
 
     n_missing_patients = len(list(set(missing_patients)))
@@ -88,8 +87,8 @@ if __name__ == '__main__':
         # a list of Lesion objects to create a graph
         # Create a list of lesions in the moving image
 
-#        radiomics_feature_extractor = radiomics.featureextractor.RadiomicsFeatureExtractor(RADIOMICS_PARAMS)
-        radiomics_feature_extractor = None
+        radiomics_feature_extractor = radiomics.featureextractor.RadiomicsFeatureExtractor(RADIOMICS_PARAMS)
+
         fixed_lesions = get_lesion_slices(dir_list=f_lesion_dirs_ordered,
                                           fixed=True,
                                           radiomics_feature_extractor=radiomics_feature_extractor)
@@ -108,6 +107,7 @@ if __name__ == '__main__':
         for idx, f_lesion_slice in enumerate(fixed_lesions):
             fixed_lesion_nodes.append(Lesion(lesion=f_lesion_slice[0],
                                              center=f_lesion_slice[1],
+                                             diameter=f_lesion_slice[2],
                                              idx=idx,
                                              prefix='Fixed'))
 
@@ -115,6 +115,7 @@ if __name__ == '__main__':
         for idx, m_lesion_slice in enumerate(moving_lesions):
             moving_lesion_nodes.append(Lesion(lesion=m_lesion_slice[0],
                                               center=m_lesion_slice[1],
+                                              diameter=m_lesion_slice[2],
                                               idx=idx,
                                               prefix='Moving'))
 
@@ -122,7 +123,7 @@ if __name__ == '__main__':
                                                        gt_lesions=fixed_lesion_nodes,
                                                        seg=moving_lesion_mask_resampled,
                                                        gt=fixed_lesion_mask_np,
-                                                       min_overlap=0.5,
+                                                       min_distance=10.0,
                                                        verbose=False)
 
         # Save the graph object

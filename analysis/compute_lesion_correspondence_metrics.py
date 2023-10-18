@@ -75,11 +75,37 @@ if __name__ == '__main__':
         except:
             continue
 
+        # Splitting the bipartite graph creates a problem. The position of the
+        # lesion in the list is no longer the lesion idx
+        moving_lesion_nodes, fixed_lesion_nodes = bipartite.sets(dgraph)
+
+        n_fixed_lesions = len(fixed_lesion_nodes)
+        n_moving_lesions = len(moving_lesion_nodes)
+
+        # Create an ordered list where position in the list corr. to the lesion ID
+        fixed_lesion_nodes_ordered = [None]*n_fixed_lesions
+        moving_lesion_nodes_ordered = [None]*n_moving_lesions
+
+        for lesion_idx in range(n_fixed_lesions):
+            for list_idx, f_lesion_node in enumerate(list(fixed_lesion_nodes)):
+                idx = f_lesion_node.get_idx()
+                if idx == lesion_idx:
+                    fixed_lesion_nodes_ordered[lesion_idx] = f_lesion_node
+                    break
+
+        for lesion_idx in range(n_moving_lesions):
+            for list_idx, m_lesion_node in enumerate(list(moving_lesion_nodes)):
+                idx = m_lesion_node.get_idx()
+                if idx == lesion_idx:
+                    moving_lesion_nodes_ordered[lesion_idx] = m_lesion_node
+                    break
+
         # Check if the constructed graph is bipartite!
         assert(bipartite.is_bipartite(dgraph))
 
+        # Construct pairs only for "measurable" lesions
         predicted_lesion_matches = construct_pairs_from_graph(dgraph,
-                                                              min_overlap=0.0)
+                                                              min_diameter=10)
 
         gt_lesion_corr = os.path.join(args.gt_dir, pat_id, 'lesion_links.json')
 
@@ -90,13 +116,12 @@ if __name__ == '__main__':
         with open(gt_lesion_corr) as f:
             gt_dict = json.load(f)
 
-        true_lesion_matches = construct_pairs_from_gt(gt_dict)
+        true_lesion_matches = construct_pairs_from_gt(gt_dict,
+                                                      moving_lesion_nodes=moving_lesion_nodes_ordered,
+                                                      fixed_lesion_nodes=fixed_lesion_nodes_ordered)
 
         count_dict = compute_detection_metrics(predicted_lesion_matches=predicted_lesion_matches,
                                                true_lesion_matches=true_lesion_matches)
-
-        unmatched_lesions_moving += find_unmatched_lesions_in_moving_images(dgraph,
-                                                                            min_overlap=0.0)
 
         metric_dict['Correct Matches'].append(count_dict['TP'])
         metric_dict['Incorrect Matches'].append(count_dict['FP'])

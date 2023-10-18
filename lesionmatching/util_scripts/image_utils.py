@@ -598,12 +598,16 @@ def get_lesion_slices(dir_list=None, fixed=True, radiomics_feature_extractor=Non
 
         # Compute diameter
         if radiomics_feature_extractor is not None:
-            features_dict = radiomics_feature_extractor.execute(imageFilePath=os.path.join(lesion_dir, fname),
-                                                                maskFilePath=os.path.join(lesion_dir, fname),
+            features_dict = radiomics_feature_extractor.execute(imageFilepath=os.path.join(lesion_dir, fname),
+                                                                maskFilepath=os.path.join(lesion_dir, fname),
                                                                 voxelBased=False,
                                                                 label=1)
 
-        ind_lesions.append((lesion_label.astype(np.uint8), lesion_center_physical))
+            max_3d_diameter = features_dict['original_shape_Maximum3DDiameter']
+        else:
+            max_3d_diameter = -1
+
+        ind_lesions.append((lesion_label.astype(np.uint8), lesion_center_physical, max_3d_diameter))
 
     return ind_lesions
 
