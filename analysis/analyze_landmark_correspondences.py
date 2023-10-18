@@ -70,11 +70,11 @@ if __name__ == '__main__':
         # 2-a. Read fixed and moving predicted landmarks .txt files
 
         if args.use_threshold is False:
-            fixed_image_landmarks_world = parse_points_file(os.path.join(pdir,
-                                                            'fixed_landmarks_elx.txt'))
+            fixed_image_landmarks_voxels = parse_points_file(os.path.join(pdir,
+                                                            'fixed_landmarks_voxels.txt'))
 
-            moving_image_landmarks_world = parse_points_file(os.path.join(pdir,
-                                                             'moving_landmarks_elx.txt'))
+            moving_image_landmarks_voxels = parse_points_file(os.path.join(pdir,
+                                                             'moving_landmarks_voxels.txt'))
         else:
             fixed_image_landmarks_world = parse_points_file(os.path.join(pdir,
                                                             'fixed_landmarks_elx_threshold.txt'))
@@ -97,25 +97,25 @@ if __name__ == '__main__':
 
         # 2-b. Convert world coordinates to voxels
 
-        fixed_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks_world,
-                                                                      spacing=fixed_image_itk.GetSpacing(),
-                                                                      origin=fixed_image_itk.GetOrigin())
-
-        moving_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks_world,
-                                                                       spacing=moving_image_itk.GetSpacing(),
-                                                                       origin=moving_image_itk.GetOrigin())
+#        fixed_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks_world,
+#                                                                      spacing=fixed_image_itk.GetSpacing(),
+#                                                                      origin=fixed_image_itk.GetOrigin())
+#
+#        moving_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks_world,
+#                                                                       spacing=moving_image_itk.GetSpacing(),
+#                                                                       origin=moving_image_itk.GetOrigin())
 
         if moving_image_landmarks_smoothed_world is not None:
             moving_image_landmarks_smoothed_voxels = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks_smoothed_world,
                                                                                     spacing=moving_image_itk.GetSpacing(),
                                                                                     origin=moving_image_itk.GetOrigin())
 
-        # Map fixed image landmarks into moving image using TPS defined by GT corr.
-        fixed_image_landmarks_voxels_scaled = np.divide(fixed_image_landmarks_voxels,
-                                                        np.expand_dims(np.array(fixed_image_itk.GetSize()),
-                                                                       axis=0))
 
         if args.show_gt_projection is True:
+            # Map fixed image landmarks into moving image using TPS defined by GT corr.
+            fixed_image_landmarks_voxels_scaled = np.divide(fixed_image_landmarks_voxels,
+                                                            np.expand_dims(np.array(fixed_image_itk.GetSize()),
+                                                                           axis=0))
             tps_func = joblib.load(os.path.join(points_pdir,
                                                 'tps_gt.pkl'))
 
