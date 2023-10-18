@@ -56,8 +56,6 @@ class Lesion():
         return self.label
 
 
-# TODO: Replace non-zero overlap with distance between centers + threshold
-# as the matching criteria
 def create_correspondence_graph_from_list(pred_lesions,
                                           gt_lesions,
                                           seg,
@@ -84,9 +82,10 @@ def create_correspondence_graph_from_list(pred_lesions,
             gt_lesion_center = gt_lesion.get_center()
             distance = np.sqrt(np.dot((seg_lesion_center-gt_lesion_center),
                                       (seg_lesion_center-gt_lesion_center)))
+
             # Compute distance between lesion centers
             if distance <= min_distance:
-                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, 1/(distance+1e-5))])
+                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, 1)])
                 if verbose is True:
                     print('Follow-up lesion {} matches baseline lesion {}'.format(p_idx, g_idx))
             else: # False positive
@@ -103,7 +102,7 @@ def create_correspondence_graph_from_list(pred_lesions,
             distance = np.sqrt(np.dot((seg_lesion_center-gt_lesion_center),
                                       (seg_lesion_center-gt_lesion_center)))
             if distance <= min_distance:
-                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, 1/(distance+1e-5))])
+                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, 1)])
                 if verbose is True:
                     print('Baseline lesion {} matches follow-up lesion {}'.format(p_idx, g_idx))
             else:
