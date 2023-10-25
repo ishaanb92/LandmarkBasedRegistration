@@ -38,7 +38,10 @@ if __name__ == '__main__':
 
     add_library_path(ELASTIX_LIB)
 
-    for pdir in pat_dirs:
+    median_reg_error = np.zeros((len(pat_dirs)),
+                                dtype=np.float32)
+
+    for idx, pdir in enumerate(pat_dirs):
 
         pid = pdir.split(os.sep)[-1]
 
@@ -87,6 +90,7 @@ if __name__ == '__main__':
             np.save(file=os.path.join(pdir, 'post_reg_error.npy'),
                     arr=spatial_errors_post_reg)
 
+            median_reg_error[idx] = np.median(spatial_errors_post_reg)
         except FileNotFoundError: # Only affine registration
 
             if args.smoothing_term == 0:
@@ -115,3 +119,9 @@ if __name__ == '__main__':
 
             np.save(file=os.path.join(pdir, 'post_reg_error.npy'),
                     arr=spatial_errors_post_reg)
+
+            median_reg_error[idx] = np.median(spatial_errors_post_reg)
+
+
+    print('Median registration error : {}'.format(np.median(median_reg_error)))
+

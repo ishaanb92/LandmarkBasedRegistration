@@ -32,12 +32,16 @@ if __name__ == '__main__':
 
 
     median = np.median(loc_errors)
-    iqr = np.percentile(loc_errors, 75) - np.percentile(loc_errors, 25)
+    q25 = np.percentile(loc_errors, 25)
+    q75 = np.percentile(loc_errors, 75)
+    iqr = q75 - q25
     print('Localization error (in mm) = {} +/- {}'.format(np.mean(loc_errors),
                                                           np.std(loc_errors)))
 
-    print('Localization error (in mm) :: Median = {}, IQR = {}'.format(median,
-                                                                       iqr))
+    print('Localization error (in mm) :: Median = {}, q25 = {}, q75 = {} IQR = {}'.format(median,
+                                                                                          q25,
+                                                                                          q75,
+                                                                                          iqr))
 
     # Plot histogram of localization errors
     fig, ax = plt.subplots()
