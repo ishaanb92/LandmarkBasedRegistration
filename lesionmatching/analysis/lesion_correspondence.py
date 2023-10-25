@@ -11,6 +11,7 @@ from lesionmatching.util_scripts.image_utils import find_individual_lesions
 import networkx as nx
 import numpy as np
 from networkx.algorithms import bipartite
+from networkx.exception import NetworkXPointlessConcept
 import matplotlib.pyplot as plt
 import time
 import warnings
@@ -61,6 +62,7 @@ def create_correspondence_graph_from_list(pred_lesions,
                                           seg,
                                           gt,
                                           min_distance=10.00,
+                                          min_diameter=10.00,
                                           verbose=False):
 
 
@@ -78,6 +80,8 @@ def create_correspondence_graph_from_list(pred_lesions,
         # Iterate over GT lesions
         seg_lesion_center = pred_lesion.get_center()
         for g_idx, gt_lesion in enumerate(gt_lesions):
+            if gt_lesion.get_diameter() <= min_diameter:
+                continue
             gt_lesion_volume = gt_lesion.get_lesion()
             gt_lesion_center = gt_lesion.get_center()
             distance = np.sqrt(np.dot((seg_lesion_center-gt_lesion_center),
@@ -93,6 +97,8 @@ def create_correspondence_graph_from_list(pred_lesions,
 
     # Create backward edges (partition 1 -> partition 0)
     for g_idx, gt_lesion in enumerate(gt_lesions):
+        if gt_lesion.get_diameter() <= min_diameter:
+            continue
         gt_lesion_volume = gt_lesion.get_lesion()
         gt_lesion_center = gt_lesion.get_center()
         # Iterate over pred lesions
@@ -114,13 +120,16 @@ def create_correspondence_graph_from_list(pred_lesions,
     return dgraph
 
 
-def filter_edges(dgraph, min_overlap=0.0):
+def filter_edges(dgraph, min_weight=0.0):
     """
 
     Function to remove edges with zero weight (for better viz)
 
     """
-    pred_lesion_nodes, gt_lesion_nodes = bipartite.sets(dgraph)
+    try:
+        pred_lesion_nodes, gt_lesion_nodes = bipartite.sets(dgraph)
+    except NetworkXPointlessConcept:
+        return None
 
     # Create a dummy graph that has disconnected nodes for better visualization
 
@@ -132,7 +141,7 @@ def filter_edges(dgraph, min_overlap=0.0):
         for gt_node in gt_lesion_nodes:
             edge_weight = dgraph[pred_node][gt_node]['weight']
             weights.append(edge_weight)
-            if edge_weight > min_overlap:
+            if edge_weight > min_weight:
                 dgraph_viz.add_weighted_edges_from([(pred_node, gt_node, edge_weight)])
 
         max_weight = np.amax(np.array(weights))
@@ -146,7 +155,7 @@ def filter_edges(dgraph, min_overlap=0.0):
         for pred_node in pred_lesion_nodes:
             edge_weight = dgraph[gt_node][pred_node]['weight']
             weights.append(edge_weight)
-            if edge_weight > min_overlap:
+            if edge_weight > min_weight:
                 dgraph_viz.add_weighted_edges_from([(gt_node, pred_node, edge_weight)])
 
         max_weight = np.amax(np.array(weights))
@@ -157,51 +166,55 @@ def filter_edges(dgraph, min_overlap=0.0):
     return dgraph_viz
 
 
-def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_overlap=0.0):
+def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_weight=0.0):
 
-    pred_lesion_nodes, gt_lesion_nodes = bipartite.sets(dgraph)
+    try:
+        pred_lesion_nodes, gt_lesion_nodes = bipartite.sets(dgraph)
+        dgraph_viz = filter_edges(dgraph, min_weight=min_weight)
 
-    dgraph_viz = filter_edges(dgraph, min_overlap=min_overlap)
+        if remove_list is not None:
+            dgraph_viz.remove_nodes_from(remove_list)
 
-    if remove_list is not None:
-        dgraph_viz.remove_nodes_from(remove_list)
+            # Get rid of the of the lesions from the list
+            for pred_node in remove_list:
+                pred_lesion_nodes.remove(pred_node)
 
-        # Get rid of the of the lesions from the list
-        for pred_node in remove_list:
-            pred_lesion_nodes.remove(pred_node)
+        # Create a color map
+        color_map = []
+        label_dict = {}
+        for node in dgraph_viz:
+            node_name = node.get_name()
 
-    # Create a color map
-    color_map = []
-    label_dict = {}
-    for node in dgraph_viz:
-        node_name = node.get_name()
+            if "predicted" in node_name.lower() or "moving" in node_name.lower():
+                color_map.append('tab:red')
+                label_dict[node] = '{}{}'.format(node_name[0].upper(), node.get_idx())
+            else:
+                color_map.append('tab:green')
+                label_dict[node] = '{}{}'.format(node_name[0].upper(), node.get_idx())
 
-        if "predicted" in node_name.lower() or "moving" in node_name.lower():
-            color_map.append('tab:red')
-            label_dict[node] = '{}{}'.format(node_name[0].upper(), node.get_idx())
-        else:
-            color_map.append('tab:green')
-            label_dict[node] = '{}{}'.format(node_name[0].upper(), node.get_idx())
+        pos = nx.bipartite_layout(dgraph_viz, gt_lesion_nodes)
 
-    pos = nx.bipartite_layout(dgraph_viz, gt_lesion_nodes)
+        fig, ax = plt.subplots()
 
-    fig, ax = plt.subplots()
-
-    nx.draw(dgraph_viz,
-            pos=pos,
-            labels=label_dict,
-            with_labels=True,
-            node_color=color_map,
-            ax=ax,
-            fontsize=18,
-            nodesize=800,
-            font_color='white')
+        nx.draw(dgraph_viz,
+                pos=pos,
+                labels=label_dict,
+                with_labels=True,
+                node_color=color_map,
+                ax=ax,
+                fontsize=18,
+                nodesize=800,
+                font_color='white')
 
 
-    fig.savefig(fname,
-                bbox_inches='tight')
+        fig.savefig(fname,
+                    bbox_inches='tight')
 
-    plt.close()
+        plt.close()
+    except NetworkXPointlessConcept:
+        print('No measurable lesions found')
+
+
 
 
 
@@ -253,7 +266,8 @@ def find_unmatched_lesions_in_moving_images(dgraph, min_overlap=0.5):
 
 def construct_pairs_from_gt(gt_dict:dict,
                             fixed_lesion_nodes:list,
-                            moving_lesion_nodes:list)->list:
+                            moving_lesion_nodes:list,
+                            min_diameter:float=10.0)->list:
     """
     Construct pair of tuples from the dataframe.
     The output is a list of tuples of the form:  [(fixed_lesion_id_0, moving_lesion_id_0), ..., (fixed_lesion_id_n, moving_lesion_id_n)]
@@ -262,6 +276,7 @@ def construct_pairs_from_gt(gt_dict:dict,
     gt_lesion_matches = []
     fixed_lesion_nodes = list(fixed_lesion_nodes)
     moving_lesion_nodes = list(moving_lesion_nodes)
+
 
     for fixed_lesion, moving_lesion_dict in gt_dict.items():
         matches = []
@@ -274,11 +289,11 @@ def construct_pairs_from_gt(gt_dict:dict,
         for moving_lesion, corr in moving_lesion_dict.items():
             if corr is True:
                 m_id = int(moving_lesion.split('_')[-1])
-                if f_diameter >= 10:
+                if f_diameter >= min_diameter:
                     matches.append(tuple((f_id, m_id)))
 
         # If no match exists for this fixed lesion
-        if len(matches) == 0 and f_diameter >= 10:
+        if len(matches) == 0 and f_diameter >= min_diameter:
             gt_lesion_matches.append(tuple([f_id, 'None']))
         else:
             gt_lesion_matches.extend(matches)

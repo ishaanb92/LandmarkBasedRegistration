@@ -100,7 +100,6 @@ if __name__ == '__main__':
         if fixed_lesions is None or moving_lesions is None:
             # Some problem, add patient ID to the review list
             review_patients.append(pat_id)
-            #handle_lesion_separation_error(pat_dir=pat_dir)
             continue
 
         fixed_lesion_nodes = []
@@ -124,6 +123,7 @@ if __name__ == '__main__':
                                                        seg=moving_lesion_mask_resampled,
                                                        gt=fixed_lesion_mask_np,
                                                        min_distance=10.0,
+                                                       min_diameter=0.0,
                                                        verbose=False)
 
         # Save the graph object
@@ -134,9 +134,10 @@ if __name__ == '__main__':
 
         # Visualize correspondence graph
         fname = os.path.join(pat_dir, 'lesion_correspondence.pdf')
+
         visualize_lesion_correspondences(dgraph=dgraph,
                                          fname=fname,
-                                         min_overlap=0.5)
+                                         min_weight=0)
 
     # Check if more patients have been added to the review list
     if n_review < len(review_patients):

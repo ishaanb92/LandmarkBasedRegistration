@@ -17,6 +17,7 @@ import shutil
 import joblib
 import networkx as nx
 from networkx.algorithms import bipartite
+from networkx.exception import NetworkXPointlessConcept
 import pandas as pd
 import json
 from tabulate import tabulate
@@ -77,7 +78,11 @@ if __name__ == '__main__':
 
         # Splitting the bipartite graph creates a problem. The position of the
         # lesion in the list is no longer the lesion idx
-        moving_lesion_nodes, fixed_lesion_nodes = bipartite.sets(dgraph)
+        try:
+            moving_lesion_nodes, fixed_lesion_nodes = bipartite.sets(dgraph)
+        except NetworkXPointlessConcept:
+            print('No measurable lesions for patient {}'.format(pat_id))
+            continue
 
         n_fixed_lesions = len(fixed_lesion_nodes)
         n_moving_lesions = len(moving_lesion_nodes)
@@ -105,7 +110,7 @@ if __name__ == '__main__':
 
         # Construct pairs only for "measurable" lesions
         predicted_lesion_matches = construct_pairs_from_graph(dgraph,
-                                                              min_diameter=10)
+                                                              min_diameter=0)
 
         gt_lesion_corr = os.path.join(args.gt_dir, pat_id, 'lesion_links.json')
 
@@ -116,9 +121,11 @@ if __name__ == '__main__':
         with open(gt_lesion_corr) as f:
             gt_dict = json.load(f)
 
+
         true_lesion_matches = construct_pairs_from_gt(gt_dict,
                                                       moving_lesion_nodes=moving_lesion_nodes_ordered,
-                                                      fixed_lesion_nodes=fixed_lesion_nodes_ordered)
+                                                      fixed_lesion_nodes=fixed_lesion_nodes_ordered,
+                                                      min_diameter=0)
 
         count_dict = compute_detection_metrics(predicted_lesion_matches=predicted_lesion_matches,
                                                true_lesion_matches=true_lesion_matches)
