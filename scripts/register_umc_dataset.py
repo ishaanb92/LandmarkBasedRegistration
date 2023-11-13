@@ -28,7 +28,8 @@ if __name__ == '__main__':
     parser.add_argument('--params', type=str, help='Parameter file path(s)', nargs='+', default=None)
     parser.add_argument('--data_mode', type=str, default='test')
     parser.add_argument('--landmarks_dir', type=str, default=None)
-    parser.add_argument('--use_mask', action='store_true')
+    parser.add_argument('--use_liver_mask', action='store_true')
+    parser.add_argument('--use_vessel_mask', action='store_true')
     parser.add_argument('--world', action='store_true')
     parser.add_argument('--multichannel', action='store_true')
 
@@ -93,7 +94,7 @@ if __name__ == '__main__':
             continue
 
         # Use liver mask to guide registration for image-based registration
-        if args.use_mask is True:
+        if args.use_liver_mask is True:
             fixed_image_mask = os.path.join(pat_dir,
                                             scan_dirs[fixed_image_idx],
                                             'LiverMask_dilated.nii')
@@ -101,6 +102,25 @@ if __name__ == '__main__':
             moving_image_mask = os.path.join(pat_dir,
                                              scan_dirs[moving_image_idx],
                                              'LiverMask_dilated.nii')
+        elif args.use_vessel_mask is True:
+            fixed_image_mask = os.path.join(pat_dir,
+                                            scan_dirs[fixed_image_idx],
+                                            'vessel_mask.nii')
+
+            if os.path.exists(fixed_image_mask) is False:
+                fixed_image_mask = os.path.join(pat_dir,
+                                                scan_dirs[fixed_image_idx],
+                                                'LiverMask_dilated.nii')
+
+
+            moving_image_mask = os.path.join(pat_dir,
+                                             scan_dirs[moving_image_idx],
+                                             'vessel_mask.nii')
+
+            if os.path.exists(moving_image_mask) is False:
+                moving_image_mask = os.path.join(pat_dir,
+                                                 scan_dirs[moving_image_idx],
+                                                 'LiverMask_dilated.nii')
         else:
             fixed_image_mask = None
             moving_image_mask = None
