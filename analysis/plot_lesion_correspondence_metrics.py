@@ -58,7 +58,7 @@ if __name__ == '__main__':
 
     plot_df = pd.DataFrame.from_dict(plot_dict)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 8))
 
     sns.barplot(data=plot_df,
                 x='Configuration',
