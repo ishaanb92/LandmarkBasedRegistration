@@ -91,6 +91,7 @@ if __name__ == '__main__':
                 x='Patient ID',
                 y='TRE (mm)',
                 hue='Registration type',
+                fliersize=0.1,
                 ax=ax)
 
     if args.title is not None:
