@@ -215,10 +215,7 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
         print('No measurable lesions found')
 
 
-
-
-
-def construct_pairs_from_graph(dgraph, min_diameter=10.00):
+def construct_dict_from_graph(dgraph, min_diameter=10.00):
     """
     Function to construct a list of matched lesions
     Example ouput : [(fixed_lesion_id_0, moving_lesion_id_0), ..., (fixed_lesion_id_n, moving_lesion_id_n)]
@@ -229,17 +226,17 @@ def construct_pairs_from_graph(dgraph, min_diameter=10.00):
     assert('moving' in list(moving_lesion_nodes)[0].get_name().lower())
     assert('fixed' in list(fixed_lesion_nodes)[0].get_name().lower())
 
-    predicted_lesion_matches = []
+    predicted_matches_dict = {}
     for f_node in fixed_lesion_nodes:
+        predicted_matches_dict[f_node.get_name().lower()] = []
         f_diameter = f_node.get_diameter()
         for m_node in moving_lesion_nodes:
             edge_weight = dgraph[f_node][m_node]['weight']
             if edge_weight > 0: # If a match, each edge is weighted by 1/distance
                 if f_diameter >= min_diameter:
-                    predicted_lesion_matches.append((f_node.get_idx(),
-                                                     m_node.get_idx()))
+                    predicted_matches_dict[f_node.get_name().lower()].append(m_node.get_name().lower())
 
-    return predicted_lesion_matches
+    return predicted_matches_dict
 
 
 def find_unmatched_lesions_in_moving_images(dgraph, min_overlap=0.5):
@@ -264,49 +261,64 @@ def find_unmatched_lesions_in_moving_images(dgraph, min_overlap=0.5):
 
     return unmatched_lesions
 
-def construct_pairs_from_gt(gt_dict:dict,
-                            fixed_lesion_nodes:list,
-                            moving_lesion_nodes:list,
-                            min_diameter:float=10.0)->list:
+def preprocess_gt_dict(gt_dict):
     """
-    Construct pair of tuples from the dataframe.
-    The output is a list of tuples of the form:  [(fixed_lesion_id_0, moving_lesion_id_0), ..., (fixed_lesion_id_n, moving_lesion_id_n)]
+
+    Preprocess gt_dict so that each key (fixed_lesion name) contains a
+    list of matching moving lesion names
+
+    a typical dictionary entry would look like:
+        fixed_lesion_n : [moving_lesion_a, ... moving_lesion_d]
+    In case of no matches,
+        fixed_lesion_n : []
 
     """
-    gt_lesion_matches = []
-    fixed_lesion_nodes = list(fixed_lesion_nodes)
-    moving_lesion_nodes = list(moving_lesion_nodes)
+
+    full_gt_dict = {}
+    forward_gt_dict = {} # 'fixed_lesion_*' : [moving_lesion_*]
+    backward_gt_dict = {} # 'moving_lesion_*' : [fixed_lesion_*]
 
 
-    for fixed_lesion, moving_lesion_dict in gt_dict.items():
-        matches = []
-        f_id = int(fixed_lesion.split('_')[-1])
-        f_lesion_node = fixed_lesion_nodes[f_id]
-        f_diameter = f_lesion_node.get_diameter()
+    # Construct empty lists
+    for fixed_lesion in list(gt_dict.keys()):
+        forward_gt_dict[fixed_lesion] = []
 
-        assert(f_id == f_lesion_node.get_idx())
-
-        for moving_lesion, corr in moving_lesion_dict.items():
-            if corr is True:
-                m_id = int(moving_lesion.split('_')[-1])
-                if f_diameter >= min_diameter:
-                    matches.append(tuple((f_id, m_id)))
-
-        # If no match exists for this fixed lesion
-        if len(matches) == 0 and f_diameter >= min_diameter:
-            gt_lesion_matches.append(tuple([f_id, 'None']))
-        else:
-            gt_lesion_matches.extend(matches)
-
-    return gt_lesion_matches
+    moving_lesion_list = list(gt_dict[list(gt_dict.keys())[0]].keys())
 
 
-def compute_detection_metrics(predicted_lesion_matches, true_lesion_matches):
+    for moving_lesion in moving_lesion_list:
+        backward_gt_dict[moving_lesion] = []
 
-    # Compute from ground truth
-    true_matches = 0
-    unmatched_lesions = 0
+    # Construct forward matching dict
+    for fixed_lesion, match_dict in gt_dict.items():
+        for moving_lesion, match in match_dict.items():
+            if match is True:
+                forward_gt_dict[fixed_lesion].append(moving_lesion)
 
+    # Construct backward matching dict
+    for moving_lesion in moving_lesion_list:
+        for fixed_lesion, match_dict in gt_dict.items():
+            if match_dict[moving_lesion] is True:
+                backward_gt_dict[moving_lesion].append(fixed_lesion)
+
+    full_gt_dict['forward_dict'] = forward_gt_dict
+    full_gt_dict['backward_dict'] = backward_gt_dict
+
+    full_gt_dict['new lesions'] = []
+    full_gt_dict['disappearing lesions'] = []
+
+    for fixed_lesion, moving_list in forward_gt_dict.items():
+        if len(moving_list) == 0:
+            full_gt_dict['disappearing lesions'].append(fixed_lesion)
+
+    for moving_lesion, fixed_list in backward_gt_dict.items():
+        if len(fixed_list) == 0:
+            full_gt_dict['new lesions'].append(moving_lesion)
+
+    return full_gt_dict
+
+def compute_detection_metrics(pred_dict,
+                              gt_dict):
 
     # Compare prediciton to ground truth
     true_positive_matches = 0
@@ -314,48 +326,34 @@ def compute_detection_metrics(predicted_lesion_matches, true_lesion_matches):
     false_negatives = 0
     true_negatives = 0
 
+    forward_gt_dict = gt_dict['forward_dict']
+    backward_gt_dict = gt_dict['backward_dict']
 
-    # How many matches were found via visual inspection?
-    for true_pair in true_lesion_matches:
-        if true_pair[1] != 'None':
-            true_matches += 1
-        else:
-            unmatched_lesions += 1
-
-
-    # How many matches were found via image registration + resampling?
-    for pred_pair in predicted_lesion_matches:
-        if pred_pair in true_lesion_matches:
-            true_positive_matches += 1
-        else:
-            false_positive_matches += 1
-
-    # How many matches were missed after registration + resampling?
-    for true_pair in true_lesion_matches:
-        if true_pair in predicted_lesion_matches:
-            continue
-        else:
-            if true_pair[1] != 'None':
+    # NOTE: We count a split (i.e. a single fixed lesion split into multiple moving lesions) as a single true positive
+    # We count a merge (i.e. multiple fixed lesions merge into a single moving lesion) as multiple true positives
+    for fixed_lesion, moving_lesions in pred_dict.items():
+        matches = 0
+        if len(moving_lesions) > 0:
+            for moving_lesion in moving_lesions:
+                if moving_lesion in forward_gt_dict[fixed_lesion]:
+                    matches += 1
+                else:
+                    false_positive_matches += 1
+            if matches == len(moving_lesions): # All lesions matched
+                true_positive_matches += 1
+            elif matches < len(moving_lesions): # Partial matches!
+                false_negatives += len(moving_lesions) - matches
+        else: # Empty list for the lesion in the baseline image!
+            if len(forward_gt_dict[fixed_lesion]) == 0:
+                true_negatives += 1
+            else:
                 false_negatives += 1
 
-    # How many lesions (in the fixed image) that did not have a match via visual inspection
-    # also do not have a non-zero edge weight in the corr. graph?
-    unmatched_fixed_lesions = [p[0] for p in true_lesion_matches if p[1] == 'None']
-    fixed_lesions_in_pred = [p[0] for p in predicted_lesion_matches]
-
-    for u_lesion in unmatched_fixed_lesions:
-        if u_lesion in fixed_lesions_in_pred:
-            continue # Already accounted by false positives!
-        else:
-            true_negatives += 1
-
-
     count_dict = {}
-    count_dict['UM'] = unmatched_lesions
-    count_dict['TM'] = true_matches
     count_dict['TP'] = true_positive_matches
     count_dict['FP'] = false_positive_matches
     count_dict['FN'] = false_negatives
     count_dict['TN'] = true_negatives
+
     return count_dict
 

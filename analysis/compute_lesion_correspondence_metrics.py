@@ -65,6 +65,8 @@ if __name__ == '__main__':
 
         pat_id = pat_dir.split(os.sep)[-1]
 
+        print('Computing metrics for Patient {}'.format(pat_id))
+
         if pat_id in missing_lesion_masks:
             continue
 
@@ -108,9 +110,8 @@ if __name__ == '__main__':
         # Check if the constructed graph is bipartite!
         assert(bipartite.is_bipartite(dgraph))
 
-        # Construct pairs only for "measurable" lesions
-        predicted_lesion_matches = construct_pairs_from_graph(dgraph,
-                                                              min_diameter=0)
+        pred_dict = construct_dict_from_graph(dgraph,
+                                              min_diameter=0)
 
         gt_lesion_corr = os.path.join(args.gt_dir, pat_id, 'lesion_links.json')
 
@@ -121,14 +122,11 @@ if __name__ == '__main__':
         with open(gt_lesion_corr) as f:
             gt_dict = json.load(f)
 
+        gt_dict = preprocess_gt_dict(gt_dict)
 
-        true_lesion_matches = construct_pairs_from_gt(gt_dict,
-                                                      moving_lesion_nodes=moving_lesion_nodes_ordered,
-                                                      fixed_lesion_nodes=fixed_lesion_nodes_ordered,
-                                                      min_diameter=0)
 
-        count_dict = compute_detection_metrics(predicted_lesion_matches=predicted_lesion_matches,
-                                               true_lesion_matches=true_lesion_matches)
+        count_dict = compute_detection_metrics(pred_dict=pred_dict,
+                                               gt_dict=gt_dict)
 
         metric_dict['Correct Matches'].append(count_dict['TP'])
         metric_dict['Incorrect Matches'].append(count_dict['FP'])
