@@ -124,6 +124,10 @@ if __name__ == '__main__':
 
         gt_dict = preprocess_gt_dict(gt_dict)
 
+        if args.verbose is True:
+            print('Patient {} pred dict : {}'.format(pat_id, pred_dict))
+            print('Patient {} GT dict: {}'.format(pat_id, gt_dict))
+
 
         count_dict = compute_detection_metrics(pred_dict=pred_dict,
                                                gt_dict=gt_dict)
