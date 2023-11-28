@@ -59,8 +59,6 @@ class Lesion():
 
 def create_correspondence_graph_from_list(pred_lesions,
                                           gt_lesions,
-                                          seg,
-                                          gt,
                                           min_distance=10.00,
                                           min_diameter=10.00,
                                           verbose=False):
@@ -138,7 +136,9 @@ def filter_edges(dgraph, min_weight=0.0):
     # Create forward connections
     for pred_node in pred_lesion_nodes:
         weights = []
+        moving_lesion_id = pred_node.get_idx()
         for gt_node in gt_lesion_nodes:
+            fixed_lesion_id = gt_node.get_idx()
             edge_weight = dgraph[pred_node][gt_node]['weight']
             weights.append(edge_weight)
             if edge_weight > min_weight:
@@ -152,6 +152,7 @@ def filter_edges(dgraph, min_weight=0.0):
     # Create backward connections
     for gt_node in gt_lesion_nodes:
         weights = []
+        fixed_lesion_id = gt_node.get_idx()
         for pred_node in pred_lesion_nodes:
             edge_weight = dgraph[gt_node][pred_node]['weight']
             weights.append(edge_weight)
@@ -166,7 +167,7 @@ def filter_edges(dgraph, min_weight=0.0):
     return dgraph_viz
 
 
-def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_weight=0.0):
+def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_weight=0.0, gt_dict=None):
 
     try:
         pred_lesion_nodes, gt_lesion_nodes = bipartite.sets(dgraph)
@@ -179,7 +180,7 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
             for pred_node in remove_list:
                 pred_lesion_nodes.remove(pred_node)
 
-        # Create a color map
+        # Create a color map for nodes
         color_map = []
         label_dict = {}
         for node in dgraph_viz:
@@ -192,6 +193,24 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
                 color_map.append('tab:green')
                 label_dict[node] = '{}{}'.format(node_name[0].upper(), node.get_idx())
 
+        # Create color map for edges
+        if gt_dict is not None:
+            gt_dict = preprocess_gt_dict(gt_dict)
+            edge_color = []
+            for u, v in dgraph_viz.edges():
+                if 'moving' in u.get_name().lower():
+                    moving_lesion_id = u.get_idx()
+                    fixed_lesion_id = v.get_idx()
+                elif 'fixed' in u.get_name().lower():
+                    fixed_lesion_id = u.get_idx()
+                    moving_lesion_id = v.get_idx()
+                edge_weight = dgraph_viz.get_edge_data(u, v)['weight']
+                if edge_weight > 0: # Predicted match => Check GT
+                    if 'moving_lesion_{}'.format(moving_lesion_id) in gt_dict['forward_dict']['fixed_lesion_{}'.format(fixed_lesion_id)]: # TP
+                        edge_color.append('black')
+                    else:
+                        edge_color.append('tab:red')
+
         pos = nx.bipartite_layout(dgraph_viz, gt_lesion_nodes)
 
         fig, ax = plt.subplots()
@@ -201,6 +220,7 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
                 labels=label_dict,
                 with_labels=True,
                 node_color=color_map,
+                edge_color=edge_color,
                 ax=ax,
                 fontsize=18,
                 nodesize=800,
@@ -329,25 +349,28 @@ def compute_detection_metrics(pred_dict,
     forward_gt_dict = gt_dict['forward_dict']
     backward_gt_dict = gt_dict['backward_dict']
 
-    # NOTE: We count a split (i.e. a single fixed lesion split into multiple moving lesions) as a single true positive
-    # We count a merge (i.e. multiple fixed lesions merge into a single moving lesion) as multiple true positives
+    # NOTE: We count the number of correspondences based on graph edges, and not nodes.
+    # This way we do not overtly penalize partial matches
     for fixed_lesion, moving_lesions in pred_dict.items():
         matches = 0
         if len(moving_lesions) > 0:
             for moving_lesion in moving_lesions:
                 if moving_lesion in forward_gt_dict[fixed_lesion]:
-                    matches += 1
+                    true_positive_matches += 1 # Edge present in ground truth
                 else:
-                    false_positive_matches += 1
-            if matches == len(moving_lesions): # All lesions matched
-                true_positive_matches += 1
-            elif matches < len(moving_lesions): # Partial matches!
-                false_negatives += len(moving_lesions) - matches
+                    false_positive_matches += 1 # Edge absent in ground truth
         else: # Empty list for the lesion in the baseline image!
             if len(forward_gt_dict[fixed_lesion]) == 0:
                 true_negatives += 1
             else:
-                false_negatives += 1
+                false_negatives += len(forward_gt_dict[fixed_lesion])
+
+    # Count false negatives
+    for fixed_lesion, moving_lesions in forward_gt_dict.items():
+        if len(moving_lesions) > 0:
+            for moving_lesion in moving_lesions:
+                if moving_lesion in pred_dict[fixed_lesion] is False:
+                    false_negatives += 1
 
     count_dict = {}
     count_dict['TP'] = true_positive_matches

@@ -18,6 +18,7 @@ import shutil
 from lesionmatching.util_scripts.image_utils import *
 import joblib
 import radiomics
+import json
 
 RADIOMICS_PARAMS = './paramFiles/radiomics_params.yaml'
 
@@ -25,6 +26,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--reg_dir', type=str, help='Directory containing registration results')
+    parser.add_argument('--gt_dir', type=str, default=None, help='Directory containing registration results')
 
     args = parser.parse_args()
 
@@ -108,7 +110,7 @@ if __name__ == '__main__':
                                              center=f_lesion_slice[1],
                                              diameter=f_lesion_slice[2],
                                              idx=idx,
-                                             prefix='Fixed'))
+                                             prefix='fixed'))
 
         moving_lesion_nodes = []
         for idx, m_lesion_slice in enumerate(moving_lesions):
@@ -116,12 +118,10 @@ if __name__ == '__main__':
                                               center=m_lesion_slice[1],
                                               diameter=m_lesion_slice[2],
                                               idx=idx,
-                                              prefix='Moving'))
+                                              prefix='moving'))
 
         dgraph = create_correspondence_graph_from_list(pred_lesions=moving_lesion_nodes,
                                                        gt_lesions=fixed_lesion_nodes,
-                                                       seg=moving_lesion_mask_resampled,
-                                                       gt=fixed_lesion_mask_np,
                                                        min_distance=10.0,
                                                        min_diameter=0.0,
                                                        verbose=False)
@@ -135,8 +135,16 @@ if __name__ == '__main__':
         # Visualize correspondence graph
         fname = os.path.join(pat_dir, 'lesion_correspondence.pdf')
 
+        if args.gt_dir is not None:
+            gt_lesion_corr = os.path.join(args.gt_dir, pat_id, 'lesion_links.json')
+            with open(gt_lesion_corr) as f:
+                gt_dict = json.load(f)
+        else:
+            gt_dict = None
+
         visualize_lesion_correspondences(dgraph=dgraph,
                                          fname=fname,
+                                         gt_dict=gt_dict,
                                          min_weight=0)
 
     # Check if more patients have been added to the review list
