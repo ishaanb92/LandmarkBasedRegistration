@@ -61,7 +61,7 @@ if __name__ == '__main__':
                 if idx == 0:
                     pre_reg_tre = np.load(os.path.join(pdir, 'pre_reg_error.npy'))
                     tre_dict['Patient ID'].extend([pid for i in range(pre_reg_tre.shape[0])])
-                    tre_dict['Registration type'].extend(['Pre-registration'for i in range(pre_reg_tre.shape[0])])
+                    tre_dict['Registration type'].extend(['No registration'for i in range(pre_reg_tre.shape[0])])
                     tre_dict['TRE (mm)'].extend(list(pre_reg_tre))
 
             if args.plot_affine is True:
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     if args.title is not None:
         ax.set_title(' '.join(args.title))
 
-    ax.set_ylim((0, 50))
+    ax.set_ylim((0, 100))
 
     fig.savefig(os.path.join(save_dir, args.output_file),
                 bbox_inches='tight')
