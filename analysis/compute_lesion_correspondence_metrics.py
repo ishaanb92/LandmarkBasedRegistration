@@ -154,5 +154,7 @@ if __name__ == '__main__':
 
     sensitivity = true_positives/(true_positives + false_negatives)
     specificity = true_negatives/(true_negatives + false_positives)
-    print('Sensitivity = {}, Specificity = {}'.format(sensitivity,
-                                                      specificity))
+    accuracy = (true_positives+true_negatives)/(true_positives+true_negatives+false_positives+false_negatives)
+    print('Accuracy = {} Sensitivity = {}, Specificity = {}'.format(accuracy,
+                                                                    sensitivity,
+                                                                    specificity))

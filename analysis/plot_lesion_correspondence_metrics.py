@@ -45,12 +45,19 @@ if __name__ == '__main__':
 
         sensitivity = true_positives/(true_positives + false_negatives)
         specificity = true_negatives/(true_negatives + false_positives)
+        accuracy = (true_positives+true_negatives)/(true_positives+true_negatives+false_positives+false_negatives)
+
+        # Create a row for accuracy
+        plot_dict['Configuration'].append(legend)
+        plot_dict['Metric'].append(accuracy)
+        plot_dict['Metric Type'].append('Accuracy')
 
         # Create a row for sensitivity
         plot_dict['Configuration'].append(legend)
         plot_dict['Metric'].append(sensitivity)
         plot_dict['Metric Type'].append('Sensitivity')
 
+        # Create a row for specificity
         plot_dict['Configuration'].append(legend)
         plot_dict['Metric'].append(specificity)
         plot_dict['Metric Type'].append('Specificity')
@@ -58,7 +65,9 @@ if __name__ == '__main__':
 
     plot_df = pd.DataFrame.from_dict(plot_dict)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(8.5, 8.5))
+
+    print('Size in inches = {}'.format(fig.get_size_inches()))
 
     sns.barplot(data=plot_df,
                 x='Configuration',
@@ -70,10 +79,17 @@ if __name__ == '__main__':
         ax.set_title(' '.join(args.title))
 
     ax.set_ylim((0, 1))
+    ax.set_yticks(np.arange(0, 1.1, 0.1))
+    ax.legend(loc='lower right')
     if os.path.exists(args.save_dir) is False:
         os.makedirs(args.save_dir)
 
 
     fig.savefig(os.path.join(args.save_dir,
-                             args.output_file),
+                             '{}.pdf'.format(args.output_file)),
                 bbox_inches='tight')
+
+    fig.savefig(os.path.join(args.save_dir,
+                             '{}.jpg'.format(args.output_file)),
+                bbox_inches='tight')
+
