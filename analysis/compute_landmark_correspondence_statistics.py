@@ -17,12 +17,14 @@ import SimpleITK as sitk
 from lesionmatching.util_scripts.utils import *
 from lesionmatching.util_scripts.image_utils import *
 
-DATA_DIR = '/home/ishaan/COPDGene/mha'
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--landmarks_dir', type=str, required=True)
+    parser.add_argument('--data_dir', type=str, required=True)
+    parser.add_argument('--dataset', type=str, default='umc')
+    parser.add_argument('--vessel', action='store_true')
 
     args = parser.parse_args()
 
@@ -40,40 +42,75 @@ if __name__ == '__main__':
 
         pid = pdir.split(os.sep)[-1]
 
-        pdata_dir = os.path.join(DATA_DIR, pid)
+        pdata_dir = os.path.join(args.data_dir, pid)
 
         # 1. Read the mask images
-        fixed_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
-                                                     'lung_mask_iBHCT_dl_iso.mha'))
+        if args.dataset == 'copd':
+            fixed_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
+                                                         'lung_mask_iBHCT_dl_iso.mha'))
 
-        moving_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
-                                                      'lung_mask_eBHCT_dl_iso.mha'))
+            moving_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
+                                                          'lung_mask_eBHCT_dl_iso.mha'))
+        elif args.dataset == 'umc':
+            # Find the fixed and moving directories
+            scan_dirs  = [f.path for f in os.scandir(pdata_dir) if f.is_dir()]
+
+            # Figure out which idx is baseline and which is follow-up
+            s_id_0 = scan_dirs[0].split(os.sep)[-1]
+            s_id_1 = scan_dirs[1].split(os.sep)[-1]
+            timestamp_0 = create_datetime_object_from_str(s_id_0)
+            timestamp_1 = create_datetime_object_from_str(s_id_1)
+            if timestamp_0 > timestamp_1: # Scan0 occurs after Scan1
+                baseline_idx = 1
+                followup_idx = 0
+            else:
+                baseline_idx=0
+                followup_idx=1
+
+            if args.vessel is False:
+                fixed_mask_itk = sitk.ReadImage(os.path.join(scan_dirs[baseline_idx],
+                                                             'LiverMask_dilated.nii'))
+
+                moving_mask_itk = sitk.ReadImage(os.path.join(scan_dirs[followup_idx],
+                                                              'LiverMask_dilated.nii'))
+            else:
+                fixed_mask_itk = sitk.ReadImage(os.path.join(scan_dirs[baseline_idx],
+                                                             'vessel_mask.nii'))
+
+                moving_mask_itk = sitk.ReadImage(os.path.join(scan_dirs[followup_idx],
+                                                              'vessel_mask.nii'))
+
 
         fixed_mask_np = convert_itk_to_ras_numpy(fixed_mask_itk)
         moving_mask_np = convert_itk_to_ras_numpy(moving_mask_itk)
 
 
         # 2. Parse the .txt files into numpy arrays
-        fixed_image_landmarks = parse_points_file(fpath=os.path.join(pdir,
-                                                                     'fixed_landmarks_elx.txt'))
-        moving_image_landmarks = parse_points_file(fpath=os.path.join(pdir,
-                                                                      'moving_landmarks_elx.txt'))
-
-        assert(fixed_image_landmarks.shape[0] == moving_image_landmarks.shape[0])
-
-        n_landmarks[idx] = fixed_image_landmarks.shape[0]
+        if args.dataset == 'copd':
+            fixed_image_landmarks = parse_points_file(fpath=os.path.join(pdir,
+                                                                         'fixed_landmarks_elx.txt'))
+            moving_image_landmarks = parse_points_file(fpath=os.path.join(pdir,
+                                                                          'moving_landmarks_elx.txt'))
 
 
+            # 3. Convert physical coordinates into voxel indices
+            fixed_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks,
+                                                                         spacing=fixed_mask_itk.GetSpacing(),
+                                                                         origin=fixed_mask_itk.GetOrigin()).astype(np.int32)
 
-        # 3. Convert physical coordinates into voxel indices
-        fixed_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks,
-                                                                     spacing=fixed_mask_itk.GetSpacing(),
-                                                                     origin=fixed_mask_itk.GetOrigin()).astype(np.int32)
+            moving_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks,
+                                                                          spacing=moving_mask_itk.GetSpacing(),
+                                                                          origin=moving_mask_itk.GetOrigin()).astype(np.int32)
 
-        moving_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks,
-                                                                      spacing=moving_mask_itk.GetSpacing(),
-                                                                      origin=moving_mask_itk.GetOrigin()).astype(np.int32)
+        elif args.dataset == 'umc':
+            fixed_image_landmarks_voxel = parse_points_file(fpath=os.path.join(pdir,
+                                                                               'fixed_landmarks_voxels.txt')).astype(np.int32)
 
+            moving_image_landmarks_voxel = parse_points_file(fpath=os.path.join(pdir,
+                                                                                'moving_landmarks_voxels.txt')).astype(np.int32)
+
+        assert(fixed_image_landmarks_voxel.shape[0] == moving_image_landmarks_voxel.shape[0])
+        n_landmarks[idx] = fixed_image_landmarks_voxel.shape[0]
         max_landmark_coordinates_fixed = np.max(fixed_image_landmarks_voxel, axis=0)
         max_landmark_coordinates_moving = np.max(moving_image_landmarks_voxel, axis=0)
 
@@ -148,22 +185,30 @@ if __name__ == '__main__':
 
         correspondence_status = np.multiply(fixed_mask_idxs, moving_mask_idxs)
         landmarks_inside = np.nonzero(correspondence_status)[0].shape[0]
-        frac_inside = landmarks_inside/fixed_image_landmarks.shape[0]
+        frac_inside = landmarks_inside/fixed_image_landmarks_voxel.shape[0]
 
         n_landmarks_inside[idx] = landmarks_inside
 
-        print('Correspondences inside lung for patient {} = {}/{} ({} %)'.format(pid,
-                                                                               landmarks_inside,
-                                                                               fixed_image_landmarks.shape[0],
-                                                                               frac_inside*100))
+        print('Correspondences inside soft-mask region for patient {} = {}/{} ({} %)'.format(pid,
+                                                                                             landmarks_inside,
+                                                                                             fixed_image_landmarks_voxel.shape[0],
+                                                                                             frac_inside*100))
 
     n_fraction_inside = np.divide(n_landmarks_inside,
                                   n_landmarks)
 
     print('Overall statistics')
 
-    print('Number of landmarks :: {} +/- {}'.format(np.mean(n_landmarks),
-                                                    np.std(n_landmarks)))
-    print('Fraction of landmarks inside :: {} +/- {}'.format(np.mean(n_fraction_inside),
-                                                             np.std(n_fraction_inside)))
+    print('Number of landmarks (Mean +/- std-dev) :: {} +/- {}'.format(np.mean(n_landmarks),
+                                                                       np.std(n_landmarks)))
 
+    print('Fraction of landmarks inside (Mean +/- std-dev) :: {} +/- {}'.format(np.mean(n_fraction_inside),
+                                                                                np.std(n_fraction_inside)))
+
+    print('Number of landmarks (Median, q25, q75) :: {} {}-{}'.format(np.median(n_landmarks),
+                                                                      np.percentile(n_landmarks, 25),
+                                                                      np.percentile(n_landmarks, 75)))
+
+    print('Fraction of landmarks inside (Median, q25, q75) :: {} {}-{}'.format(np.median(n_fraction_inside),
+                                                                               np.percentile(n_fraction_inside, 25),
+                                                                               np.percentile(n_fraction_inside, 75)))
