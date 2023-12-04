@@ -87,11 +87,11 @@ def create_correspondence_graph_from_list(pred_lesions,
 
             # Compute distance between lesion centers
             if distance <= min_distance:
-                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, 1)])
+                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, 1)], distance=distance)
                 if verbose is True:
                     print('Follow-up lesion {} matches baseline lesion {}'.format(p_idx, g_idx))
             else: # False positive
-                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, 0)])
+                dgraph.add_weighted_edges_from([(pred_lesion, gt_lesion, 0)], distance=distance)
 
     # Create backward edges (partition 1 -> partition 0)
     for g_idx, gt_lesion in enumerate(gt_lesions):
@@ -106,11 +106,11 @@ def create_correspondence_graph_from_list(pred_lesions,
             distance = np.sqrt(np.dot((seg_lesion_center-gt_lesion_center),
                                       (seg_lesion_center-gt_lesion_center)))
             if distance <= min_distance:
-                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, 1)])
+                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, 1)], distance=distance)
                 if verbose is True:
                     print('Baseline lesion {} matches follow-up lesion {}'.format(p_idx, g_idx))
             else:
-                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, 0)])
+                dgraph.add_weighted_edges_from([(gt_lesion, pred_lesion, 0)], distance=distance)
 
     # Check if the constructed graph is bipartite
     assert(bipartite.is_bipartite(dgraph))
