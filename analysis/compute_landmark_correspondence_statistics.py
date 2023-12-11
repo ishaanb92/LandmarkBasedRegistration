@@ -75,10 +75,10 @@ if __name__ == '__main__':
                                                               'LiverMask_dilated.nii'))
             else:
                 fixed_mask_itk = sitk.ReadImage(os.path.join(scan_dirs[baseline_idx],
-                                                             'vessel_mask.nii'))
+                                                             'vessel_mask_dilated.nii'))
 
                 moving_mask_itk = sitk.ReadImage(os.path.join(scan_dirs[followup_idx],
-                                                              'vessel_mask.nii'))
+                                                              'vessel_mask_dilated.nii'))
 
 
         fixed_mask_np = convert_itk_to_ras_numpy(fixed_mask_itk)
