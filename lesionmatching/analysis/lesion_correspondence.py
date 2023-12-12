@@ -235,7 +235,7 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
         print('No measurable lesions found')
 
 
-def construct_dict_from_graph(dgraph, min_diameter=10.00):
+def construct_dict_from_graph(dgraph, min_diameter=0.0):
     """
     Function to construct a list of matched lesions
     Example ouput : [(fixed_lesion_id_0, moving_lesion_id_0), ..., (fixed_lesion_id_n, moving_lesion_id_n)]
@@ -247,14 +247,26 @@ def construct_dict_from_graph(dgraph, min_diameter=10.00):
     assert('fixed' in list(fixed_lesion_nodes)[0].get_name().lower())
 
     predicted_matches_dict = {}
+    predicted_matches_dict['forward_matches'] = {} # Fixed->Moving
+    predicted_matches_dict['backward_matches'] = {} # Moving->Fixed
     for f_node in fixed_lesion_nodes:
-        predicted_matches_dict[f_node.get_name().lower()] = []
+        predicted_matches_dict['forward_matches'][f_node.get_name().lower()] = []
         f_diameter = f_node.get_diameter()
         for m_node in moving_lesion_nodes:
             edge_weight = dgraph[f_node][m_node]['weight']
             if edge_weight > 0: # If a match, each edge is weighted by 1/distance
                 if f_diameter >= min_diameter:
-                    predicted_matches_dict[f_node.get_name().lower()].append(m_node.get_name().lower())
+                    predicted_matches_dict['forward_matches'][f_node.get_name().lower()].append(m_node.get_name().lower())
+
+    for m_node in moving_lesion_nodes:
+        predicted_matches_dict['backward_matches'][m_node.get_name().lower()] = []
+        m_diameter = m_node.get_diameter()
+        for f_node in fixed_lesion_nodes:
+            edge_weight = dgraph[m_node][f_node]['weight']
+            if edge_weight > 0: # If a match, each edge is weighted by 1/distance
+                if f_diameter >= min_diameter:
+                    predicted_matches_dict['backward_matches'][m_node.get_name().lower()].append(f_node.get_name().lower())
+
 
     return predicted_matches_dict
 
@@ -303,8 +315,14 @@ def preprocess_gt_dict(gt_dict):
     for fixed_lesion in list(gt_dict.keys()):
         forward_gt_dict[fixed_lesion] = []
 
-    moving_lesion_list = list(gt_dict[list(gt_dict.keys())[0]].keys())
+    # Create list of moving lesions
+    moving_lesion_list = []
+    for _, match_status in gt_dict.items():
+        for moving_lesion in match_status.keys():
+            moving_lesion_list.append(moving_lesion)
 
+
+    moving_lesion_list = list(set(moving_lesion_list))
 
     for moving_lesion in moving_lesion_list:
         backward_gt_dict[moving_lesion] = []
@@ -348,10 +366,14 @@ def compute_detection_metrics(pred_dict,
 
     forward_gt_dict = gt_dict['forward_dict']
     backward_gt_dict = gt_dict['backward_dict']
+    forward_pred_dict = pred_dict['forward_matches']
+    backward_pred_dict = pred_dict['backward_matches']
+    disappearing_lesions = gt_dict['disappearing lesions']
+    new_lesions = gt_dict['new lesions']
 
     # NOTE: We count the number of correspondences based on graph edges, and not nodes.
     # This way we do not overtly penalize partial matches
-    for fixed_lesion, moving_lesions in pred_dict.items():
+    for fixed_lesion, moving_lesions in forward_pred_dict.items():
         matches = 0
         if len(moving_lesions) > 0:
             for moving_lesion in moving_lesions:
@@ -365,18 +387,48 @@ def compute_detection_metrics(pred_dict,
             else:
                 false_negatives += len(forward_gt_dict[fixed_lesion])
 
+    # Count true negatives for moving lesions
+    for moving_lesion, fixed_lesions in backward_pred_dict.items():
+        if len(fixed_lesions) == 0 and len(backward_gt_dict[moving_lesion]) == 0:
+            true_negatives += 1
+
     # Count false negatives
     for fixed_lesion, moving_lesions in forward_gt_dict.items():
         if len(moving_lesions) > 0:
             for moving_lesion in moving_lesions:
-                if moving_lesion in pred_dict[fixed_lesion] is False:
+                if moving_lesion in forward_pred_dict[fixed_lesion] is False:
                     false_negatives += 1
+
+    # Count disappearing lesions
+    n_lesions_disappeared_gt = len(disappearing_lesions)
+    n_lesions_disappeared_pred = 0
+    if n_lesions_disappeared_gt > 0:
+        for fixed_lesion, moving_lesions in forward_pred_dict.items():
+            if len(moving_lesions) == 0: # No edges
+                if fixed_lesion in disappearing_lesions:
+                    n_lesions_disappeared_pred += 1
+
+
+
+
+    # Count new lesions
+    n_lesions_new_gt = len(new_lesions)
+    n_lesions_new_pred = 0
+    if n_lesions_new_gt > 0:
+        for moving_lesion, fixed_lesions in backward_pred_dict.items():
+            if len(fixed_lesions) == 0: # No edges
+                if moving_lesion in new_lesions:
+                    n_lesions_new_pred += 1
 
     count_dict = {}
     count_dict['TP'] = true_positive_matches
     count_dict['FP'] = false_positive_matches
     count_dict['FN'] = false_negatives
     count_dict['TN'] = true_negatives
+    count_dict['LD_Pred'] = n_lesions_disappeared_pred
+    count_dict['LN_Pred'] = n_lesions_new_pred
+    count_dict['LD_GT'] = n_lesions_disappeared_gt
+    count_dict['LN_GT'] = n_lesions_new_gt
 
     return count_dict
 

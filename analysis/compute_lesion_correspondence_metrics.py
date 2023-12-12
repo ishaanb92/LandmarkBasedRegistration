@@ -60,6 +60,10 @@ if __name__ == '__main__':
     metric_dict['Incorrect Matches'] = []
     metric_dict['Missed Matches'] = []
     metric_dict['True Negatives'] = []
+    metric_dict['LN_Pred'] = []
+    metric_dict['LN_GT'] = []
+    metric_dict['LD_Pred'] = []
+    metric_dict['LD_GT'] = []
 
     for pat_dir in pat_dirs:
 
@@ -136,6 +140,10 @@ if __name__ == '__main__':
         metric_dict['Incorrect Matches'].append(count_dict['FP'])
         metric_dict['Missed Matches'].append(count_dict['FN'])
         metric_dict['True Negatives'].append(count_dict['TN'])
+        metric_dict['LN_Pred'].append(count_dict['LN_Pred'])
+        metric_dict['LN_GT'].append(count_dict['LN_GT'])
+        metric_dict['LD_Pred'].append(count_dict['LD_Pred'])
+        metric_dict['LD_GT'].append(count_dict['LD_GT'])
 
 
     # Create pandas DF
@@ -151,10 +159,20 @@ if __name__ == '__main__':
     false_positives = metric_df['Incorrect Matches'].sum()
     false_negatives = metric_df['Missed Matches'].sum()
     true_negatives = metric_df['True Negatives'].sum()
+    disappeared_lesions_gt = metric_df['LD_GT'].sum()
+    disappeared_lesions_pred = metric_df['LD_Pred'].sum()
+    new_lesions_gt = metric_df['LN_GT'].sum()
+    new_lesions_pred = metric_df['LN_Pred'].sum()
 
     sensitivity = true_positives/(true_positives + false_negatives)
     specificity = true_negatives/(true_negatives + false_positives)
     accuracy = (true_positives+true_negatives)/(true_positives+true_negatives+false_positives+false_negatives)
+    new_lesions_found = new_lesions_pred/new_lesions_gt
+    disappeared_lesions_found = disappeared_lesions_pred/disappeared_lesions_gt
     print('Accuracy = {} Sensitivity = {}, Specificity = {}'.format(accuracy,
                                                                     sensitivity,
                                                                     specificity))
+
+    print('% new lesions found = {} % disappeared lesions found = {}'.format(new_lesions_found,
+                                                                             disappeared_lesions_found))
+
