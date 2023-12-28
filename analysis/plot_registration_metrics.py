@@ -99,6 +99,13 @@ if __name__ == '__main__':
 
     ax.set_ylim((0, 100))
 
+    # Adjust legend position
+    ax.legend(loc='upper center',
+              bbox_to_anchor=(0.5, -0.05),
+              fancybox=True,
+              shadow=True,
+              ncol=2)
+
     fig.savefig(os.path.join(save_dir, args.output_file),
                 bbox_inches='tight')
 
