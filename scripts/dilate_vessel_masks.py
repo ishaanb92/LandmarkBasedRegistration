@@ -36,15 +36,16 @@ if __name__ == '__main__':
             vessel_mask_np = vessel_mask_np.astype(np.uint8)
 
             # Generate binary structure
-            structure = generate_binary_structure(rank=3,
-                                                  connectivity=3)
+            #structure = generate_binary_structure(rank=3,
+            #                                      connectivity=3)
 
-            print(structure.shape)
+            structure = np.ones((5, 5, 5),
+                                dtype=np.uint8)
 
             # Dilation with a full 3x3 structure matrix
             vessel_mask_dilated_np = binary_dilation(input=vessel_mask_np,
                                                      structure=structure,
-                                                     iterations=2).astype(vessel_mask_np.dtype)
+                                                     iterations=1).astype(vessel_mask_np.dtype)
 
             vessel_mask_dilated_itk = sitk.GetImageFromArray(vessel_mask_dilated_np)
             vessel_mask_dilated_itk.SetOrigin(vessel_mask_itk.GetOrigin())
