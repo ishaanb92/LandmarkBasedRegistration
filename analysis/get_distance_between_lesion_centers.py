@@ -27,11 +27,14 @@ if __name__ == '__main__':
     tp_distances = []
     fp_distances = []
     fn_distances = []
+    pids = []
+    lesion_ids = []
+    fp_pids = []
+    fp_lesion_ids = []
 
     for pat_dir in pat_dirs:
 
         pid = pat_dir.split(os.sep)[-1]
-
         # Load graph
         try:
             dgraph = joblib.load(os.path.join(pat_dir, 'corr_graph.pkl'))
@@ -50,29 +53,31 @@ if __name__ == '__main__':
 
         # Loop over edges and report distanes
         for u, v in dgraph.edges():
-            if 'moving' in u.get_name().lower():
-                moving_lesion_id = u.get_idx()
-                fixed_lesion_id = v.get_idx()
-                moving_lesion_name = u.get_name()
-                fixed_lesion_name = v.get_name()
-            elif 'fixed' in u.get_name().lower():
+            # Check each edge just once!
+            if 'fixed' in u.get_name().lower():
                 fixed_lesion_id = u.get_idx()
                 moving_lesion_id = v.get_idx()
-                moving_lesion_name = v.get_name()
                 fixed_lesion_name = u.get_name()
+                moving_lesion_name = v.get_name()
 
-            prediction = dgraph.get_edge_data(u, v)['weight']
-            lesion_center_distance = dgraph.get_edge_data(u, v)['distance']
+                prediction = dgraph.get_edge_data(u, v)['weight']
+                lesion_center_distance = dgraph.get_edge_data(u, v)['distance']
 
-            if prediction == 1:
-                # Check GT
-                if moving_lesion_name in gt_forward_dict[fixed_lesion_name]: # True positive
-                    tp_distances.append(lesion_center_distance)
-                else:
-                    fp_distances.append(lesion_center_distance)
-            else: # Match not predicted
-                if moving_lesion_name in gt_forward_dict[fixed_lesion_name]: # False negative
-                    fn_distances.append(lesion_center_distance)
+                if prediction == 1:
+                    # Check GT
+                    if moving_lesion_name in gt_forward_dict[fixed_lesion_name]: # True positive
+                        tp_distances.append(lesion_center_distance)
+                    else:
+                        fp_distances.append(lesion_center_distance)
+                        fp_pids.append(pid)
+                        fp_lesion_ids.append((fixed_lesion_id, moving_lesion_id))
+                else: # Match not predicted
+                    if len(gt_forward_dict[fixed_lesion_name]) > 0:
+                        if moving_lesion_name in gt_forward_dict[fixed_lesion_name]: # False negative
+                            fn_distances.append(lesion_center_distance)
+                            # Maintain record of FNs
+                            pids.append(pid)
+                            lesion_ids.append((fixed_lesion_id, moving_lesion_id))
 
 
     tp_distances = np.array(tp_distances).astype(np.float32)
@@ -95,7 +100,7 @@ if __name__ == '__main__':
               transform=ax.get_xaxis_transform())
 
     ax.legend(loc='upper right')
-
+    ax.set_ylim((0, 10))
     fig.savefig(os.path.join(args.reg_dir,
                              'lesion_centers.pdf'),
                 bbox_inches='tight')
@@ -103,3 +108,26 @@ if __name__ == '__main__':
     fig.savefig(os.path.join(args.reg_dir,
                              'lesion_centers.jpg'),
                 bbox_inches='tight')
+
+    # Check outlier FN
+    max_id = np.argmax(fn_distances)
+    print('Max distance  = {}'.format(np.max(fn_distances)))
+    print('Patient {}, lesion ids {}'.format(pids[max_id],
+                                             lesion_ids[max_id]))
+
+    # FN Analysis
+    for idx in range(fn_distances.shape[0]):
+        print('Patient {} Fixed Lesion ID {} Moving Lesion ID {} Distance = {}'.format(pids[idx],
+                                                                                       lesion_ids[idx][0],
+                                                                                       lesion_ids[idx][1],
+                                                                                       fn_distances[idx]))
+
+   # FP Analysis
+    for idx in range(fp_distances.shape[0]):
+        print('Patient {} Fixed Lesion ID {} Moving Lesion ID {} Distance = {}'.format(fp_pids[idx],
+                                                                                       fp_lesion_ids[idx][0],
+                                                                                       fp_lesion_ids[idx][1],
+                                                                                       fp_distances[idx]))
+
+
+
