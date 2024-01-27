@@ -193,6 +193,9 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
                 color_map.append('tab:green')
                 label_dict[node] = '{}{}'.format(node_name[0].upper(), node.get_idx())
 
+        n_pred_lesion_nodes = len(pred_lesion_nodes)
+        n_gt_lesion_nodes = len(gt_lesion_nodes)
+
         # Create color map for edges
         if gt_dict is not None:
             gt_dict = preprocess_gt_dict(gt_dict)
@@ -212,6 +215,7 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
                         edge_color.append('tab:red')
 
         pos = nx.bipartite_layout(dgraph_viz, gt_lesion_nodes)
+
 
         fig, ax = plt.subplots()
 

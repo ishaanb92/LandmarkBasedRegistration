@@ -46,6 +46,7 @@ if __name__ == '__main__':
         sensitivity = true_positives/(true_positives + false_negatives)
         specificity = true_negatives/(true_negatives + false_positives)
         accuracy = (true_positives+true_negatives)/(true_positives+true_negatives+false_positives+false_negatives)
+        ppv = true_positives/(true_positives + false_positives)
 
         # Create a row for accuracy
         plot_dict['Configuration'].append(legend)
@@ -61,6 +62,11 @@ if __name__ == '__main__':
         plot_dict['Configuration'].append(legend)
         plot_dict['Metric'].append(specificity)
         plot_dict['Metric Type'].append('Specificity')
+
+        # Create a row for precisio
+        plot_dict['Configuration'].append(legend)
+        plot_dict['Metric'].append(ppv)
+        plot_dict['Metric Type'].append('Precision')
 
 
     plot_df = pd.DataFrame.from_dict(plot_dict)
@@ -80,7 +86,12 @@ if __name__ == '__main__':
 
     ax.set_ylim((0, 1))
     ax.set_yticks(np.arange(0, 1.1, 0.1))
-    ax.legend(loc='lower right')
+    ax.legend(loc='upper center',
+              bbox_to_anchor=(0.5, -0.05),
+              fancybox=True,
+              shadow=True,
+              ncol=4)
+
     if os.path.exists(args.save_dir) is False:
         os.makedirs(args.save_dir)
 
