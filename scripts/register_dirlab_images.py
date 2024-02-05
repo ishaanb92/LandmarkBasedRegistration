@@ -37,6 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_lung_mask', action='store_true')
     parser.add_argument('--use_threshold', action='store_true')
     parser.add_argument('--use_threshold_local', action='store_true')
+    parser.add_argument('--use_sift_landmarks', action='store_true')
 
     args = parser.parse_args()
 
@@ -78,13 +79,21 @@ if __name__ == '__main__':
 
         os.makedirs(reg_out_dir)
 
-        fixed_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
+        if args.use_sift_landmarks is False:
+            fixed_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
+                                                                         im_types[0]))
+        else:
+            fixed_image_path = os.path.join(pdir, '{}_{}.mha'.format(image_prefix,
                                                                      im_types[0]))
 
         fixed_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[0]))
 
         if args.affine_reg_dir is None:
-            moving_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
+            if args.use_sift_landmarks is False:
+                moving_image_path = os.path.join(pdir, '{}_{}_iso.mha'.format(image_prefix,
+                                                                              im_types[1]))
+            else:
+                moving_image_path = os.path.join(pdir, '{}_{}.mha'.format(image_prefix,
                                                                           im_types[1]))
 
             moving_mask_path = os.path.join(pdir, 'lung_mask_{}_dl_iso.mha'.format(im_types[1]))
