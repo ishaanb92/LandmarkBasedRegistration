@@ -84,7 +84,7 @@ if __name__ == '__main__':
     tre_df = pd.DataFrame.from_dict(tre_dict)
 
     # Use the DF to construct box-plot
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots()
 
 
     sns.boxplot(data=tre_df,
@@ -99,16 +99,15 @@ if __name__ == '__main__':
 
     ax.set_ylim((0, 50))
 
-    ax.tick_params(axis='both', labelsize=15)
-    ax.yaxis.label.set_size(15)
+#    ax.tick_params(axis='both', labelsize=15)
+#    ax.yaxis.label.set_size(15)
 
     # Adjust legend position
     ax.legend(loc='upper center',
-              bbox_to_anchor=(0.5, -0.025),
+              bbox_to_anchor=(0.5, -0.05),
               fancybox=True,
               shadow=True,
-              ncol=4,
-              fontsize=15)
+              ncol=4)
 
     fig.savefig(os.path.join(save_dir, args.output_file),
                 bbox_inches='tight')

@@ -13,6 +13,8 @@ import os
 from argparse import ArgumentParser
 import numpy as np
 
+FORMAT = 'mha'
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -32,7 +34,7 @@ if __name__ == '__main__':
     for cdir in case_dirs:
         cid = cdir.split(os.sep)[-1]
         for itype in im_types:
-            img_file = os.path.join(cdir, '{}_{}_iso.mha'.format(cid, itype))
+            img_file = os.path.join(cdir, '{}_{}.{}'.format(cid, itype, FORMAT))
             img = sitk.ReadImage(img_file)
             spacing = img.GetSpacing()
             direction = img.GetDirection()
@@ -46,5 +48,5 @@ if __name__ == '__main__':
             lung_mask_itk.SetDirection(direction)
             lung_mask_itk.SetOrigin(origin)
             sitk.WriteImage(lung_mask_itk,
-                            os.path.join(cdir, 'lung_mask_{}_dl_iso.mha'.format(itype)))
+                            os.path.join(cdir, 'lung_mask_{}_dl.mha'.format(itype)))
 

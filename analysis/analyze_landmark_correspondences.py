@@ -21,6 +21,8 @@ from lesionmatching.util_scripts.utils import *
 from lesionmatching.util_scripts.image_utils import *
 import joblib
 
+NII_DIR = '/home/ishaan/COPDGene/nii/'
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -33,6 +35,8 @@ if __name__ == '__main__':
     parser.add_argument('--use_threshold', action='store_true')
     parser.add_argument('--show_gt_matches', action='store_true')
     parser.add_argument('--show_gt_projection', action='store_true')
+    parser.add_argument('--show_overlay', action='store_true')
+    parser.add_argument('--sift', action='store_true')
     args = parser.parse_args()
 
     pat_dirs = [f.path for f in os.scandir(args.landmarks_dir) if f.is_dir()]
@@ -53,15 +57,25 @@ if __name__ == '__main__':
 
         # 1. Read fixed and (affine-transformed) moving images
 
-        fixed_image_itk = sitk.ReadImage(os.path.join(pdir,
-                                                      'fixed_image.mha'))
+        if args.sift is False:
+            fixed_image_itk = sitk.ReadImage(os.path.join(pdir,
+                                                          'fixed_image.mha'))
+
+            moving_image_itk = sitk.ReadImage(os.path.join(pdir,
+                                                           'moving_image.mha'))
+        else:
+            fixed_image_itk = sitk.ReadImage(os.path.join(NII_DIR,
+                                                          pid,
+                                                          '{}_iBHCT.nii'.format(pid)))
+
+            moving_image_itk = sitk.ReadImage(os.path.join(NII_DIR,
+                                                           pid,
+                                                           '{}_eBHCT.nii'.format(pid)))
 
         # Convert ITK image to a RAS ordered numpy ndarray
         fixed_image_np = np.transpose(sitk.GetArrayFromImage(fixed_image_itk),
                                       (2, 1, 0))
 
-        moving_image_itk = sitk.ReadImage(os.path.join(pdir,
-                                                       'moving_image.mha'))
 
         # Convert ITK image to a RAS ordered numpy ndarray
         moving_image_np = np.transpose(sitk.GetArrayFromImage(moving_image_itk),
@@ -70,17 +84,32 @@ if __name__ == '__main__':
         # 2-a. Read fixed and moving predicted landmarks .txt files
 
         if args.use_threshold is False:
-            fixed_image_landmarks_voxels = parse_points_file(os.path.join(pdir,
-                                                            'fixed_landmarks_voxels.txt'))
+            if args.sift is True:
+                fixed_image_landmarks_voxels = parse_points_file(os.path.join(pdir,
+                                                                'fixed_landmarks_elx.txt')).astype(np.float32)
 
-            moving_image_landmarks_voxels = parse_points_file(os.path.join(pdir,
-                                                             'moving_landmarks_voxels.txt'))
+                moving_image_landmarks_voxels = parse_points_file(os.path.join(pdir,
+                                                                 'moving_landmarks_elx.txt')).astype(np.float32)
+
+                moving_image_landmarks_world = convert_index_to_world_with_image(indices=moving_image_landmarks_voxels,
+                                                                                 image=moving_image_itk)
+            else:
+                fixed_image_landmarks_world = parse_points_file(os.path.join(pdir,
+                                                                'fixed_landmarks_elx.txt'))
+
+                moving_image_landmarks_world = parse_points_file(os.path.join(pdir,
+                                                                 'moving_landmarks_elx.txt'))
+
+                moving_image_landmarks_voxels = convert_world_to_index_with_image(world_coords=moving_image_landmarks_world,
+                                                                                  image=moving_image_itk)
+
         else:
             fixed_image_landmarks_world = parse_points_file(os.path.join(pdir,
                                                             'fixed_landmarks_elx_threshold.txt'))
 
             moving_image_landmarks_world = parse_points_file(os.path.join(pdir,
                                                              'moving_landmarks_elx_threshold.txt'))
+
 
         # Moving landmarks after TPS-based smoothing
         if args.smoothing > 0:
@@ -94,16 +123,6 @@ if __name__ == '__main__':
             moving_image_landmarks_smoothed_world = None
             moving_image_landmarks_smoothed_voxels = None
 
-
-        # 2-b. Convert world coordinates to voxels
-
-#        fixed_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks_world,
-#                                                                      spacing=fixed_image_itk.GetSpacing(),
-#                                                                      origin=fixed_image_itk.GetOrigin())
-#
-#        moving_image_landmarks_voxels = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks_world,
-#                                                                       spacing=moving_image_itk.GetSpacing(),
-#                                                                       origin=moving_image_itk.GetOrigin())
 
         if moving_image_landmarks_smoothed_world is not None:
             moving_image_landmarks_smoothed_voxels = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks_smoothed_world,
@@ -160,26 +179,28 @@ if __name__ == '__main__':
             gt_fixed_image_landmarks_voxels = None
             gt_moving_image_landmarks_voxels = None
 
-        if args.out_dir is not None:
-            out_dir = os.path.join(args.out_dir, pid)
-        else:
-            out_dir = os.path.join(pdir, 'overlay')
-
-        if os.path.exists(out_dir) is True:
-            shutil.rmtree(out_dir)
-        os.makedirs(out_dir)
 
         # 4. Overlay GT and predicted landmarks correspondences
-        overlay_predicted_and_manual_landmarks(fixed_image=fixed_image_np,
-                                               moving_image=moving_image_np,
-                                               pred_landmarks_fixed=fixed_image_landmarks_voxels,
-                                               pred_landmarks_moving=moving_image_landmarks_voxels,
-                                               manual_landmarks_fixed=gt_fixed_image_landmarks_voxels,
-                                               manual_landmarks_moving=gt_moving_image_landmarks_voxels,
-                                               smoothed_landmarks_moving=moving_image_landmarks_smoothed_voxels,
-                                               gt_projection_landmarks_moving=gt_projection_landmarks,
-                                               out_dir=out_dir,
-                                               verbose=False)
+        if args.show_overlay is True:
+            if args.out_dir is not None:
+                out_dir = os.path.join(args.out_dir, pid)
+            else:
+                out_dir = os.path.join(pdir, 'overlay')
+
+            if os.path.exists(out_dir) is True:
+                shutil.rmtree(out_dir)
+            os.makedirs(out_dir)
+
+            overlay_predicted_and_manual_landmarks(fixed_image=fixed_image_np,
+                                                   moving_image=moving_image_np,
+                                                   pred_landmarks_fixed=fixed_image_landmarks_voxels,
+                                                   pred_landmarks_moving=moving_image_landmarks_voxels,
+                                                   manual_landmarks_fixed=gt_fixed_image_landmarks_voxels,
+                                                   manual_landmarks_moving=gt_moving_image_landmarks_voxels,
+                                                   smoothed_landmarks_moving=moving_image_landmarks_smoothed_voxels,
+                                                   gt_projection_landmarks_moving=gt_projection_landmarks,
+                                                   out_dir=out_dir,
+                                                   verbose=False)
 
         # 5. Save errors
         # 5-1 Localization Error: d(X_m, T(X_f))

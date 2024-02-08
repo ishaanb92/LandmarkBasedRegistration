@@ -25,6 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--dataset', type=str, default='umc')
     parser.add_argument('--vessel', action='store_true')
+    parser.add_argument('--sift', action='store_true')
 
     args = parser.parse_args()
 
@@ -46,11 +47,18 @@ if __name__ == '__main__':
 
         # 1. Read the mask images
         if args.dataset == 'copd':
-            fixed_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
-                                                         'lung_mask_iBHCT_dl_iso.mha'))
+            if args.sift is False:
+                fixed_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
+                                                             'lung_mask_iBHCT_dl_iso.mha'))
 
-            moving_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
-                                                          'lung_mask_eBHCT_dl_iso.mha'))
+                moving_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
+                                                              'lung_mask_eBHCT_dl_iso.mha'))
+            else:
+                fixed_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
+                                                             'lung_mask_iBHCT_dl.mha'))
+
+                moving_mask_itk = sitk.ReadImage(os.path.join(pdata_dir,
+                                                              'lung_mask_eBHCT_dl.mha'))
         elif args.dataset == 'umc':
             # Find the fixed and moving directories
             scan_dirs  = [f.path for f in os.scandir(pdata_dir) if f.is_dir()]
@@ -92,15 +100,18 @@ if __name__ == '__main__':
             moving_image_landmarks = parse_points_file(fpath=os.path.join(pdir,
                                                                           'moving_landmarks_elx.txt'))
 
+            if args.sift is False:
+                # 3. Convert physical coordinates into voxel indices
+                fixed_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks,
+                                                                             spacing=fixed_mask_itk.GetSpacing(),
+                                                                             origin=fixed_mask_itk.GetOrigin()).astype(np.int32)
 
-            # 3. Convert physical coordinates into voxel indices
-            fixed_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=fixed_image_landmarks,
-                                                                         spacing=fixed_mask_itk.GetSpacing(),
-                                                                         origin=fixed_mask_itk.GetOrigin()).astype(np.int32)
-
-            moving_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks,
-                                                                          spacing=moving_mask_itk.GetSpacing(),
-                                                                          origin=moving_mask_itk.GetOrigin()).astype(np.int32)
+                moving_image_landmarks_voxel = map_world_coord_to_voxel_index(world_coords=moving_image_landmarks,
+                                                                              spacing=moving_mask_itk.GetSpacing(),
+                                                                              origin=moving_mask_itk.GetOrigin()).astype(np.int32)
+            else:
+                fixed_image_landmarks_voxel = fixed_image_landmarks.astype(np.int32)
+                moving_image_landmarks_voxel = moving_image_landmarks.astype(np.int32)
 
         elif args.dataset == 'umc':
             fixed_image_landmarks_voxel = parse_points_file(fpath=os.path.join(pdir,

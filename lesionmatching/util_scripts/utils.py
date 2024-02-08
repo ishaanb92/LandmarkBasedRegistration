@@ -17,6 +17,7 @@ from skimage.transform import resize
 from math import sqrt
 import pandas as pd
 import datetime
+import SimpleITK as sitk
 
 def get_sub_dirs(base_dir):
     """
@@ -1040,4 +1041,26 @@ def create_datetime_object_from_str(dt_str):
     return dt_obj
 
 
+def convert_index_to_world_with_image(indices:np.ndarray,
+                                      image:sitk.Image):
 
+    world_coords = np.zeros_like(indices)
+
+    for idx in range(indices.shape[0]):
+        index = indices[idx]
+        world_coord = image.TransformIndexToPhysicalPoint(((int(index[0]), int(index[1]), int(index[2]))))
+        world_coords[idx, :] = np.array(world_coord)
+
+    return world_coords
+
+def convert_world_to_index_with_image(world_coords: np.ndarray,
+                                      image:sitk.Image):
+
+    indices = np.zeros_like(world_coords)
+
+    for idx in range(world_coords.shape[0]):
+        world_coord = world_coords[idx]
+        index = image.TransformPhysicalPointToIndex((world_coord[0], world_coord[1], world_coord[2]))
+        indices[idx, :] = np.array(index)
+
+    return indices

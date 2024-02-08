@@ -30,7 +30,9 @@ if __name__ == '__main__':
     elif args.dataset == 'copd':
         im_types = ['iBHCT', 'eBHCT']
 
-    for pdir in pat_dirs:
+    dice_scores = np.zeros((len(pat_dirs),),
+                           dtype=np.float32)
+    for idx,pdir in enumerate(pat_dirs):
 
         p_id = pdir.split(os.sep)[-1]
         affine_transform_file = os.path.join(pdir, 'TransformParameters.0.txt')
@@ -53,4 +55,3 @@ if __name__ == '__main__':
 
         resampled_mask_path = tr_obj.transform_image(image_path=os.path.join(pdir, 'moving_mask.mha'),
                                                      output_dir=affine_resampled_mask_dir)
-
