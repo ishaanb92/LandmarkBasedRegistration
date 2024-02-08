@@ -214,8 +214,26 @@ def visualize_lesion_correspondences(dgraph, fname=None, remove_list=None, min_w
                     else:
                         edge_color.append('tab:red')
 
-        pos = nx.bipartite_layout(dgraph_viz, gt_lesion_nodes)
+        # Arrange GT lesions in a fixed order (acc. to ID)
+        ordered_gt_nodes = []
+        for lesion_idx in range(n_gt_lesion_nodes):
+            for node in gt_lesion_nodes:
+                idx = node.get_idx()
+                if idx == lesion_idx:
+                    break
+            ordered_gt_nodes.append(node)
 
+        ordered_pred_nodes = []
+        for lesion_idx in range(n_pred_lesion_nodes):
+            for node in pred_lesion_nodes:
+                idx = node.get_idx()
+                if idx == lesion_idx:
+                    break
+            ordered_pred_nodes.append(node)
+
+        pos = dict()
+        pos.update( (n, (1, i)) for i, n in enumerate(ordered_gt_nodes)) # put nodes from X at x=1
+        pos.update( (n, (2, i)) for i, n in enumerate(ordered_pred_nodes)) # put nodes from Y at x=2
 
         fig, ax = plt.subplots()
 
