@@ -1,8 +1,8 @@
 # Landmark-guided deformable image registration 
 
-We study the influence of (learned) landmark correspondences on intensity-based deformable image registration involving "hard" organs like the lung and liver. Our work extends the self-supervised model propsed by [Grewal et al. (2023)](https://www.spiedigitallibrary.org/journals/journal-of-medical-imaging/volume-10/issue-01/014007/Automatic-landmark-correspondence-detection-in-medical-images-with-an-application/10.1117/1.JMI.10.1.014007.full#_=_) by proposing the use of a mask during training to focus the model on key anatomical structures (e.g. vessels inside the liver). 
+We study the influence of (learned) landmark correspondences on intensity-based deformable image registration involving "hard" organs like the lung and liver. Our work extends the self-supervised model developed by [Grewal et al. (2023)](https://www.spiedigitallibrary.org/journals/journal-of-medical-imaging/volume-10/issue-01/014007/Automatic-landmark-correspondence-detection-in-medical-images-with-an-application/10.1117/1.JMI.10.1.014007.full#_=_) by proposing the use of a mask during training to focus the model on key anatomical structures (e.g. vessels inside the liver). 
 
-We evaluate our model using two use-cases:
+We demonstrate the benefits our *soft mask* extension using two use-cases:
 * Lung CT registration (using the 4DCT and COPDgene datasets)
 * Liver lesion co-localization (using a dataset of dynamic contrast-enhanched (DCE) MR images collected at UMC Utrecht)
 
@@ -10,6 +10,14 @@ We evaluate our model using two use-cases:
 # Model
 
 ![Landmark correspondence prediction model](landmark_model.png)
+
+# Results
+
+### Lung CT registration
+[!Lung CT registration](copd_results.png)
+
+### Liver lesion co-localization
+[!Liver lesion co-localization](lesion_matching.png)
 
 # Usage
 
