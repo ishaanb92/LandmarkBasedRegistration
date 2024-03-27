@@ -3,7 +3,6 @@ Miscelleneous utility functions
 
 """
 import torch
-import imageio
 import pickle
 import numpy as np
 import os
