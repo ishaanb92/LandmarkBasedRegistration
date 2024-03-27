@@ -14,10 +14,10 @@ We demonstrate the benefits our *soft mask* extension using two use-cases:
 # Results
 
 ### Lung CT registration
-[!Lung CT registration](copd_results.png)
+![Lung CT registration](copd_results.png)
 
 ### Liver lesion co-localization
-[!Liver lesion co-localization](lesion_matching.png)
+![Liver lesion co-localization](lesion_matching.png)
 
 # Usage
 
