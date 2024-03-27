@@ -1,0 +1,85 @@
+// Parameter file created by ElastixParameterFile module
+
+// Registration parameters
+(Registration "MultiMetricMultiResolutionRegistration")
+(FixedImageDimension 3)
+(MovingImageDimension 3)
+(FixedInternalImagePixelType "float")
+(MovingInternalImagePixelType "float")
+(UseDirectionCosines "true")
+(NumberOfResolutions 6)
+(ErodeFixedMask "false" "false" "false")
+(ErodeMovingMask "false" "false" "false")
+
+// Transform parameters
+(Transform "BSplineTransform")
+(FinalGridSpacingInVoxels 16 16 16)
+(GridSpacingSchedule 32 32 32 16 16 16 8 8 8 4 4 4 2 2 2 1 1 1)
+(HowToCombineTransforms "Compose")
+(AutomaticScalesEstimation "true" "true" "true")
+(AutomaticTransformInitialization "true")
+
+// Metric parameters
+(Metric "NormalizedMutualInformation" "NormalizedMutualInformation" "NormalizedMutualInformation" "NormalizedMutualInformation" "NormalizedMutualInformation" "NormalizedMutualInformation" "TransformBendingEnergyPenalty")
+(ShowExactMetricValues "false" "false" "false")
+(CheckNumberOfSamples "false" "false" "false")
+(RequiredRatioOfValidSamples 0.25)
+(NumberOfHistogramBins 64)
+(NumberOfFixedHistogramBins 64)
+
+(NumberOfMovingHistogramBins 64)
+(MovingKernelBSplineOrder 3 3 3)
+
+
+// Optimizer parameters
+(Optimizer "AdaptiveStochasticGradientDescent")
+(NewSamplesEveryIteration "true")
+(MaximumNumberOfIterations 2000)
+(MaximumNumberOfSamplingAttempts 0)
+(AutomaticParameterEstimation "true")
+(SigmoidInitialTime 0 0 0)
+(UseAdaptiveStepSizes "true")
+(NumberOfSamplesForExactGradient 100000)
+
+//(UseRelativeWeights "true")
+(Metric0RelativeWeight 1.0)
+(Metric1RelativeWeight 1.0)
+(Metric2RelativeWeight 1.0)
+(Metric3RelativeWeight 1.0)
+(Metric4RelativeWeight 1.0)
+(Metric5RelativeWeight 1.0)
+(Metric6RelativeWeight 0.05)
+
+// Interpolator parameters
+(Interpolator "BSplineInterpolator" "BSplineInterpolator" "BSplineInterpolator" "BSplineInterpolator" "BSplineInterpolator" "BSplineInterpolator" "BSplineInterpolator")
+(BSplineInterpolationOrder 1 1 1)
+
+// ResampleInterpolator parameters
+(ResampleInterpolator "FinalBSplineInterpolator")
+(FinalBSplineInterpolationOrder 3)
+
+
+// ImageSampler parameters
+(ImageSampler "RandomCoordinate" "RandomCoordinate" "RandomCoordinate" "RandomCoordinate" "RandomCoordinate" "RandomCoordinate")
+(NumberOfSpatialSamples 10000)
+(UseRandomSampleRegion "false")
+(FixedImageBSplineInterpolationOrder 1 1 1)
+
+// FixedImagePyramid parameters
+(FixedImagePyramid "FixedSmoothingImagePyramid" "FixedSmoothingImagePyramid" "FixedSmoothingImagePyramid" "FixedSmoothingImagePyramid" "FixedSmoothingImagePyramid" "FixedSmoothingImagePyramid")
+(FixedImagePyramidSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
+
+// MovingImagePyramid parameters
+(MovingImagePyramid "MovingSmoothingImagePyramid" "MovingSmoothingImagePyramid" "MovingSmoothingImagePyramid" "MovingSmoothingImagePyramid" "MovingSmoothingImagePyramid" "MovingSmoothingImagePyramid")
+(MovingImagePyramidSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
+
+(WritePyramidImagesAfterEachResolution "false")
+
+// Resampler parameters
+(Resampler "DefaultResampler")
+(WriteResultImage "true")
+(CompressResultImage "false")
+(ResultImageFormat "nii")
+(ResultImagePixelType "short")
+(WriteResultImageAfterEachResolution "false")
+
