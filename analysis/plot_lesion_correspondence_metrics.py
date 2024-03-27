@@ -63,10 +63,10 @@ if __name__ == '__main__':
         plot_dict['Metric'].append(specificity)
         plot_dict['Metric Type'].append('Specificity')
 
-        # Create a row for precisio
-        plot_dict['Configuration'].append(legend)
-        plot_dict['Metric'].append(ppv)
-        plot_dict['Metric Type'].append('Precision')
+        # Create a row for precision
+#        plot_dict['Configuration'].append(legend)
+#        plot_dict['Metric'].append(ppv)
+#        plot_dict['Metric Type'].append('Precision')
 
 
     plot_df = pd.DataFrame.from_dict(plot_dict)
@@ -87,7 +87,7 @@ if __name__ == '__main__':
     ax.set_ylim((0, 1))
     ax.set_yticks(np.arange(0, 1.1, 0.1))
     ax.legend(loc='upper center',
-              bbox_to_anchor=(0.5, -0.05),
+              bbox_to_anchor=(0.5, -0.1),
               fancybox=True,
               shadow=True,
               ncol=4)

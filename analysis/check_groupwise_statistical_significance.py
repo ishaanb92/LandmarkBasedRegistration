@@ -33,27 +33,41 @@ if __name__ == '__main__':
 
     parser.add_argument('--verbose', action='store_true')
 
+    parser.add_argument('--save_dir', type=str, default=None)
+    parser.add_argument('--fname', type=str, default=None)
+
     args = parser.parse_args()
 
-    pids = [f.path.split(os.sep)[-1] for f in os.scandir(args.result_dirs[0]) if f.is_dir()]
+    #pids = [f.path.split(os.sep)[-1] for f in os.scandir(args.result_dirs[0]) if f.is_dir()]
 
+    pids = []
+    for i in range(1, 11):
+        pids.append('copd{}'.format(i))
+
+    print(len(args.result_dirs))
+    print(len(args.legends))
 
     significance_dict = {}
     significance_dict['Patient ID'] = []
-    significance_dict['Pairwise differences found'] = []
-
+#    significance_dict['Pairwise differences found'] = []
+    for legend in args.legends:
+        significance_dict['{} Median'.format(legend)] = []
+    significance_dict['p-value'] = []
     for pid in pids: # Loop over patients
         samples = []
         significance_dict['Patient ID'].append(pid)
 
-        for rdir in args.result_dirs:
-            samples.append(np.load(os.path.join(rdir,
-                                                pid,
-                                                'post_reg_error.npy')))
+        for idx, rdir in enumerate(args.result_dirs):
+            reg_error = np.load(os.path.join(rdir,
+                                             pid,
+                                             'post_reg_error.npy'))
+            significance_dict['{} Median'.format(args.legends[idx])].append(float('{:,.3f}'.format(np.median(reg_error))))
+
+            samples.append(reg_error)
 
         # Perform Kruskal-Wallis test to test for differences between groups
         _, p = kruskal(*samples)
-
+        significance_dict['p-value'].append(np.round(p, 5))
         if p < 0.05: # Can reject KH H0
             # Perform Dunn's test
             result_df = posthoc_conover(a=samples,
@@ -80,16 +94,18 @@ if __name__ == '__main__':
             for dpair in diff_pairs:
                 diff_str += "({}, {}), ".format(args.legends[dpair[0]], args.legends[dpair[1]])
 
-            significance_dict['Pairwise differences found'].append(diff_str)
+#            significance_dict['Pairwise differences found'].append(diff_str)
 
         else:
             if args.verbose is True:
                 print('No difference found between groups for patient {}'.format(pid))
-            significance_dict['Pairwise differences found'].append('No')
+ #           significance_dict['Pairwise differences found'].append('No')
 
     sig_df = pd.DataFrame.from_dict(significance_dict)
     print(tabulate(sig_df, headers='keys', tablefmt='psql'))
-
+    if args.save_dir is not None:
+        sig_df.to_csv(os.path.join(args.save_dir,
+                                   args.fname))
 
 
 

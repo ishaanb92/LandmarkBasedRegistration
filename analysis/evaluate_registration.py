@@ -41,6 +41,9 @@ if __name__ == '__main__':
     median_reg_error = np.zeros((len(pat_dirs)),
                                 dtype=np.float32)
 
+    mean_reg_error = np.zeros((len(pat_dirs)),
+                               dtype=np.float32)
+
     for idx, pdir in enumerate(pat_dirs):
 
         pid = pdir.split(os.sep)[-1]
@@ -91,6 +94,7 @@ if __name__ == '__main__':
                     arr=spatial_errors_post_reg)
 
             median_reg_error[idx] = np.median(spatial_errors_post_reg)
+            mean_reg_error[idx] = np.mean(spatial_errors_post_reg)
         except FileNotFoundError: # Only affine registration
 
             if args.smoothing_term == 0:
@@ -121,7 +125,10 @@ if __name__ == '__main__':
                     arr=spatial_errors_post_reg)
 
             median_reg_error[idx] = np.median(spatial_errors_post_reg)
+            mean_reg_error[idx] = np.mean(spatial_errors_post_reg)
 
 
     print('Median registration error : {}'.format(np.median(median_reg_error)))
+    print('Mean registration error : {} +/- {}'.format(np.mean(mean_reg_error),
+                                                       np.std(mean_reg_error)))
 

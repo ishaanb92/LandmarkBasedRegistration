@@ -14,44 +14,43 @@ from argparse import ArgumentParser
 import SimpleITK as sitk
 import numpy as np
 
-PAT = 'copd1'
-slice_idx = 150
+PAT = 'copd10'
+slice_idx = 212
 DATA_DIR = '/home/ishaan/COPDGene/mha'
-MAX_VAL = 1024
 
 if __name__ == '__main__':
 
     parser = ArgumentParser()
-    parser.add_argument('--reg_dir', type=str, required=True)
+    parser.add_argument('--reg_dirs', type=str, nargs='+')
     args = parser.parse_args()
-
-
-    diff_image_itk = sitk.ReadImage(os.path.join(args.reg_dir,
-                                                 PAT,
-                                                 'diff_image.mha'))
-
-    diff_image_np = sitk.GetArrayFromImage(diff_image_itk)
 
     # Get fixed mask
     fixed_mask_itk = sitk.ReadImage(os.path.join(DATA_DIR,
                                                  PAT,
                                                  'lung_mask_iBHCT_dl_iso.mha'))
 
-    fixed_mask_np = sitk.GetArrayFromImage(fixed_mask_itk)
+    for reg_dir in args.reg_dirs:
+        diff_image_itk = sitk.ReadImage(os.path.join(reg_dir,
+                                                     PAT,
+                                                     'diff_image.mha'))
 
-    diff_slice = diff_image_np[slice_idx, ...]
-
-    diff_slice_masked = diff_slice*fixed_mask_np[slice_idx, ...]
-
-    print(np.amax(diff_slice_masked))
-
-    diff_slice_masked_rescaled = (diff_slice_masked*255.0)/MAX_VAL
-
-    diff_slice_masked_rescaled = diff_slice_masked_rescaled.astype(np.uint8)
-
-    heatmap = cv2.applyColorMap(diff_slice_masked_rescaled, cv2.COLORMAP_HOT)
-
-    cv2.imwrite(os.path.join(args.reg_dir, 'heatmap.jpg'),
-                heatmap)
+        diff_image_np = sitk.GetArrayFromImage(diff_image_itk)
 
 
+        fixed_mask_np = sitk.GetArrayFromImage(fixed_mask_itk)
+
+        diff_slice = diff_image_np[slice_idx, ...]
+
+        diff_slice_masked = diff_slice*fixed_mask_np[slice_idx, ...].astype(np.float32)
+
+        fig, ax = plt.subplots()
+
+        pcm = ax.pcolormesh(diff_slice_masked, cmap='hot')
+
+        ax.axes.get_xaxis().set_visible(False)
+        ax.axes.get_yaxis().set_visible(False)
+        pcm.set_clim(0, 1000)
+        fig.colorbar(pcm, orientation='vertical')
+
+        fig.savefig(os.path.join(reg_dir,
+                                 'heatmap.png'))
