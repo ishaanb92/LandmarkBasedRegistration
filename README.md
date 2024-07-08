@@ -29,9 +29,25 @@ Use the following to clone the repository and install packages.
 You will also need to install Elastix yourself from [here](http://elastix.lumc.nl/download.php). Set the `elastix_path` and `transformix_path` to the paths where you installed the binaries for `elastix` and `transformix` when using the `ElastixInterface` and `TransformixInterface` classes during registration. 
 
 ## Citation
-Our paper is currently under peer-review. This section will be updated after publication. 
+If you use this code in your work, you can cite the following publication:
+Plain text: Bhat I, Kuijf HJ, Viergever MA, Pluim JPW. Influence of learned landmark correspondences on lung CT registration. Med Phys. 2024; 1-16. https://doi.org/10.1002/mp.17120 
+BibTex:
+@article{https://doi.org/10.1002/mp.17120,
+author = {Bhat, Ishaan and Kuijf, Hugo J. and Viergever, Max A. and Pluim, Josien P. W.},
+title = {Influence of learned landmark correspondences on lung CT registration},
+journal = {Medical Physics},
+volume = {n/a},
+number = {n/a},
+pages = {},
+keywords = {deep learning, image registration, landmark correspondence},
+doi = {https://doi.org/10.1002/mp.17120},
+url = {https://aapm.onlinelibrary.wiley.com/doi/abs/10.1002/mp.17120},
+eprint = {https://aapm.onlinelibrary.wiley.com/doi/pdf/10.1002/mp.17120},
+}
+
 
 ## Useful links
+* [Open Access link to paper](https://aapm.onlinelibrary.wiley.com/doi/pdf/10.1002/mp.17120)
 * [Elastix manual](https://elastix.lumc.nl/download/elastix-5.1.0-manual.pdf)
 * [Using gryds to deform images](https://github.com/tueimage/gryds/blob/master/notebooks/tutorial.ipynb)
 * [Why do we need landmarks?](https://iopscience.iop.org/article/10.1088/0266-5611/24/3/034008)
