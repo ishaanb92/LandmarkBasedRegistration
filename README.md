@@ -30,8 +30,11 @@ You will also need to install Elastix yourself from [here](http://elastix.lumc.n
 
 ## Citation
 If you use this code in your work, you can cite the following publication:
+
 Plain text: Bhat I, Kuijf HJ, Viergever MA, Pluim JPW. Influence of learned landmark correspondences on lung CT registration. Med Phys. 2024; 1-16. https://doi.org/10.1002/mp.17120 
+
 BibTex:
+
 @article{https://doi.org/10.1002/mp.17120,
 author = {Bhat, Ishaan and Kuijf, Hugo J. and Viergever, Max A. and Pluim, Josien P. W.},
 title = {Influence of learned landmark correspondences on lung CT registration},
